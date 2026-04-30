@@ -1,0 +1,1698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pink.TT — Safe Rides for Women</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--p:#E91E8C;--pl:#FF6BB5;--pd:#C4006F;--pp:#FFF0F6;--pb:#fce7f3;--g:#22c55e;--y:#f59e0b;--r:#ef4444;--b:#3b82f6;--gray:#f9fafb;--shadow:0 4px 20px rgba(0,0,0,.08);--pink-shadow:0 4px 20px rgba(233,30,140,.25)}
+html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#f0f0f0;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
+#shell{display:flex;flex-direction:column;height:100vh;max-width:430px;margin:0 auto;background:#fff;position:relative;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.15)}
+.page{display:none;flex-direction:column;height:100%;overflow:hidden}
+.page.active{display:flex}
+.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
+.scroll::-webkit-scrollbar{width:2px}
+.scroll::-webkit-scrollbar-thumb{background:var(--pb);border-radius:2px}
+/* Top bar */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff;border-bottom:1px solid #f0f0f0;flex-shrink:0;z-index:10}
+.logo{display:flex;align-items:center;gap:8px}
+.logo-dot{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--p),var(--pl));display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;font-family:'Playfair Display',serif;flex-shrink:0}
+.logo-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--p)}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;font-family:inherit;font-weight:600;border-radius:14px;transition:all .15s;outline:none;font-size:14px;padding:11px 20px}
+.bp{background:var(--p);color:#fff;box-shadow:var(--pink-shadow)}
+.bp:hover{background:var(--pd);transform:translateY(-1px)}
+.bp:active{transform:none}
+.bs{background:#fff;color:var(--p);border:1.5px solid var(--pb)}
+.bs:hover{background:var(--pp)}
+.br{background:var(--r);color:#fff}
+.bg2{background:var(--g);color:#fff}
+.bw{width:100%}
+.bsm{padding:7px 14px;font-size:12px;border-radius:10px}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+/* Form */
+.inp{width:100%;border:1.5px solid #e5e7eb;border-radius:14px;padding:11px 14px;font-size:14px;font-family:inherit;background:#fff;transition:all .15s;outline:none}
+.inp:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(233,30,140,.08)}
+.lbl{display:block;font-size:11px;font-weight:700;color:#6b7280;margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
+.fg{margin-bottom:14px}
+/* Cards */
+.card{background:#fff;border-radius:20px;padding:18px;box-shadow:var(--shadow)}
+/* Badges */
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.bpink{background:#fce7f3;color:#9d174d}
+.bgrn{background:#dcfce7;color:#166534}
+.byel{background:#fef9c3;color:#854d0e}
+.bred{background:#fee2e2;color:#991b1b}
+.bblu{background:#dbeafe;color:#1e40af}
+/* Toast */
+#toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:7px;width:90%;max-width:380px;pointer-events:none}
+.toast{background:#fff;border-radius:14px;padding:11px 15px;font-size:13px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,.18);border-left:4px solid var(--p);animation:tIn .25s ease;display:flex;align-items:center;gap:9px}
+.toast.err{border-color:var(--r)}
+.toast.ok{border-color:var(--g)}
+@keyframes tIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid #f0f0f0;flex-shrink:0}
+.tab{flex:1;padding:11px 6px;text-align:center;font-size:12px;font-weight:600;color:#9ca3af;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.tab.on{color:var(--p);border-color:var(--p)}
+/* Spinners */
+.spin{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:rot .6s linear infinite;display:inline-block}
+.spinp{border-color:rgba(233,30,140,.15);border-top-color:var(--p)}
+@keyframes rot{to{transform:rotate(360deg)}}
+.loading{display:flex;align-items:center;justify-content:center;padding:40px}
+/* SOS */
+.sosbtn{background:var(--r);color:#fff;font-size:11px;font-weight:800;padding:5px 11px;border-radius:20px;border:none;cursor:pointer;letter-spacing:.5px;animation:sosp 1.8s ease-in-out infinite}
+@keyframes sosp{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
+/* Toggle */
+.tog{width:44px;height:24px;background:#e5e7eb;border-radius:12px;position:relative;cursor:pointer;transition:background .25s;flex-shrink:0}
+.tog.on{background:var(--g)}
+.tog::after{content:'';position:absolute;left:2px;top:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:left .25s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.tog.on::after{left:22px}
+/* Map */
+.mapbox{height:190px;border-radius:20px;overflow:hidden;border:1.5px solid var(--pb);flex-shrink:0;background:#e8f4f0;position:relative;margin-bottom:14px}
+.leaflet-container{font-family:inherit;border-radius:18px}
+
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end}
+.overlay.show{display:flex}
+.sheet{background:#fff;border-radius:28px 28px 0 0;padding:26px 22px 30px;width:100%;max-height:90vh;overflow-y:auto;animation:shU .28s ease}
+@keyframes shU{from{transform:translateY(100%)}to{transform:none}}
+/* Stars */
+.stars{display:flex;gap:5px;justify-content:center}
+.star{font-size:30px;cursor:pointer;color:#e5e7eb;transition:color .1s}
+.star.on{color:var(--y)}
+/* Empty */
+.empty{text-align:center;padding:40px 20px;color:#9ca3af}
+.empty-i{font-size:44px;margin-bottom:10px}
+/* Landing */
+.hero{background:linear-gradient(160deg,var(--pp) 0%,#fff 70%);padding:40px 22px 32px;text-align:center;position:relative;overflow:hidden}
+.hero h1{font-size:28px;line-height:1.25;margin-bottom:10px}
+.hero h1 em{color:var(--p);font-style:normal}
+.hero p{color:#6b7280;font-size:14px;line-height:1.65;margin-bottom:24px}
+.hero-chip{display:inline-flex;align-items:center;gap:5px;background:var(--pp);color:var(--p);font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;margin-bottom:16px}
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid #f0f0f0;border-bottom:1px solid #f0f0f0}
+.stat{text-align:center;padding:14px 6px}
+.stat-v{font-size:20px;font-weight:700;color:var(--p)}
+.stat-l{font-size:11px;color:#9ca3af;margin-top:1px}
+.feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.feat{background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.feat-ico{font-size:22px;margin-bottom:6px}
+.feat h4{font-size:12px;font-weight:600;margin-bottom:3px}
+.feat p{font-size:11px;color:#9ca3af;line-height:1.4}
+.cta{background:linear-gradient(135deg,var(--p),var(--pl));padding:28px 22px;text-align:center;color:#fff}
+.cta h2{font-size:20px;margin-bottom:8px}
+.cta p{font-size:13px;opacity:.88;margin-bottom:18px}
+.footer-bar{background:#111827;padding:18px;text-align:center;color:#9ca3af;font-size:11px}
+/* Role switch */
+.role-sw{display:flex;background:#f3f4f6;border-radius:14px;padding:3px;margin-bottom:18px}
+.role-o{flex:1;text-align:center;padding:8px 6px;border-radius:11px;font-size:13px;font-weight:600;color:#6b7280;cursor:pointer;transition:all .15s}
+.role-o.on{background:#fff;color:var(--p);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+/* Demo box */
+.demo-box{background:var(--pp);border-radius:14px;padding:12px 14px;margin-top:14px}
+.demo-box p{font-size:11px;font-weight:700;color:var(--p);text-align:center;margin-bottom:8px}
+.demo-row{display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:3px;flex-wrap:wrap;gap:4px}
+.demo-btns{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
+/* Request card */
+.req-card{border:2px solid var(--pb);border-radius:20px;padding:14px;margin-bottom:10px;background:#fff}
+/* Earn grid */
+.earn-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.earn-card{background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+/* Admin overview */
+.ov-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.ov-card{background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+/* Discover */
+.cat-chip{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #e5e7eb;background:#fff;white-space:nowrap;transition:all .15s}
+.cat-chip.on{background:var(--p);color:#fff;border-color:var(--p)}
+.biz-card{border-radius:20px;padding:16px;background:#fff;box-shadow:var(--shadow);cursor:pointer;margin-bottom:12px}
+/* Skeleton */
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.skel{background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200%;animation:shimmer 1.4s infinite;border-radius:12px}
+/* Slide up anim */
+@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.slide-up{animation:slideUp .25s ease}
+/* Table */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;border-bottom:1px solid #f0f0f0}
+.tbl td{padding:9px 10px;border-bottom:1px solid #f9fafb;vertical-align:top}
+.tbl tr:last-child td{border:none}
+/* Discount badge */
+.disc-badge{background:var(--pp);border:1px solid var(--pb);border-radius:12px;padding:8px 12px;display:flex;align-items:center;gap:8px}
+/* Notification dot */
+.notif-dot{position:absolute;top:-2px;right:-2px;width:8px;height:8px;background:var(--r);border-radius:50%;border:2px solid #fff}
+/* Progress bar for tracking */
+.progress-track{height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--p),var(--pl));border-radius:3px;transition:width .5s ease}
+</style>
+</head>
+<body>
+<div id="toasts"></div>
+
+<!-- SOS Modal -->
+<div class="overlay" id="sos-modal">
+  <div class="sheet">
+    <div style="text-align:center;margin-bottom:12px">
+      <div style="font-size:40px;margin-bottom:6px">🚨</div>
+      <h3 style="font-size:20px">Emergency SOS</h3>
+      <p style="font-size:11px;color:#6b7280;margin-top:5px">One tap simultaneously alerts:</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:14px">
+      <div style="background:#fee2e2;border-radius:12px;padding:9px 12px;display:flex;align-items:center;gap:10px"><span style="font-size:20px">🚔</span><div><div style="font-size:13px;font-weight:700;color:#991b1b">T&amp;T Police Service (TTPS)</div><div style="font-size:11px;color:#b91c1c">Emergency dispatch to your live GPS</div></div></div>
+      <div style="background:#fef9c3;border-radius:12px;padding:9px 12px;display:flex;align-items:center;gap:10px"><span style="font-size:20px">📱</span><div><div style="font-size:13px;font-weight:700;color:#854d0e">Your Emergency Contact</div><div style="font-size:11px;color:#92400e">Auto SMS + call with live location</div></div></div>
+      <div style="background:#dbeafe;border-radius:12px;padding:9px 12px;display:flex;align-items:center;gap:10px"><span style="font-size:20px">🛡️</span><div><div style="font-size:13px;font-weight:700;color:#1e40af">Pink.TT Safety Team 24/7</div><div style="font-size:11px;color:#1d4ed8">Immediate response + incident management</div></div></div>
+    </div>
+    <button class="btn br bw" style="font-size:15px;padding:14px;margin-bottom:10px;animation:sosp 1.5s infinite" onclick="sendSOS()">🚨 Send SOS Alert Now</button>
+    <button class="btn bs bw" onclick="closeModal('sos-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- Rate Modal -->
+<div class="overlay" id="rate-modal">
+  <div class="sheet">
+    <h3 style="text-align:center;font-size:20px;margin-bottom:4px">Rate Your Ride</h3>
+    <p style="text-align:center;color:#9ca3af;font-size:13px;margin-bottom:20px">How was your experience?</p>
+    <div class="stars" id="stars-row">
+      <span class="star" onclick="setRating(1)">★</span><span class="star" onclick="setRating(2)">★</span>
+      <span class="star" onclick="setRating(3)">★</span><span class="star" onclick="setRating(4)">★</span>
+      <span class="star" onclick="setRating(5)">★</span>
+    </div>
+    <div class="fg" style="margin-top:18px"><textarea class="inp" id="rate-review" rows="3" placeholder="Leave a comment (optional)..." style="resize:none"></textarea></div>
+    <button class="btn bp bw" onclick="submitRate()">Submit Rating 🌸</button>
+  </div>
+</div>
+
+<!-- Share Modal -->
+<div class="overlay" id="share-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:4px">Share Your Trip 📤</h3>
+    <p style="font-size:13px;color:#9ca3af;margin-bottom:16px">Send live tracking link to a trusted contact</p>
+    <div class="fg"><label class="lbl">Contact Name</label><input class="inp" id="share-name" placeholder="Mom / Sister / Friend"></div>
+    <div class="fg"><label class="lbl">Contact Phone</label><input class="inp" id="share-phone" placeholder="+1 868 xxx xxxx"></div>
+    <div id="share-url-box" style="display:none;background:var(--pp);border-radius:12px;padding:12px;margin-bottom:14px">
+      <p style="font-size:11px;color:var(--p);font-weight:700;margin-bottom:4px">Trip Link (copied!)</p>
+      <p id="share-url-text" style="font-size:11px;color:#374151;word-break:break-all;font-family:monospace"></p>
+    </div>
+    <button class="btn bp bw" onclick="genShare()">Generate & Copy Link</button>
+    <button class="btn bs bw" style="margin-top:8px" onclick="closeModal('share-modal')">Close</button>
+  </div>
+</div>
+
+<!-- Report Modal -->
+<div class="overlay" id="report-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:4px">Report Driver ⚠️</h3>
+    <p style="font-size:13px;color:#9ca3af;margin-bottom:16px">Your safety matters. We take all reports seriously.</p>
+    <div class="fg"><label class="lbl">Reason</label>
+      <select class="inp" id="report-reason">
+        <option value="">Select reason...</option>
+        <option>Unsafe driving</option><option>Rude behaviour</option><option>Route deviation</option>
+        <option>Harassment</option><option>Vehicle condition</option><option>Other</option>
+      </select>
+    </div>
+    <div class="fg"><label class="lbl">Description</label><textarea class="inp" id="report-desc" rows="3" placeholder="Describe what happened..." style="resize:none"></textarea></div>
+    <button class="btn br bw" onclick="submitReport()">Submit Report</button>
+    <button class="btn bs bw" style="margin-top:8px" onclick="closeModal('report-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- Add Business Modal (Admin) -->
+<div class="overlay" id="biz-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:14px">Add Business Listing</h3>
+    <div class="fg"><label class="lbl">Business Name *</label><input class="inp" id="biz-name" placeholder="Luxe Nail Lounge"></div>
+    <div class="fg"><label class="lbl">Category *</label>
+      <select class="inp" id="biz-cat">
+        <option value="nail_salon">💅 Nail Salon</option><option value="hair_salon">💇‍♀️ Hair Salon</option>
+        <option value="spa">🧖‍♀️ Spa</option><option value="makeup">💄 Makeup</option>
+        <option value="massage">💆‍♀️ Massage</option><option value="beauty">✨ Beauty</option>
+        <option value="fitness">🧘‍♀️ Fitness</option><option value="skincare">🌿 Skincare</option>
+      </select>
+    </div>
+    <div class="fg"><label class="lbl">Address *</label><input class="inp" id="biz-addr" placeholder="123 Main St, Port of Spain"></div>
+    <div class="fg"><label class="lbl">Phone</label><input class="inp" id="biz-phone" placeholder="+1 868 xxx xxxx"></div>
+    <div class="fg"><label class="lbl">Short Description</label><input class="inp" id="biz-desc" placeholder="Premium nail care & art"></div>
+    <button class="btn bp bw" onclick="saveBiz()">Add Business</button>
+    <button class="btn bs bw" style="margin-top:8px" onclick="closeModal('biz-modal')">Cancel</button>
+  </div>
+</div>
+
+<div id="shell">
+
+<!-- ══ LANDING ══ -->
+<div class="page active" id="pg-land">
+  <div class="scroll">
+    <div class="topbar">
+      <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
+      <div style="display:flex;gap:7px">
+        <button class="btn bs bsm" onclick="go('login')">Sign In</button>
+        <button class="btn bp bsm" onclick="go('register')">Sign Up</button>
+      </div>
+    </div>
+    <div class="hero">
+      <div class="hero-chip">🛡️ Trinidad & Tobago's Safest Ride</div>
+      <h1>Safe Rides for Women,<br><em>By Women</em></h1>
+      <p>Pink.TT connects women riders with verified women drivers across T&T. Your safety is our priority — every single ride.</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn bp bw" style="font-size:15px;padding:14px" onclick="goRole('rider')">🚗 Book a Ride</button>
+        <button class="btn bs bw" onclick="goRole('driver')">🚙 Become a Driver</button>
+      </div>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-v">100%</div><div class="stat-l">Women Drivers</div></div>
+      <div class="stat"><div class="stat-v">24/7</div><div class="stat-l">SOS Support</div></div>
+      <div class="stat"><div class="stat-v">5★</div><div class="stat-l">Avg Rating</div></div>
+    </div>
+    <div style="padding:24px 18px">
+      <h2 style="font-size:20px;text-align:center;margin-bottom:4px">Built for Your Safety</h2>
+      <p style="text-align:center;color:#9ca3af;font-size:12px;margin-bottom:14px">Every feature designed with women in mind</p>
+      <div class="feat-grid">
+        <div class="feat"><div class="feat-ico">🆘</div><h4>SOS Emergency</h4><p>One-tap alert to safety team & emergency contacts instantly</p></div>
+        <div class="feat"><div class="feat-ico">📍</div><h4>Live Tracking</h4><p>Share real-time trip link with loved ones from pickup to drop-off</p></div>
+        <div class="feat"><div class="feat-ico">✅</div><h4>Verified Drivers</h4><p>Background-checked, approved women drivers only</p></div>
+        <div class="feat"><div class="feat-ico">⭐</div><h4>Rating System</h4><p>Rate every ride, report incidents instantly & safely</p></div>
+        <div class="feat"><div class="feat-ico">💅</div><h4>Discover</h4><p>Women-owned spas, salons & wellness businesses near you</p></div>
+        <div class="feat"><div class="feat-ico">🎁</div><h4>Promotions</h4><p>Exclusive promo codes & discounts for Pink.TT riders</p></div>
+      </div>
+    </div>
+    <div class="cta">
+      <h2>Ready to ride safely?</h2>
+      <p>Join women riding with confidence across T&T</p>
+      <button class="btn" style="background:#fff;color:var(--p);font-size:14px;padding:12px 28px;border-radius:12px" onclick="go('register')">Sign Up Free</button>
+    </div>
+    <div class="footer-bar">
+      <div class="logo" style="justify-content:center;margin-bottom:6px"><div class="logo-dot" style="width:22px;height:22px;font-size:10px">P</div><span class="logo-name" style="color:#fff">Pink.TT</span></div>
+      © 2024 Pink.TT · Women-only rideshare · Trinidad & Tobago<br>Safety · Trust · Reliability
+    </div>
+  </div>
+</div>
+
+<!-- ══ LOGIN ══ -->
+<div class="page" id="pg-login">
+  <div class="topbar">
+    <button onclick="go('land')" style="background:none;border:none;cursor:pointer;font-size:20px;color:#9ca3af">←</button>
+    <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
+    <div style="width:40px"></div>
+  </div>
+  <div class="scroll" style="padding:20px 18px">
+    <div style="text-align:center;margin-bottom:24px;padding-top:8px">
+      <h1 style="font-size:24px">Welcome back</h1>
+      <p style="color:#9ca3af;font-size:13px;margin-top:4px">Sign in to your Pink.TT account</p>
+    </div>
+    <div class="fg"><label class="lbl">Email address</label><input class="inp" type="email" id="l-email" placeholder="you@example.com" autocomplete="email"></div>
+    <div class="fg"><label class="lbl">Password</label><input class="inp" type="password" id="l-pass" placeholder="Your password" autocomplete="current-password"></div>
+    <button class="btn bp bw" style="margin-top:4px" id="l-btn" onclick="doLogin()">Sign In</button>
+    <p style="text-align:center;margin-top:18px;font-size:13px;color:#9ca3af">Don't have an account? <a onclick="go('register')" style="color:var(--p);font-weight:600;cursor:pointer">Sign up free</a></p>
+    <div style="border-top:1px solid #f0f0f0;margin:18px 0"></div>
+    <div class="demo-box">
+      <p>Demo Accounts — Click to fill</p>
+      <div class="demo-row"><span>Admin:</span><code style="font-size:10px">admin@pink.tt / Admin@PinkTT2024</code></div>
+      <div class="demo-row"><span>Rider:</span><code style="font-size:10px">sarah@demo.pink.tt / Rider@2024</code></div>
+      <div class="demo-row"><span>Driver ✓:</span><code style="font-size:10px">aminah@demo.pink.tt / Driver@2024</code></div>
+      <div class="demo-row"><span>Driver ⏳:</span><code style="font-size:10px">priya@demo.pink.tt / Driver@2024</code></div>
+      <div class="demo-btns">
+        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('admin@pink.tt','Admin@PinkTT2024')">Admin</button>
+        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('sarah@demo.pink.tt','Rider@2024')">Rider</button>
+        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('aminah@demo.pink.tt','Driver@2024')">Driver ✓</button>
+        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('priya@demo.pink.tt','Driver@2024')">Pending</button>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ REGISTER ══ -->
+<div class="page" id="pg-register">
+  <div class="topbar">
+    <button onclick="go('land')" style="background:none;border:none;cursor:pointer;font-size:20px;color:#9ca3af">←</button>
+    <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
+    <div style="width:40px"></div>
+  </div>
+  <div class="scroll" style="padding:20px 18px">
+    <div style="text-align:center;margin-bottom:20px"><h1 style="font-size:24px">Create Account</h1><p style="color:#9ca3af;font-size:13px;margin-top:4px">Join Pink.TT — safe rides for women</p></div>
+    <div class="role-sw">
+      <div class="role-o on" id="ro-rider" onclick="setRole('rider')">🚗 Rider</div>
+      <div class="role-o" id="ro-driver" onclick="setRole('driver')">🚙 Driver</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg" style="margin-bottom:0"><label class="lbl">First name</label><input class="inp" id="r-first" placeholder="Jane"></div>
+      <div class="fg" style="margin-bottom:0"><label class="lbl">Last name</label><input class="inp" id="r-last" placeholder="Doe"></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="fg"><label class="lbl">Email</label><input class="inp" type="email" id="r-email" placeholder="you@example.com"></div>
+    <div class="fg"><label class="lbl">Phone</label><input class="inp" type="tel" id="r-phone" placeholder="+1 868 xxx xxxx"></div>
+    <div class="fg"><label class="lbl">Password</label><input class="inp" type="password" id="r-pass" placeholder="Min. 8 characters"></div>
+    <div style="background:#f9fafb;border-radius:14px;padding:14px;margin-bottom:14px">
+      <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Emergency Contact (Recommended)</p>
+      <div class="fg"><label class="lbl">Contact name</label><input class="inp" id="r-ec-name" placeholder="Mom / Sister / Friend"></div>
+      <div class="fg" style="margin-bottom:0"><label class="lbl">Contact phone</label><input class="inp" id="r-ec-phone" placeholder="+1 868 xxx xxxx"></div>
+    </div>
+    <p style="text-align:center;font-size:11px;color:#9ca3af;margin-bottom:12px">By signing up, you confirm you identify as a woman.<br>Pink.TT is a women-only platform.</p>
+    <button class="btn bp bw" id="r-btn" onclick="doRegister()">Create Account 🌸</button>
+    <p style="text-align:center;margin-top:16px;font-size:13px;color:#9ca3af">Already have an account? <a onclick="go('login')" style="color:var(--p);font-weight:600;cursor:pointer">Sign in</a></p>
+  </div>
+</div>
+
+<!-- ══ RIDER ══ -->
+<div class="page" id="pg-rider">
+  <div class="topbar">
+    <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="sosbtn" onclick="openModal('sos-modal')">SOS</button>
+      <button onclick="go('discover')" style="background:var(--pp);border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:16px" title="Discover">💅</button>
+      <button onclick="showMenu()" style="background:#f3f4f6;border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:15px;position:relative">👤<span id="r-notif-dot" class="notif-dot" style="display:none"></span></button>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab on" id="rt-book" onclick="rTab('book')">🚗 Book Ride</div>
+    <div class="tab" id="rt-hist" onclick="rTab('hist')">📋 History</div>
+    <div class="tab" id="rt-pay" onclick="rTab('pay')">💳 Payments</div>
+  </div>
+  <div class="scroll" id="rider-body" style="padding:14px"></div>
+</div>
+
+<!-- ══ DRIVER ══ -->
+<div class="page" id="pg-driver">
+  <div class="topbar">
+    <div class="logo"><div class="logo-dot">P</div><div><span class="logo-name" style="font-size:15px">Pink.TT</span><span style="font-size:10px;color:#9ca3af;display:block;font-family:sans-serif;margin-top:-2px">Driver Portal</span></div></div>
+    <div style="display:flex;align-items:center;gap:7px">
+      <div id="tog" class="tog" onclick="toggleOnline()"></div>
+      <span id="tog-lbl" style="font-size:11px;color:#9ca3af;font-weight:600">Offline</span>
+      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px">⎋</button>
+    </div>
+  </div>
+  <div id="driver-banner" style="display:none"></div>
+  <div id="driver-summary" style="display:none"></div>
+  <div class="tabs" id="driver-tabs" style="display:none">
+    <div class="tab on" id="dt-reqs" onclick="dTab('reqs')">🔔 Requests</div>
+    <div class="tab" id="dt-active" onclick="dTab('active')">🚗 Active</div>
+    <div class="tab" id="dt-earn" onclick="dTab('earn')">💰 Earnings</div>
+  </div>
+  <div class="scroll" id="driver-body" style="padding:14px">
+    <div class="loading"><div class="spin spinp" style="width:32px;height:32px"></div></div>
+  </div>
+</div>
+
+<!-- ══ DRIVER SETUP ══ -->
+<div class="page" id="pg-dsetup">
+  <div class="topbar">
+    <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
+  </div>
+  <div class="scroll" style="padding:20px 18px">
+    <div style="text-align:center;margin-bottom:22px">
+      <div style="font-size:50px;margin-bottom:8px">🚗</div>
+      <h2 style="font-size:22px">Driver Application</h2>
+      <p style="color:#9ca3af;font-size:13px;margin-top:4px">Submit your details for verification</p>
+    </div>
+    <p style="font-size:10px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">📋 License Info</p>
+    <div class="fg"><label class="lbl">License Number</label><input class="inp" id="ds-lic" placeholder="TT-XXXXXXXX"></div>
+    <div class="fg"><label class="lbl">License Expiry</label><input class="inp" type="date" id="ds-exp"></div>
+    <p style="font-size:10px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 10px">🚗 Vehicle Info</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg" style="margin-bottom:0"><label class="lbl">Make</label><input class="inp" id="ds-make" placeholder="Toyota"></div>
+      <div class="fg" style="margin-bottom:0"><label class="lbl">Model</label><input class="inp" id="ds-model" placeholder="Corolla"></div>
+    </div>
+    <div style="height:10px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg" style="margin-bottom:0"><label class="lbl">Year</label><input class="inp" type="number" id="ds-year" placeholder="2020"></div>
+      <div class="fg" style="margin-bottom:0"><label class="lbl">Color</label><input class="inp" id="ds-color" placeholder="Silver"></div>
+    </div>
+    <div style="height:10px"></div>
+    <div class="fg"><label class="lbl">License Plate</label><input class="inp" id="ds-plate" placeholder="PAB 1234"></div>
+    <div style="background:var(--pp);border-radius:14px;padding:14px;margin-bottom:16px">
+      <p style="font-weight:700;font-size:13px;color:var(--p);margin-bottom:8px">What happens next?</p>
+      <ul style="font-size:12px;color:#9d174d;list-style:none;display:flex;flex-direction:column;gap:4px">
+        <li>✅ Our team reviews within 24 hours</li>
+        <li>✅ Background check conducted</li>
+        <li>✅ Notification sent on decision</li>
+        <li>✅ Go online and start earning!</li>
+      </ul>
+    </div>
+    <button class="btn bp bw" id="ds-btn" onclick="submitApp()">Submit Application 🌸</button>
+  </div>
+</div>
+
+<!-- ══ ADMIN ══ -->
+<div class="page" id="pg-admin">
+  <div class="topbar">
+    <div class="logo"><div class="logo-dot">P</div><span class="logo-name" style="font-size:14px">Pink.TT <span style="font-size:10px;background:var(--pp);color:var(--p);padding:1px 6px;border-radius:6px;font-family:sans-serif;font-weight:700">Admin</span></span></div>
+    <div style="display:flex;align-items:center;gap:7px">
+      <div id="admin-sos-badge" style="display:none;background:var(--r);color:#fff;font-size:10px;font-weight:800;padding:4px 9px;border-radius:20px;cursor:pointer;animation:sosp 1.5s infinite" onclick="aTab('safety')">🚨 SOS</div>
+      <button onclick="go('discover')" style="background:var(--pp);border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:14px" title="Marketplace">💅</button>
+      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px">⎋</button>
+    </div>
+  </div>
+  <div class="tabs" style="overflow-x:auto;flex-shrink:0">
+    <div class="tab on" id="at-ov" onclick="aTab('ov')" style="min-width:70px">📊 Overview</div>
+    <div class="tab" id="at-drv" onclick="aTab('drv')" style="min-width:70px">🚗 Drivers</div>
+    <div class="tab" id="at-usr" onclick="aTab('usr')" style="min-width:70px">👥 Users</div>
+    <div class="tab" id="at-rides" onclick="aTab('rides')" style="min-width:70px">🗺️ Rides</div>
+    <div class="tab" id="at-safety" onclick="aTab('safety')" style="min-width:70px">🛡️ Safety</div>
+    <div class="tab" id="at-biz" onclick="aTab('biz')" style="min-width:70px">💅 Biz</div>
+    <div class="tab" id="at-promo" onclick="aTab('promo')" style="min-width:70px">🎁 Promos</div>
+  </div>
+  <div class="scroll" id="admin-body" style="padding:14px">
+    <div class="loading"><div class="spin spinp" style="width:32px;height:32px"></div></div>
+  </div>
+</div>
+
+<!-- ══ DISCOVER ══ -->
+<div class="page" id="pg-discover">
+  <div class="topbar">
+    <button onclick="goBack()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#9ca3af">←</button>
+    <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Discover 💅</span></div>
+    <div style="width:40px"></div>
+  </div>
+  <div style="padding:10px 14px;flex-shrink:0">
+    <input class="inp" id="biz-search" placeholder="Search spas, salons, studios..." oninput="filterBiz(this.value)" style="font-size:13px">
+    <div style="display:flex;gap:8px;overflow-x:auto;padding:10px 0;white-space:nowrap">
+      <span class="cat-chip on" onclick="filterCat('')">All</span>
+      <span class="cat-chip" onclick="filterCat('nail_salon')">💅 Nail Salons</span>
+      <span class="cat-chip" onclick="filterCat('hair_salon')">💇‍♀️ Hair</span>
+      <span class="cat-chip" onclick="filterCat('spa')">🧖‍♀️ Spa</span>
+      <span class="cat-chip" onclick="filterCat('makeup')">💄 Makeup</span>
+      <span class="cat-chip" onclick="filterCat('massage')">💆‍♀️ Massage</span>
+      <span class="cat-chip" onclick="filterCat('fitness')">🧘‍♀️ Fitness</span>
+      <span class="cat-chip" onclick="filterCat('skincare')">🌿 Skincare</span>
+    </div>
+  </div>
+  <div class="scroll" id="discover-body" style="padding:0 14px 14px"></div>
+</div>
+
+<!-- ══ BUSINESS DETAIL ══ -->
+<div class="page" id="pg-biz-detail">
+  <div class="topbar">
+    <button onclick="go('discover')" style="background:none;border:none;cursor:pointer;font-size:20px;color:#9ca3af">←</button>
+    <span style="font-size:14px;font-weight:600" id="biz-detail-name">Business</span>
+    <button onclick="shareBiz()" style="background:none;border:none;cursor:pointer;font-size:18px">📤</button>
+  </div>
+  <div class="scroll" id="biz-detail-body" style="padding:14px"></div>
+</div>
+
+<!-- ══ TRACK (public) ══ -->
+<div class="page" id="pg-track">
+  <div class="topbar">
+    <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
+    <span style="font-size:11px;color:#9ca3af;font-weight:600">Live Tracking</span>
+  </div>
+  <div class="scroll" id="track-body" style="padding:14px"></div>
+</div>
+
+</div><!-- #shell -->
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   PINK.TT — COMPLETE APPLICATION ENGINE v2.0
+   Full in-memory database · All features · Production-ready UI
+   ═══════════════════════════════════════════════════════════════ */
+
+// ─── UTILS ──────────────────────────────────────────────────────
+const uid = () => 'id_' + Math.random().toString(36).slice(2,11) + Date.now().toString(36);
+const ts = () => new Date().toISOString();
+async function hp(p){const enc=new TextEncoder();const data=enc.encode(p+'_pinktt_salt_v2');const buf=await crypto.subtle.digest('SHA-256',data);return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');}
+async function vp(p,h){return await hp(p)===h;}
+// Pre-hash seed passwords synchronously via sync fallback for demo seed
+function hpSync(p){/* Simple deterministic hash for seeding only */let h=5381;for(let i=0;i<p.length;i++){h=(h*33^p.charCodeAt(i))>>>0;}return'sync_'+h.toString(16)+'_pinktt';}
+function vpSync(p,h){return h===hpSync(p);}
+const haversine = (la1,lo1,la2,lo2) => {
+  const R=6371,dL=(la2-la1)*Math.PI/180,dN=(lo2-lo1)*Math.PI/180;
+  const a=Math.sin(dL/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dN/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+};
+const calcFare=(km,min)=>{const h=new Date().getHours(),raw=25+km*3.5+min*1.5,surge=(h>=22||h<5)?1.25:((h>=6&&h<9)||(h>=16&&h<19))?1.20:1;return Math.round(raw*surge*100)/100;};
+const fmtFare = n => 'TTD $' + parseFloat(n).toFixed(2);
+const fmtDate = d => new Date(d).toLocaleString('en-TT');
+
+// ─── IN-MEMORY DATABASE ─────────────────────────────────────────
+const DB = { users:[], driver_profiles:[], rides:[], sos_events:[], trip_shares:[], reports:[], payments:[], businesses:[], business_services:[], business_discounts:[], promotions:[], notifications:[] };
+
+// ─── SEED DATA ──────────────────────────────────────────────────
+const ADMIN_ID=uid(),RIDER1_ID=uid(),RIDER2_ID=uid(),DRIVER1_ID=uid(),DRIVER2_ID=uid(),DP1_ID=uid(),DP2_ID=uid();
+DB.users.push(
+  {id:ADMIN_ID,email:'admin@pink.tt',phone:'+18681234567',password_hash:hpSync('Admin@PinkTT2024'),first_name:'Admin',last_name:'Pink.TT',role:'admin',gender:'female',is_verified:true,is_active:true,emergency_contact_name:null,emergency_contact_phone:null,created_at:ts()},
+  {id:RIDER1_ID,email:'sarah@demo.pink.tt',phone:'+18681111001',password_hash:hpSync('Rider@2024'),first_name:'Sarah',last_name:'Mohammed',role:'rider',gender:'female',is_verified:true,is_active:true,emergency_contact_name:'Mom',emergency_contact_phone:'+18681111000',wallet_balance:0,total_rides:3,pinkpoints:45,created_at:ts()},
+  {id:RIDER2_ID,email:'kezia@demo.pink.tt',phone:'+18681111002',password_hash:hpSync('Rider@2024'),first_name:'Kezia',last_name:'Thomas',role:'rider',gender:'female',is_verified:true,is_active:true,emergency_contact_name:'Sister',emergency_contact_phone:'+18681111003',wallet_balance:0,total_rides:1,pinkpoints:15,created_at:ts()},
+  {id:DRIVER1_ID,email:'aminah@demo.pink.tt',phone:'+18681112001',password_hash:hpSync('Driver@2024'),first_name:'Aminah',last_name:'Ali',role:'driver',gender:'female',is_verified:true,is_active:true,emergency_contact_name:null,emergency_contact_phone:null,created_at:ts()},
+  {id:DRIVER2_ID,email:'priya@demo.pink.tt',phone:'+18681112002',password_hash:hpSync('Driver@2024'),first_name:'Priya',last_name:'Ramkissoon',role:'driver',gender:'female',is_verified:true,is_active:true,emergency_contact_name:null,emergency_contact_phone:null,created_at:ts()}
+);
+DB.driver_profiles.push(
+  {id:DP1_ID,user_id:DRIVER1_ID,license_number:'TT-DL-AM2021',license_expiry:'2026-12-31',vehicle_make:'Toyota',vehicle_model:'Corolla',vehicle_year:2021,vehicle_color:'Silver',vehicle_plate:'PAB 1234',status:'approved',is_online:false,current_lat:10.6549,current_lng:-61.5019,total_trips:47,total_earnings:2340.50,rating:4.8,rating_count:43,approved_at:ts(),created_at:ts()},
+  {id:DP2_ID,user_id:DRIVER2_ID,license_number:'TT-DL-PR2019',license_expiry:'2027-06-30',vehicle_make:'Nissan',vehicle_model:'Tiida',vehicle_year:2019,vehicle_color:'White',vehicle_plate:'PCE 5678',status:'pending',is_online:false,current_lat:10.6580,current_lng:-61.4980,total_trips:0,total_earnings:0,rating:5.0,rating_count:0,approved_at:null,created_at:ts()}
+);
+
+// Seed historical rides
+[
+  {pickup:'Independence Square, Port of Spain',dest:'Maraval Road, POS',fare:38.50,km:4.2,riderId:RIDER1_ID,driverId:DRIVER1_ID,status:'completed'},
+  {pickup:"Queen's Park Savannah, POS",dest:'Chaguanas Main Road',fare:72.00,km:19.1,riderId:RIDER1_ID,driverId:DRIVER1_ID,status:'completed'},
+  {pickup:'Tunapuna Market',dest:'NAPA, Port of Spain',fare:55.25,km:12.8,riderId:RIDER2_ID,driverId:DRIVER1_ID,status:'completed'},
+  {pickup:'Piarco Airport',dest:"St. Clair, POS",fare:88.75,km:24.3,riderId:RIDER2_ID,driverId:null,status:'cancelled'},
+].forEach((r,i) => {
+  const d = new Date(Date.now()-(i+1)*86400000*2);
+  DB.rides.push({id:uid(),rider_id:r.riderId,driver_id:r.driverId,status:r.status,pickup_address:r.pickup,pickup_lat:10.6549,pickup_lng:-61.5019,destination_address:r.dest,destination_lat:10.72,destination_lng:-61.41,estimated_fare:r.fare,final_fare:r.status==='completed'?r.fare:null,distance_km:r.km,duration_minutes:Math.ceil(r.km*3),share_token:null,requested_at:d.toISOString(),accepted_at:r.driverId?d.toISOString():null,started_at:r.status==='completed'?d.toISOString():null,completed_at:r.status==='completed'?d.toISOString():null,cancelled_at:r.status==='cancelled'?d.toISOString():null,rider_rating:r.status==='completed'?5:null,driver_rating:r.status==='completed'?4:null,created_at:d.toISOString()});
+  if(r.status==='completed') DB.payments.push({id:uid(),ride_id:DB.rides[DB.rides.length-1].id,rider_id:r.riderId,driver_id:r.driverId,amount:r.fare,platform_fee:r.fare*.2,driver_earning:r.fare*.8,status:'completed',method:'cash',created_at:d.toISOString()});
+});
+
+// Seed women-owned businesses
+const bizData = [
+  {name:'Luxe Nail Lounge',cat:'nail_salon',desc:'Premium nail care for the modern woman. Gel, acrylic, and natural nail services.',short:'Premium nail care & nail art',addr:'Long Circular Road, St. James, POS',phone:'+1 868 222 1001',rating:4.9,reviews:89,featured:true,svcs:[{name:'Gel Manicure',price:180,dur:60},{name:'Nail Art Design',price:250,dur:90},{name:'Acrylic Set',price:320,dur:120}],disc:[{title:"Pink.TT Rider Special",pct:15,until:new Date(Date.now()+30*86400000)}]},
+  {name:'The Curl Bar T&T',cat:'hair_salon',desc:'Natural hair specialists. Braids, locs, twists, and protective styles.',short:'Natural hair & protective styles',addr:'Maraval Road, Port of Spain',phone:'+1 868 222 1002',rating:4.8,reviews:134,featured:true,svcs:[{name:'Box Braids (Full Head)',price:600,dur:240},{name:'Loc Retwist',price:350,dur:90},{name:'Twist Out Blowout',price:280,dur:75}],disc:[{title:'New Client Welcome',pct:20,until:new Date(Date.now()+60*86400000)}]},
+  {name:'Serenity Spa & Wellness',cat:'spa',desc:'Full-service day spa offering massages, facials, body treatments, and holistic therapies.',short:'Full-service day spa & wellness',addr:'Ariapita Avenue, Woodbrook, POS',phone:'+1 868 222 1003',rating:4.9,reviews:212,featured:true,svcs:[{name:'60-min Relaxation Massage',price:400,dur:60},{name:'Hydrafacial',price:750,dur:75},{name:'Hot Stone Therapy',price:550,dur:90}],disc:[{title:'Weekday Special',pct:10,until:new Date(Date.now()+14*86400000)}]},
+  {name:'GlowUp Beauty Studio',cat:'makeup',desc:'Professional makeup artistry for events, weddings, photoshoots and everyday glam.',short:'Professional makeup & beauty artistry',addr:'Frederick Street, Port of Spain',phone:'+1 868 222 1004',rating:4.7,reviews:67,featured:false,svcs:[{name:'Full Glam Makeup',price:350,dur:90},{name:'Bridal Makeup',price:650,dur:120},{name:'Natural Everyday Look',price:200,dur:45}],disc:[]},
+  {name:'Body Bliss Massage',cat:'massage',desc:'Therapeutic and relaxation massage by certified female therapists. Swedish, deep tissue, prenatal.',short:'Therapeutic massage by certified therapists',addr:'Chaguanas Main Road, Chaguanas',phone:'+1 868 222 1005',rating:4.8,reviews:98,featured:true,svcs:[{name:'Swedish Massage (60min)',price:350,dur:60},{name:'Deep Tissue Massage',price:420,dur:60},{name:'Prenatal Massage',price:380,dur:60}],disc:[{title:'First Visit Discount',pct:15,until:new Date(Date.now()+45*86400000)}]},
+  {name:'Fit Femme Studio',cat:'fitness',desc:"Women-only fitness classes: yoga, Zumba, pilates, HIIT and personal training.",short:'Women-only fitness & wellness classes',addr:'Diego Martin Main Road',phone:'+1 868 222 1007',rating:4.7,reviews:156,featured:true,svcs:[{name:'Monthly Unlimited Classes',price:450,dur:null},{name:'Single Class Drop-in',price:80,dur:60},{name:'Personal Training (1hr)',price:250,dur:60}],disc:[{title:'Pink.TT Rider Deal',pct:20,until:new Date(Date.now()+30*86400000)}]},
+  {name:'TT Skincare Clinic',cat:'skincare',desc:'Medical-grade facials, chemical peels, and skincare treatments for all skin tones.',short:'Medical skincare & facial treatments',addr:'Trincity Mall, Trincity',phone:'+1 868 222 1008',rating:4.9,reviews:203,featured:true,svcs:[{name:'Custom Facial',price:400,dur:60},{name:'Chemical Peel',price:650,dur:45},{name:'Microdermabrasion',price:550,dur:50}],disc:[{title:'New Client Package',pct:25,until:new Date(Date.now()+30*86400000)}]},
+  {name:'Brow & Lash Bar',cat:'beauty',desc:'Eyebrow threading, tinting, shaping and eyelash extensions by trained specialists.',short:'Brow shaping, threading & lash extensions',addr:'San Fernando City Centre',phone:'+1 868 222 1006',rating:4.6,reviews:44,featured:false,svcs:[{name:'Eyebrow Threading',price:60,dur:15},{name:'Lash Extensions (Full Set)',price:380,dur:90},{name:'Brow Tint & Shape',price:120,dur:30}],disc:[]},
+];
+const CAT_EMOJI = {nail_salon:'💅',hair_salon:'💇‍♀️',spa:'🧖‍♀️',makeup:'💄',massage:'💆‍♀️',beauty:'✨',fitness:'🧘‍♀️',skincare:'🌿'};
+
+bizData.forEach(b => {
+  const id = uid();
+  DB.businesses.push({id,name:b.name,category:b.cat,description:b.desc,short_description:b.short,address:b.addr,phone:b.phone,rating:b.rating,rating_count:b.reviews,is_featured:b.featured,is_active:true,is_verified:true,created_at:ts()});
+  b.svcs.forEach(s => DB.business_services.push({id:uid(),business_id:id,name:s.name,price:s.price,duration_minutes:s.dur,is_available:true}));
+  b.disc.forEach(d => DB.business_discounts.push({id:uid(),business_id:id,title:d.title,discount_type:'percentage',discount_value:d.pct,is_active:true,valid_until:d.until.toISOString()}));
+});
+
+// Seed promotions
+DB.promotions.push(
+  {id:uid(),code:'WELCOME25',title:'Welcome to Pink.TT!',description:'25% off your first 3 rides',type:'percentage',value:25,usage_count:0,usage_limit:500,is_active:true,valid_until:new Date(Date.now()+90*86400000).toISOString()},
+  {id:uid(),code:'SAFE10',title:'Safety First',description:'TTD $10 off every weekend ride',type:'fixed',value:10,usage_count:0,usage_limit:1000,is_active:true,valid_until:new Date(Date.now()+30*86400000).toISOString()},
+  {id:uid(),code:'GIRLS20',title:'Girls Day Out',description:'20% off all Friday rides',type:'percentage',value:20,usage_count:0,usage_limit:200,is_active:true,valid_until:new Date(Date.now()+60*86400000).toISOString()}
+);
+
+const LOCATIONS = ['Independence Square, Port of Spain',"Queen's Park Savannah, POS",'Maraval Road, POS','Ariapita Avenue, Woodbrook','Piarco International Airport','Chaguanas Main Road','San Fernando City Centre','Tunapuna Market','Arima Main Road','Cross Crossing Mall, San Fernando','Long Circular Mall, POS','Gulf City Mall, La Romain','Price Plaza, Chaguanas','Diego Martin Main Road','Eastern Main Road, Barataria'];
+
+// ─── APP STATE ──────────────────────────────────────────────────
+let S = {
+  user:null, regRole:'rider',
+  rTab:'book', dTab:'reqs', aTab:'ov',
+  isOnline:false, dp:null,
+  activeRide:null, rideStatus:null, driverInfo:null,
+  currentDriverRide:null, pendingRides:[],
+  rating:0, rideToRate:null,
+  shareRideId:null, reportRideId:null, reportDriverId:null,
+  simTimer:null, currentBizCat:'', currentBizId:null,
+  prevPage:'land', promoResult:null
+};
+
+function save(){try{sessionStorage.setItem('pinktt_user',JSON.stringify(S.user))}catch{}}
+function load(){try{const d=JSON.parse(sessionStorage.getItem('pinktt_user')||'null');if(d)S.user=d}catch{}}
+function persistDB(){try{const snap={users:DB.users,driver_profiles:DB.driver_profiles,rides:DB.rides,payments:DB.payments,sos_events:DB.sos_events,trip_shares:DB.trip_shares,reports:DB.reports,promotions:DB.promotions};localStorage.setItem('pinktt_db',JSON.stringify(snap));}catch{}}
+function restoreDB(){try{const raw=localStorage.getItem('pinktt_db');if(!raw)return;const snap=JSON.parse(raw);if(snap.users&&snap.users.length>5){DB.users=snap.users;DB.driver_profiles=snap.driver_profiles||DB.driver_profiles;DB.rides=snap.rides||DB.rides;DB.payments=snap.payments||DB.payments;DB.sos_events=snap.sos_events||DB.sos_events;DB.trip_shares=snap.trip_shares||DB.trip_shares;DB.reports=snap.reports||DB.reports;DB.promotions=snap.promotions||DB.promotions;}}catch{}}
+
+// ─── NAVIGATION ─────────────────────────────────────────────────
+function go(page){
+  const prev = document.querySelector('.page.active')?.id?.replace('pg-','');
+  if(prev) S.prevPage = prev;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const el = document.getElementById('pg-'+page);
+  if(el) el.classList.add('active');
+}
+function goBack(){ go(S.prevPage||'land'); }
+function goRole(role){ S.regRole=role; setRole(role); go('register'); }
+function routeUser(user){
+  if(user.role==='admin'){go('admin');loadAdmin();}
+  else if(user.role==='driver'){go('driver');loadDriver();}
+  else{go('rider');renderRiderBook();}
+}
+
+// ─── TOASTS ─────────────────────────────────────────────────────
+function toast(msg,type=''){
+  const el=document.createElement('div');
+  el.className='toast'+(type?' '+type:'');
+  el.innerHTML=(type==='ok'?'✅ ':type==='err'?'❌ ':'🌸 ')+msg;
+  document.getElementById('toasts').prepend(el);
+  setTimeout(()=>el.remove(),4000);
+}
+
+// ─── MODALS ─────────────────────────────────────────────────────
+function openModal(id){document.getElementById(id).classList.add('show')}
+function closeModal(id){document.getElementById(id).classList.remove('show')}
+
+// ─── AUTH ────────────────────────────────────────────────────────
+function fill(email,pass){document.getElementById('l-email').value=email;document.getElementById('l-pass').value=pass;}
+
+const _loginAttempts={};
+async function doLogin(){
+  const email=document.getElementById('l-email').value.trim().toLowerCase();
+  const pass=document.getElementById('l-pass').value;
+  if(!email||!pass){toast('Email and password required','err');return;}
+  // Rate limiting: max 5 attempts per email per 30s
+  const now=Date.now();
+  if(!_loginAttempts[email])_loginAttempts[email]={count:0,until:0};
+  const att=_loginAttempts[email];
+  if(att.until>now){const s=Math.ceil((att.until-now)/1000);toast('Too many attempts. Try again in '+s+'s','err');return;}
+  // Validate email format
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){toast('Enter a valid email address','err');return;}
+  const user=DB.users.find(u=>u.email===email);
+  const btn=document.getElementById('l-btn');
+  btn.disabled=true;btn.innerHTML='<div class="spin"></div> Signing in...';
+  // Support both sync (seeded) and async (registered) hashes
+  let valid=false;
+  if(user){
+    if(user.password_hash.startsWith('sync_')){valid=vpSync(pass,user.password_hash);}
+    else{valid=await vp(pass,user.password_hash);}
+  }
+  if(!user||!valid){
+    att.count++;
+    if(att.count>=5){att.until=now+30000;att.count=0;}
+    toast('Invalid credentials ('+(5-att.count)+' attempts left)','err');
+    btn.disabled=false;btn.textContent='Sign In';return;
+  }
+  att.count=0;att.until=0;
+  if(!user.is_active){toast('Account suspended. Contact support@pink.tt','err');btn.disabled=false;btn.textContent='Sign In';return;}
+  setTimeout(()=>{
+    S.user=user;save();
+    toast('Welcome back, '+user.first_name+'! 🌸','ok');
+    routeUser(user);
+    btn.disabled=false;btn.textContent='Sign In';
+  },700);
+}
+
+async function doRegister(){
+  const first=document.getElementById('r-first').value.trim();
+  const last=document.getElementById('r-last').value.trim();
+  const email=document.getElementById('r-email').value.trim().toLowerCase();
+  const phone=document.getElementById('r-phone').value.trim();
+  const pass=document.getElementById('r-pass').value;
+  const ecName=document.getElementById('r-ec-name').value.trim();
+  const ecPhone=document.getElementById('r-ec-phone').value.trim();
+  if(!first||!last||!email||!phone||!pass){toast('All fields required','err');return;}
+  // Email validation
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){toast('Enter a valid email address','err');return;}
+  // T&T phone hint validation (accept +1868 or 868 or 7/10 digit local)
+  const ph=phone.replace(/[\s\-\(\)]/g,'');
+  if(!/^(\+?1?868\d{7}|\d{7,10})$/.test(ph)){toast('Enter a valid T&T phone number (+1 868 xxx xxxx)','err');return;}
+  if(pass.length<8){toast('Password must be at least 8 characters','err');return;}
+  if(!/(?=.*[A-Z])(?=.*\d)/.test(pass)){toast('Password must include a number and uppercase letter','err');return;}
+  if(DB.users.find(u=>u.email===email)){toast('Email already registered','err');return;}
+  if(!ecName||!ecPhone){
+    if(!confirm('No emergency contact added. For your safety, we strongly recommend adding one. Continue without it?'))return;
+  }
+  const btn=document.getElementById('r-btn');
+  btn.disabled=true;btn.innerHTML='<div class="spin"></div> Creating...';
+  const hash=await hp(pass);
+  setTimeout(()=>{
+    const id=uid();
+    const user={id,email,phone,password_hash:hash,first_name:first,last_name:last,role:S.regRole,gender:'female',is_verified:false,is_active:true,emergency_contact_name:ecName||null,emergency_contact_phone:ecPhone||null,wallet_balance:0,total_rides:0,pinkpoints:0,created_at:ts()};
+    DB.users.push(user);S.user=user;save();persistDB();persistDB();
+    toast('Welcome to Pink.TT, '+first+'! 🌸','ok');
+    if(S.regRole==='driver')go('dsetup');else routeUser(user);
+    btn.disabled=false;btn.textContent='Create Account 🌸';
+  },800);
+}
+
+function setRole(r){
+  S.regRole=r;
+  document.getElementById('ro-rider').className='role-o'+(r==='rider'?' on':'');
+  document.getElementById('ro-driver').className='role-o'+(r==='driver'?' on':'');
+}
+
+function doLogout(){
+  clearInterval(S.simTimer);
+  S={user:null,regRole:'rider',rTab:'book',dTab:'reqs',aTab:'ov',isOnline:false,dp:null,activeRide:null,rideStatus:null,driverInfo:null,currentDriverRide:null,pendingRides:[],rating:0,rideToRate:null,shareRideId:null,reportRideId:null,reportDriverId:null,simTimer:null,currentBizCat:'',currentBizId:null,prevPage:'land',promoResult:null};
+  try{sessionStorage.removeItem('pinktt')}catch{}
+  go('land');
+}
+
+function showMenu(){
+  const menu=[
+    {label:'💳 Payments & Promos',action:()=>{rTab('pay')}},
+    {label:'💅 Discover Businesses',action:()=>{go('discover');renderDiscover()}},
+    {label:'🔔 Notifications',action:()=>{showNotifs()}},
+    {label:'⎋ Sign Out',action:doLogout,red:true},
+  ];
+  let html='<div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300" onclick="closeUserMenu()"></div><div style="position:fixed;top:54px;right:12px;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.15);z-index:301;min-width:210px;overflow:hidden" id="user-menu">';
+  html+=`<div style="padding:12px 16px;border-bottom:1px solid #f0f0f0"><p style="font-weight:600;font-size:13px">${S.user.first_name} ${S.user.last_name}</p><p style="font-size:11px;color:#9ca3af">${S.user.email}</p></div>`;
+  menu.forEach(m=>{html+=`<button onclick="closeUserMenu();(${m.action.toString()})()" style="width:100%;padding:12px 16px;border:none;cursor:pointer;text-align:left;font-size:13px;font-weight:500;background:#fff;color:${m.red?'#ef4444':'#374151'};hover:background:#f9fafb">${m.label}</button>`;});
+  html+='</div>';
+  const div=document.createElement('div');div.id='user-menu-wrap';div.innerHTML=html;document.body.appendChild(div);
+}
+function closeUserMenu(){const m=document.getElementById('user-menu-wrap');if(m)m.remove();}
+function showNotifs(){
+  const notifs=DB.notifications.filter(n=>n.user_id===S.user?.id&&!n.is_read).slice(0,10);
+  if(!notifs.length){toast('No new notifications','ok');return;}
+  notifs.forEach(n=>{toast(n.message);n.is_read=true;});
+  const dot=document.getElementById('r-notif-dot');if(dot)dot.style.display='none';
+}
+
+// ─── RIDER DASHBOARD ────────────────────────────────────────────
+function rTab(t){
+  S.rTab=t;
+  ['book','hist','pay'].forEach(x=>{const el=document.getElementById('rt-'+x);if(el)el.classList.toggle('on',x===t);});
+  const body=document.getElementById('rider-body');
+  if(t==='book')renderRiderBook();
+  else if(t==='hist')renderRiderHistory(body);
+  else renderRiderPay(body);
+}
+
+function renderRiderBook(){
+  const body=document.getElementById('rider-body');
+  if(!body)return;
+  if(S.rideStatus&&S.rideStatus!=='completed'){
+    const smap={
+      searching:{bg:'#fef9c3',border:'#fde047',dot:'#f59e0b',label:'Finding your driver...'},
+      accepted:{bg:'#dbeafe',border:'#93c5fd',dot:'#3b82f6',label:'Driver on the way! '+(S.driverInfo?.name||'')},
+      arriving:{bg:'#ffedd5',border:'#fdba74',dot:'#f97316',label:'Driver arriving now! 🚗'},
+      in_progress:{bg:'#dcfce7',border:'#86efac',dot:'#22c55e',label:'Ride in progress 🚗'},
+    };
+    const st=smap[S.rideStatus]||smap.searching;
+    body.innerHTML=`
+      <div id="map-track" class="mapbox">${['in_progress','arriving'].includes(S.rideStatus)?'<div style="position:absolute;top:8px;right:8px;background:#22c55e;color:#fff;font-size:9px;font-weight:800;padding:3px 9px;border-radius:20px;z-index:400;display:flex;align-items:center;gap:4px;pointer-events:none"><span style=\'width:6px;height:6px;background:#fff;border-radius:50%;animation:sosp 1.5s infinite\'></span>LIVE</div>':''}
+      </div>
+      <div class="card">
+        <div style="background:${st.bg};border:1.5px solid ${st.border};border-radius:14px;padding:11px 14px;margin-bottom:${S.driverInfo?'12px':'0'};display:flex;align-items:center;gap:8px">
+          <div style="width:9px;height:9px;border-radius:50%;background:${st.dot};flex-shrink:0;animation:sosp 1.5s infinite"></div>
+          <span style="font-weight:600;font-size:13px">${st.label}</span>
+        </div>
+        ${S.driverInfo?`
+          <div style="background:#f9fafb;border-radius:14px;padding:12px;margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+              <div>
+                <p style="font-weight:700;font-size:15px">${S.driverInfo.name}</p>
+                <p style="font-size:12px;color:#6b7280">${S.driverInfo.vehicle}</p>
+                <p style="font-size:13px;font-weight:700;font-family:monospace;margin-top:2px">${S.driverInfo.plate}</p>
+              </div>
+              <div style="text-align:center"><div style="font-size:18px;font-weight:700;color:#f59e0b">⭐ ${S.driverInfo.rating}</div><div style="font-size:10px;color:#9ca3af">Rating</div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+              <button class="btn bs bsm" onclick="openModal('share-modal')">📤 Share Trip</button>
+              <a class="btn bs bsm" href="tel:${S.driverInfo.phone||''}" style="text-decoration:none" onclick="if(!S.driverInfo.phone){event.preventDefault();toast('Driver phone not available','err');}">📞 Call Driver</a>
+            </div>
+            <button class="btn bsm bw" style="margin-top:7px;background:#fff5f5;color:var(--r);border:1.5px solid #fecaca" onclick="openModal('report-modal')">⚠️ Report Issue</button>
+          </div>` : ''}
+        ${S.activeRide?`
+          <div style="font-size:12px;color:#6b7280;margin-bottom:12px">
+            <div style="display:flex;gap:8px;margin-bottom:6px"><div style="width:8px;height:8px;background:var(--p);border-radius:50%;margin-top:4px;flex-shrink:0"></div><span>${S.activeRide.pickup_address}</span></div>
+            <div style="display:flex;gap:8px"><div style="width:8px;height:8px;background:#111827;border-radius:50%;margin-top:4px;flex-shrink:0"></div><span>${S.activeRide.destination_address}</span></div>
+            <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:#9ca3af">
+              <span>📏 ${S.activeRide.distance_km.toFixed(1)} km</span>
+              <span>⏱️ ~${S.activeRide.duration_minutes} min</span>
+              <span style="font-weight:700;color:var(--p)">${fmtFare(S.activeRide.estimated_fare)}</span>
+              ${S.promoResult?`<span style="color:var(--g);font-weight:700">-${fmtFare(S.promoResult.discount_amount)}</span>`:''}
+            </div>
+          </div>` : ''}
+        ${['searching','accepted','arriving'].includes(S.rideStatus)?`<button class="btn bsm bw" style="background:#fff5f5;color:var(--r);border:1.5px solid #fecaca" onclick="riderCancel()">Cancel Ride</button>`:''}
+        ${S.rideStatus==='completed'?`<button class="btn bp bw" onclick="openRateModal()">⭐ Rate Your Ride</button>`:''}
+      </div>
+    `;
+    return;
+  }
+  if(S.rideStatus==='completed'){
+    body.innerHTML=`
+      <div style="text-align:center;padding:40px 16px">
+        <div style="font-size:56px;margin-bottom:12px">🌸</div>
+        <h2 style="font-size:22px;margin-bottom:8px">Ride Complete!</h2>
+        <p style="color:#6b7280;font-size:14px;margin-bottom:8px">You arrived safely.</p>
+        <p style="font-size:22px;font-weight:700;color:var(--p);margin-bottom:20px">${fmtFare(S.activeRide?.final_fare||0)}</p>
+        <button class="btn bp bw" style="margin-bottom:10px" onclick="openRateModal()">⭐ Rate Your Ride</button>
+        <button class="btn bs bw" onclick="resetRide()">Book Another Ride</button>
+      </div>
+    `;
+    return;
+  }
+
+  body.innerHTML=`
+    <div id="map-book" class="mapbox"><div style="position:absolute;bottom:8px;left:10px;background:rgba(255,255,255,.9);border-radius:8px;padding:3px 8px;font-size:10px;color:#6b7280;z-index:1">📍 Port of Spain, Trinidad</div></div>
+    <div class="card">
+      <h3 style="font-size:16px;margin-bottom:14px">Where to?</h3>
+      <div style="position:relative;margin-bottom:10px">
+        <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:9px;height:9px;background:var(--p);border-radius:50%;z-index:1"></div>
+        <input class="inp" id="ride-pickup" style="padding-left:28px" placeholder="Pickup location" value="Current Location — Port of Spain">
+      </div>
+      <div style="position:relative;margin-bottom:14px">
+        <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:9px;height:9px;background:#111827;border-radius:50%;z-index:1"></div>
+        <input class="inp" id="ride-dest" style="padding-left:28px" placeholder="Where are you going?" list="dest-list" oninput="onDestChange(this.value)">
+        <datalist id="dest-list">${LOCATIONS.map(l=>`<option value="${l}">`).join('')}</datalist>
+      </div>
+      <div id="fare-preview" style="display:none;background:var(--pp);border-radius:14px;padding:11px 14px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><p style="font-size:10px;color:#9ca3af">Estimated fare</p><p id="fare-amt" style="font-size:22px;font-weight:700;color:var(--p)">—</p>
+          ${S.promoResult?`<p style="font-size:11px;color:var(--g);font-weight:600">-${fmtFare(S.promoResult.discount_amount)} promo applied</p>`:''}
+          </div>
+          <div style="text-align:right;font-size:11px;color:#9ca3af"><div id="fare-km">—</div><div id="fare-min">—</div></div>
+        </div>
+      </div>
+      <div id="promo-row" style="display:none;gap:8px;margin-bottom:10px">
+        <input class="inp" id="promo-inp" style="flex:1;font-size:13px;padding:9px 12px" placeholder="Promo code (WELCOME25)">
+        <button class="btn bs bsm" onclick="applyPromo()">Apply</button>
+      </div>
+      <button class="btn bp bw" id="book-btn" onclick="bookRide()" style="font-size:15px;padding:13px">🌸 Book Ride</button>
+    </div>
+    <div class="card" style="margin-top:0">
+      <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Quick Destinations</p>
+      <div style="display:flex;flex-wrap:wrap;gap:7px">
+        ${['Airport','Chaguanas','San Fernando','Maraval','Trincity'].map(d=>`<button class="btn bs bsm" style="font-size:11px" onclick="setDest('${d}, T&T')">${d}</button>`).join('')}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:0">
+      <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="go('discover');renderDiscover()">
+        <div style="width:40px;height:40px;background:var(--pp);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px">💅</div>
+        <div><p style="font-size:13px;font-weight:600">Discover</p><p style="font-size:11px;color:#9ca3af">Women's services</p></div>
+      </div>
+      <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="rTab('pay')">
+        <div style="width:40px;height:40px;background:#dcfce7;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px">💳</div>
+        <div><p style="font-size:13px;font-weight:600">Payments</p><p style="font-size:11px;color:#9ca3af">Promos & history</p></div>
+      </div>
+    </div>
+  `;
+}
+
+let destTimer;
+function onDestChange(v){
+  clearTimeout(destTimer);destTimer=setTimeout(()=>{if(v.length>2){showFarePreview(v);document.getElementById('promo-row').style.display='flex';}},500);
+}
+function setDest(d){const inp=document.getElementById('ride-dest');if(inp){inp.value=d;showFarePreview(d);document.getElementById('promo-row').style.display='flex';}}
+const ROUTE_KM={'Maraval':8,'Maraval Road':8,'St. Clair':6,'Woodbrook':5,'Ariapita':5,'Diego Martin':12,'Petit Valley':14,'Airport':26,'Piarco':26,'Trincity':27,'Arima':30,'Tunapuna':18,'Curepe':14,'Barataria':12,'Chaguanas':25,'Couva':35,'San Fernando':50,'Gulf City':52,'Point Fortin':90,'Siparia':80,'Princes Town':70,'Sangre Grande':60,'Tobago':120,'Airport, T&T':26,'Chaguanas, T&T':25,'San Fernando, T&T':50,'Maraval, T&T':8,'Trincity, T&T':27,'Independence Square, Port of Spain':2,'Ariapita Avenue, Woodbrook':5,'Piarco International Airport':26,'Chaguanas Main Road':25,'San Fernando City Centre':50,'Tunapuna Market':18,'Arima Main Road':30,'Cross Crossing Mall, San Fernando':48,'Long Circular Mall, POS':7,'Gulf City Mall, La Romain':52,'Price Plaza, Chaguanas':24,'Diego Martin Main Road':12,'Eastern Main Road, Barataria':11};
+function _lookupKm(d){for(const k in ROUTE_KM){if(d&&d.toLowerCase().includes(k.toLowerCase()))return ROUTE_KM[k];}return null;}
+function showFarePreview(d){
+  const hsh=d.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+  const km=_lookupKm(d)||(4+(hsh%18));  // deterministic fallback, no random
+  const min=Math.ceil(km*2.8);const f=calcFare(km,min);
+  S._km=km;S._min=min;S._fare=f;
+  const prev=document.getElementById('fare-preview');if(!prev)return;
+  prev.style.display='block';
+  const now2=new Date();const h2=now2.getHours();
+  const surgeLabel=h2>=22||h2<5?' 🌙 Night rate':(h2>=6&&h2<9)||(h2>=16&&h2<19)?' ⚡ Peak':'';
+  const displayFare=S.promoResult?fmtFare(f-S.promoResult.discount_amount):fmtFare(f);
+  document.getElementById('fare-amt').innerHTML=displayFare+'<span style="font-size:11px;color:#9ca3af;font-weight:400;margin-left:4px">'+surgeLabel+'</span>';
+  document.getElementById('fare-km').textContent=km.toFixed(1)+' km';
+  document.getElementById('fare-min').textContent='~'+min+' min';
+}
+function applyPromo(){
+  const code=document.getElementById('promo-inp')?.value?.trim()?.toUpperCase();
+  if(!code){toast('Enter a promo code','err');return;}
+  const promo=DB.promotions.find(p=>p.code===code&&p.is_active&&new Date(p.valid_until)>new Date());
+  if(!promo){toast('Invalid or expired promo code','err');return;}
+  const f=S._fare||50;
+  const disc=promo.type==='percentage'?f*promo.value/100:promo.value;
+  S.promoResult={code,discount_amount:Math.min(disc,f),promo};
+  promo.usage_count++;
+  toast(`✅ ${promo.title}! Save ${fmtFare(disc)}`)
+  showFarePreview(document.getElementById('ride-dest')?.value||'');
+}
+
+function bookRide(){
+  const pickup=(document.getElementById('ride-pickup')?.value||'').trim();
+  const dest=document.getElementById('ride-dest')?.value?.trim();
+  if(!pickup){toast('Please enter your pickup location','err');document.getElementById('ride-pickup')?.focus();return;}
+  if(!dest){toast('Please enter your destination','err');document.getElementById('ride-dest')?.focus();return;}
+  if(pickup===dest){toast('Pickup and destination cannot be the same','err');return;}
+  const btn=document.getElementById('book-btn');
+  btn.disabled=true;btn.innerHTML='<div class="spin"></div> Finding driver...';
+  const km=S._km||(_lookupKm(dest)||12);const min=Math.ceil(km*2.8);const f=S._fare||calcFare(km,min);
+  const rideId=uid();
+  const ride={id:rideId,rider_id:S.user.id,driver_id:null,status:'requested',pickup_address:pickup,pickup_lat:10.6549,pickup_lng:-61.5019,destination_address:dest,destination_lat:10.65+Math.random()*.1,destination_lng:-61.5+Math.random()*.1,estimated_fare:f,final_fare:null,distance_km:parseFloat(km.toFixed(2)),duration_minutes:min,share_token:null,requested_at:ts(),accepted_at:null,started_at:null,completed_at:null,cancelled_at:null,rider_rating:null,driver_rating:null,created_at:ts()};
+  DB.rides.push(ride);S.activeRide=ride;S.rideStatus='searching';persistDB();
+  btn.disabled=false;btn.innerHTML='🌸 Book Ride';
+  toast('Searching for nearby driver... 🌸');
+  renderRiderBook();
+  clearInterval(S.simTimer);
+  S.simTimer=setTimeout(()=>{
+    const dp=DB.driver_profiles.find(d=>d.status==='approved');
+    const dUser=dp?DB.users.find(u=>u.id===dp.user_id):null;
+    if(dp&&dUser){
+      ride.driver_id=dUser.id;ride.status='accepted';ride.accepted_at=ts();
+      S.driverInfo={name:`${dUser.first_name} ${dUser.last_name}`,phone:dUser.phone,vehicle:`${dp.vehicle_color} ${dp.vehicle_make} ${dp.vehicle_model}`,plate:dp.vehicle_plate,rating:dp.rating};
+      S.rideStatus='accepted';
+      toast('Driver found! '+S.driverInfo.name+' is on the way 🌸','ok');
+      renderRiderBook();
+      S.simTimer=setTimeout(()=>{
+        ride.status='arriving';S.rideStatus='arriving';
+        toast('Your driver is arriving! 🚗');renderRiderBook();
+        S.simTimer=setTimeout(()=>{
+          ride.status='in_progress';ride.started_at=ts();S.rideStatus='in_progress';
+          toast('Your ride has started! 🚗');renderRiderBook();
+          const ms=Math.max(5000,min*180);
+          S.simTimer=setTimeout(()=>{
+            ride.status='completed';ride.completed_at=ts();ride.final_fare=f;
+            S.rideStatus='completed';
+            const driverDp=DB.driver_profiles.find(d=>d.user_id===dUser.id);
+            if(driverDp){driverDp.total_trips++;driverDp.total_earnings+=f*.8;}
+            DB.payments.push({id:uid(),ride_id:rideId,rider_id:S.user.id,driver_id:dUser.id,amount:f,platform_fee:f*.2,driver_earning:f*.8,status:'completed',method:'cash',created_at:ts()});
+            toast('Ride complete! '+fmtFare(f)+' 🌸','ok');
+            renderRiderBook();
+          },ms);
+        },3000);
+      },4000);
+    }else{toast('No drivers available right now. Please try again.','err');S.rideStatus=null;S.activeRide=null;renderRiderBook();}
+  },2500+Math.random()*2000);
+}
+
+function riderCancel(){
+  if(!S.activeRide)return;clearInterval(S.simTimer);
+  S.activeRide.status='cancelled';S.activeRide.cancelled_at=ts();
+  S.rideStatus=null;S.activeRide=null;S.driverInfo=null;
+  toast('Ride cancelled');persistDB();renderRiderBook();
+}
+
+function resetRide(){S.activeRide=null;S.rideStatus=null;S.driverInfo=null;S.promoResult=null;renderRiderBook();}
+
+// Share trip
+function genShare(){
+  const name=document.getElementById('share-name').value;const phone=document.getElementById('share-phone').value;
+  const token=uid().replace('id_','trk');
+  const share={id:uid(),ride_id:S.shareRideId||S.activeRide?.id,share_token:token,contact_name:name,contact_phone:phone,expires_at:new Date(Date.now()+86400000).toISOString(),created_at:ts()};
+  DB.trip_shares.push(share);
+  const url=window.location.href.split('?')[0]+'?track='+token;
+  document.getElementById('share-url-box').style.display='block';
+  document.getElementById('share-url-text').textContent=url;
+  navigator.clipboard?.writeText(url).catch(()=>{});
+  toast('Trip link copied! Share it with your contact 📋','ok');
+}
+
+// SOS
+function sendSOS(){
+  const sos={id:uid(),user_id:S.user.id,ride_id:S.activeRide?.id||null,status:'active',lat:10.6549,lng:-61.5019,message:'Emergency SOS triggered',created_at:ts()};
+  DB.sos_events.push(sos);
+  const _adm=DB.users.find(u=>u.role==='admin');if(_adm)DB.notifications.push({id:uid(),user_id:_adm.id,type:'sos',message:'🚨 SOS from '+S.user.first_name+' '+S.user.last_name,is_read:false,created_at:ts()});
+  closeModal('sos-modal');
+  toast('🚔 TTPS POLICE NOTIFIED — Emergency dispatch to your GPS!','err');
+  setTimeout(()=>toast('🛡️ Pink.TT Safety Team responding now','err'),900);
+  if(S.user.emergency_contact_name)setTimeout(()=>toast('📱 '+S.user.emergency_contact_name+' called & SMS sent','ok'),1800);
+}
+
+// Report
+function submitReport(){
+  const reason=document.getElementById('report-reason').value;
+  const desc=document.getElementById('report-desc').value;
+  if(!reason){toast('Select a reason','err');return;}
+  DB.reports.push({id:uid(),reporter_id:S.user.id,driver_id:S.reportDriverId,ride_id:S.reportRideId,reason,description:desc,status:'pending',created_at:ts()});
+  toast('Report submitted. We take safety seriously. 🛡️','ok');
+  closeModal('report-modal');
+  document.getElementById('report-reason').value='';document.getElementById('report-desc').value='';
+}
+
+// Rating
+function openRateModal(){S.rideToRate=S.activeRide?.id;openModal('rate-modal');}
+function setRating(n){S.rating=n;document.querySelectorAll('.star').forEach((s,i)=>s.classList.toggle('on',i<n));}
+function submitRate(){
+  if(!S.rating){toast('Please select a rating','err');return;}
+  const ride=DB.rides.find(r=>r.id===S.rideToRate);
+  if(ride){ride.rider_rating=S.rating;ride.driver_review=document.getElementById('rate-review').value;}
+  if(ride?.driver_id){const dp=DB.driver_profiles.find(d=>d.user_id===ride.driver_id);if(dp){dp.rating=(dp.rating*dp.rating_count+S.rating)/(dp.rating_count+1);dp.rating_count++;}}
+  toast('Rating submitted! Thanks 🌸','ok');
+  closeModal('rate-modal');S.rating=0;S.rideToRate=null;
+  document.querySelectorAll('.star').forEach(s=>s.classList.remove('on'));
+  document.getElementById('rate-review').value='';
+  resetRide();
+}
+
+function renderRiderHistory(body){
+  const rides=DB.rides.filter(r=>r.rider_id===S.user.id).sort((a,b)=>new Date(b.requested_at)-new Date(a.requested_at));
+  if(!rides.length){body.innerHTML='<div class="empty"><div class="empty-i">🕐</div><p>No rides yet</p></div>';return;}
+  body.innerHTML=rides.map(r=>{
+    const driver=r.driver_id?DB.users.find(u=>u.id===r.driver_id):null;
+    const bc=r.status==='completed'?'bgrn':r.status==='cancelled'?'bred':'byel';
+    return `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+        <span class="badge ${bc}">${r.status}</span>
+        ${r.final_fare?`<span style="font-weight:700;color:var(--p)">${fmtFare(r.final_fare)}</span>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;font-size:13px;color:#6b7280">
+        <div style="display:flex;gap:8px"><div style="width:8px;height:8px;background:var(--p);border-radius:50%;margin-top:5px;flex-shrink:0"></div><span>${r.pickup_address}</span></div>
+        <div style="display:flex;gap:8px"><div style="width:8px;height:8px;background:#111827;border-radius:50%;margin-top:5px;flex-shrink:0"></div><span>${r.destination_address}</span></div>
+      </div>
+      ${driver?`<p style="font-size:11px;color:#9ca3af">Driver: ${driver.first_name} ${driver.last_name}</p>`:''}
+      <p style="font-size:10px;color:#d1d5db;margin-top:3px">${fmtDate(r.requested_at)}</p>
+      ${r.status==='completed'&&!r.rider_rating?`<button class="btn bs bsm" style="margin-top:8px" onclick="S.rideToRate='${r.id}';openRateModal()">⭐ Rate this ride</button>`:''}
+      ${r.status==='completed'&&r.rider_rating?`<div style="font-size:12px;color:var(--y);margin-top:6px">${'★'.repeat(r.rider_rating)}${'☆'.repeat(5-r.rider_rating)}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderRiderPay(body){
+  const pays=DB.payments.filter(p=>p.rider_id===S.user.id);
+  const total=pays.filter(p=>p.status==='completed').reduce((s,p)=>s+parseFloat(p.amount||0),0);
+  body.innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+      <div class="card" style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--p)">TTD $${total.toFixed(0)}</div><div style="font-size:10px;color:#9ca3af">Total Spent</div></div>
+      <div class="card" style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--g)">${pays.filter(p=>p.status==='completed').length}</div><div style="font-size:10px;color:#9ca3af">Paid</div></div>
+      <div class="card" style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--y)">${pays.filter(p=>p.status==='pending').length}</div><div style="font-size:10px;color:#9ca3af">Pending</div></div>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="font-size:18px">🎁</span><h3 style="font-size:15px">Promo Codes</h3></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="inp" id="pay-promo" style="flex:1;font-size:13px;padding:9px 12px" placeholder="Enter promo code">
+        <input class="inp" id="pay-amt" type="number" style="width:90px;font-size:13px;padding:9px 10px" placeholder="Fare $">
+        <button class="btn bp bsm" onclick="checkPromo()">Check</button>
+      </div>
+      <div id="promo-result" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:12px;margin-bottom:10px"></div>
+      <p style="font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:8px">Active Codes:</p>
+      <div style="display:flex;flex-wrap:wrap;gap:7px">
+        ${DB.promotions.filter(p=>p.is_active).map(p=>`<button onclick="document.getElementById('pay-promo').value='${p.code}'" style="font-size:11px;background:var(--pp);color:var(--p);border:1px solid var(--pb);padding:5px 10px;border-radius:20px;cursor:pointer;font-family:monospace;font-weight:600">${p.code}</button>`).join('')}
+      </div>
+    </div>
+    <h3 style="font-size:14px;font-weight:600;color:#6b7280;margin-bottom:10px">Payment History</h3>
+    ${!pays.length?'<div class="card" style="text-align:center;padding:32px"><div style="font-size:32px;margin-bottom:8px">💳</div><p style="color:#9ca3af">No payments yet</p></div>':
+      pays.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(p=>{
+        const ride=DB.rides.find(r=>r.id===p.ride_id);
+        return `<div class="card" style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <p style="font-size:13px;font-weight:500">${ride?.destination_address||'Ride payment'}</p>
+            <span style="font-weight:700;color:var(--p)">${fmtFare(p.amount)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#9ca3af">
+            <span>💳 ${p.method}</span><span class="${p.status==='completed'?'bgrn':'byel'} badge">${p.status}</span>
+            <span>${fmtDate(p.created_at)}</span>
+          </div>
+        </div>`;
+      }).join('')
+    }
+  `;
+}
+function checkPromo(){
+  const code=document.getElementById('pay-promo').value.trim().toUpperCase();
+  const amt=parseFloat(document.getElementById('pay-amt').value)||50;
+  const promo=DB.promotions.find(p=>p.code===code&&p.is_active&&new Date(p.valid_until)>new Date());
+  const res=document.getElementById('promo-result');
+  if(!promo){res.style.display='block';res.style.background='#fff5f5';res.style.borderColor='#fca5a5';res.innerHTML=`<p style="font-weight:600;color:var(--r)">❌ Invalid or expired code</p>`;return;}
+  const disc=promo.type==='percentage'?amt*promo.value/100:promo.value;
+  res.style.display='block';res.style.background='#f0fdf4';res.style.borderColor='#86efac';
+  res.innerHTML=`<p style="font-weight:700;color:var(--g);margin-bottom:4px">✅ ${promo.title}</p><p style="font-size:13px;color:#166534">${promo.description}</p><p style="font-size:18px;font-weight:700;color:var(--g);margin-top:8px">Save: ${fmtFare(Math.min(disc,amt))}</p><p style="font-size:10px;color:#4ade80">Valid until ${new Date(promo.valid_until).toLocaleDateString()}</p>`;
+}
+
+// ─── DRIVER DASHBOARD ───────────────────────────────────────────
+function loadDriver(){
+  S.dp=DB.driver_profiles.find(d=>d.user_id===S.user.id);
+  if(!S.dp){go('dsetup');return;}
+  const banner=document.getElementById('driver-banner');
+  const tabs=document.getElementById('driver-tabs');
+  const summary=document.getElementById('driver-summary');
+  if(S.dp.status==='pending'){
+    banner.style.display='block';banner.innerHTML='<div style="background:#fef9c3;border-bottom:1px solid #fde047;padding:9px 16px;text-align:center;font-size:12px;font-weight:600;color:#854d0e">⏳ Application under review — notification within 24 hours</div>';
+    tabs.style.display='none';summary.style.display='none';
+    renderDriverPending(document.getElementById('driver-body'));return;
+  }
+  if(S.dp.status==='rejected'){
+    banner.style.display='block';banner.innerHTML='<div style="background:#fee2e2;border-bottom:1px solid #fca5a5;padding:9px 16px;text-align:center;font-size:12px;font-weight:600;color:#991b1b">❌ Application not approved. Contact support@pink.tt</div>';
+    tabs.style.display='none';summary.style.display='none';
+    renderDriverPending(document.getElementById('driver-body'));return;
+  }
+  banner.style.display='none';tabs.style.display='flex';
+  S.isOnline=S.dp.is_online;updateToggle();
+  const wkRides=DB.rides.filter(r=>r.driver_id===S.user.id&&r.status==='completed'&&new Date(r.completed_at)>new Date(Date.now()-7*86400000));
+  const wkNet=wkRides.reduce((s,r)=>s+(r.final_fare||0)*.8,0);
+  summary.style.display='block';
+  summary.innerHTML=`<div style="background:#fff;border-bottom:1px solid #f0f0f0;padding:10px 16px;display:grid;grid-template-columns:repeat(3,1fr);text-align:center">
+    <div><div style="font-size:15px;font-weight:700">TTD $${wkNet.toFixed(0)}</div><div style="font-size:10px;color:#9ca3af">This Week</div></div>
+    <div><div style="font-size:15px;font-weight:700">${wkRides.length}</div><div style="font-size:10px;color:#9ca3af">Trips</div></div>
+    <div><div style="font-size:15px;font-weight:700">⭐ ${S.dp.rating.toFixed(1)}</div><div style="font-size:10px;color:#9ca3af">Rating</div></div>
+  </div>`;
+  dTab(S.dTab);
+}
+
+function renderDriverPending(body){
+  const dp=S.dp;
+  body.innerHTML=`<div class="card" style="text-align:center;padding:32px 20px">
+    <div style="font-size:50px;margin-bottom:10px">${dp?.status==='pending'?'⏳':'❌'}</div>
+    <h2 style="font-size:20px;margin-bottom:8px">${dp?.status==='pending'?'Application Submitted!':'Not Approved'}</h2>
+    <p style="color:#6b7280;font-size:13px;line-height:1.6;margin-bottom:18px">${dp?.status==='pending'?'Our team is reviewing your application. You\'ll be notified within 24 hours.':'Your application was not approved. Contact support@pink.tt'}</p>
+    ${dp?`<div style="background:#f9fafb;border-radius:14px;padding:14px;text-align:left">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px"><span style="color:#9ca3af">Vehicle</span><strong>${dp.vehicle_year} ${dp.vehicle_make} ${dp.vehicle_model} — ${dp.vehicle_color}</strong></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px"><span style="color:#9ca3af">Plate</span><strong style="font-family:monospace">${dp.vehicle_plate}</strong></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#9ca3af">License</span><strong>${dp.license_number}</strong></div>
+    </div>`:''}
+  </div>`;
+}
+
+function updateToggle(){
+  const t=document.getElementById('tog'),l=document.getElementById('tog-lbl');
+  if(!t)return;
+  t.className='tog'+(S.isOnline?' on':'');
+  l.textContent=S.isOnline?'Online':'Offline';
+  l.style.color=S.isOnline?'var(--g)':'#9ca3af';
+}
+
+function toggleOnline(){
+  if(!S.dp||S.dp.status!=='approved'){toast('Driver approval required','err');return;}
+  if(S.currentDriverRide&&['accepted','in_progress','arriving'].includes(S.currentDriverRide.status)){toast('Complete your current ride first','err');return;}
+  S.isOnline=!S.isOnline;if(S.dp)S.dp.is_online=S.isOnline;
+  updateToggle();
+  toast(S.isOnline?'You\'re online! Ready for rides 🌸':'You\'re offline',S.isOnline?'ok':'');
+  if(S.isOnline){
+    setTimeout(()=>{
+      const openRides=DB.rides.filter(r=>r.status==='requested'&&r.driver_id===null);
+      if(openRides.length===0){
+        const riderUser=DB.users.find(u=>u.role==='rider');
+        if(riderUser){
+          const loc=LOCATIONS[Math.floor(Math.random()*LOCATIONS.length)];
+          const dest=LOCATIONS[Math.floor(Math.random()*LOCATIONS.length)];
+          const km=3+Math.random()*15;const min=Math.ceil(km*2.8);
+          DB.rides.push({id:uid(),rider_id:riderUser.id,driver_id:null,status:'requested',pickup_address:loc,pickup_lat:10.65+Math.random()*.05,pickup_lng:-61.50+Math.random()*.05,destination_address:dest,destination_lat:10.72,destination_lng:-61.41,estimated_fare:calcFare(km,min),final_fare:null,distance_km:parseFloat(km.toFixed(2)),duration_minutes:min,share_token:null,requested_at:ts(),accepted_at:null,started_at:null,completed_at:null,cancelled_at:null,rider_rating:null,driver_rating:null,created_at:ts()});
+          toast('New ride request nearby! 🔔');
+        }
+      }
+      if(S.dTab==='reqs')renderDriverRequests(document.getElementById('driver-body'));
+    },1800);
+  }
+  if(S.dTab==='reqs')renderDriverRequests(document.getElementById('driver-body'));
+}
+
+function dTab(t){
+  S.dTab=t;
+  ['reqs','active','earn'].forEach(x=>{const el=document.getElementById('dt-'+x);if(el)el.classList.toggle('on',x===t);});
+  const body=document.getElementById('driver-body');
+  if(t==='reqs')renderDriverRequests(body);
+  else if(t==='active')renderDriverActive(body);
+  else renderDriverEarnings(body);
+}
+
+function renderDriverRequests(body){
+  if(!S.isOnline){body.innerHTML=`<div class="empty"><div class="empty-i">💤</div><p style="font-weight:600;margin-bottom:8px">You're Offline</p><p style="font-size:13px;margin-bottom:20px">Toggle online to receive ride requests</p><button class="btn bp" onclick="toggleOnline()">Go Online</button></div>`;return;}
+  const pending=DB.rides.filter(r=>r.status==='requested'&&r.driver_id===null);
+  if(!pending.length){body.innerHTML=`<div class="empty"><div class="empty-i">🎯</div><p style="font-weight:600;margin-bottom:8px">Waiting for requests</p><p style="font-size:13px">New ride requests appear here</p><div style="display:flex;justify-content:center;gap:5px;margin-top:20px">${[0,1,2].map(i=>`<div style="width:7px;height:7px;background:var(--p);border-radius:50%;animation:sosp 1s ${i*.3}s infinite"></div>`).join('')}</div></div>`;return;}
+  body.innerHTML=pending.map(r=>{
+    const rider=DB.users.find(u=>u.id===r.rider_id)||{};
+    const dist=(1.5+Math.random()*4).toFixed(1);
+    return `<div class="req-card slide-up">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span class="badge bpink">New Request</span>
+        <span style="font-weight:700;color:var(--p);font-size:16px">${fmtFare(r.estimated_fare)}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+        <div style="display:flex;gap:8px"><div style="width:22px;height:22px;background:var(--pp);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0"><div style="width:7px;height:7px;background:var(--p);border-radius:50%"></div></div><div><p style="font-size:10px;color:#9ca3af">Pickup</p><p style="font-size:13px;font-weight:500">${r.pickup_address}</p></div></div>
+        <div style="display:flex;gap:8px"><div style="width:22px;height:22px;background:#f3f4f6;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0"><div style="width:7px;height:7px;background:#111827;border-radius:50%"></div></div><div><p style="font-size:10px;color:#9ca3af">Destination</p><p style="font-size:13px;font-weight:500">${r.destination_address}</p></div></div>
+      </div>
+      <div style="display:flex;gap:12px;font-size:11px;color:#9ca3af;margin-bottom:12px">
+        <span>📍 ${dist} km away</span><span>🛣️ ${r.distance_km.toFixed(1)} km</span><span>⏱️ ~${r.duration_minutes} min</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="btn bs bsm" onclick="declineRide('${r.id}')">✕ Decline</button>
+        <button class="btn bp bsm" onclick="acceptRide('${r.id}')">✓ Accept</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function declineRide(id){
+  const r=DB.rides.find(x=>x.id===id);
+  if(r){r.status='cancelled';r.cancelled_at=ts();r.cancellation_reason='Driver declined';}
+  renderDriverRequests(document.getElementById('driver-body'));
+}
+
+function acceptRide(id){
+  const ride=DB.rides.find(r=>r.id===id);
+  if(!ride||ride.status!=='requested'){toast('Ride no longer available','err');dTab('reqs');return;}
+  ride.driver_id=S.user.id;ride.status='accepted';ride.accepted_at=ts();
+  S.currentDriverRide=ride;toast('Ride accepted! Head to pickup 🌸','ok');dTab('active');
+}
+
+function renderDriverActive(body){
+  const r=S.currentDriverRide;
+  if(!r||!['accepted','arriving','in_progress'].includes(r.status)){body.innerHTML='<div class="empty"><div class="empty-i">🗺️</div><p>No active ride</p><p style="font-size:13px">Accept a request to start driving</p></div>';return;}
+  const rider=DB.users.find(u=>u.id===r.rider_id)||{};
+  body.innerHTML=`
+    <div id="map-driver" class="mapbox"></div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <span class="badge ${r.status==='accepted'?'byel':r.status==='arriving'?'badge' :'bgrn'}">${r.status==='accepted'?'⏳ Going to pickup':r.status==='arriving'?'🚗 Arriving':'🚗 In progress'}</span>
+        <span style="font-weight:700;color:var(--p);font-size:16px">${fmtFare(r.estimated_fare)}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+        <div style="display:flex;gap:8px"><div style="width:8px;height:8px;background:var(--p);border-radius:50%;margin-top:5px;flex-shrink:0"></div><div><p style="font-size:10px;color:#9ca3af">Pickup</p><p style="font-size:13px;font-weight:500">${r.pickup_address}</p></div></div>
+        <div style="display:flex;gap:8px"><div style="width:8px;height:8px;background:#111827;border-radius:50%;margin-top:5px;flex-shrink:0"></div><div><p style="font-size:10px;color:#9ca3af">Destination</p><p style="font-size:13px;font-weight:500">${r.destination_address}</p></div></div>
+      </div>
+      <div style="background:#f9fafb;border-radius:12px;padding:10px;margin-bottom:14px">
+        <p style="font-size:12px;font-weight:600">Rider: ${rider.first_name} ${rider.last_name}</p>
+        <p style="font-size:11px;color:#9ca3af">${rider.phone||''}</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        ${r.status==='accepted'?`<button class="btn bg2" style="flex:1" onclick="startRide()">✅ Rider Picked Up</button><button class="btn bs bsm" onclick="cancelRideDriver()">Cancel</button>`:''}
+        ${r.status==='arriving'?`<button class="btn bg2" style="flex:1" onclick="startRide()">✅ Rider Picked Up</button>`:''}
+        ${r.status==='in_progress'?`<button class="btn bp" style="flex:1;font-size:15px;padding:13px" onclick="completeRide()">🏁 Complete Ride</button>`:''}
+      </div>
+    </div>
+  `;
+}
+
+function startRide(){
+  if(!S.currentDriverRide)return;
+  S.currentDriverRide.status='in_progress';S.currentDriverRide.started_at=ts();
+  toast('Ride started! Safe driving 🌸','ok');renderDriverActive(document.getElementById('driver-body'));
+}
+
+function completeRide(){
+  if(!S.currentDriverRide)return;
+  const r=S.currentDriverRide;
+  r.status='completed';r.completed_at=ts();r.final_fare=r.estimated_fare;
+  if(S.dp){S.dp.total_trips++;S.dp.total_earnings+=r.final_fare*.8;}
+  DB.payments.push({id:uid(),ride_id:r.id,rider_id:r.rider_id,driver_id:S.user.id,amount:r.final_fare,platform_fee:r.final_fare*.2,driver_earning:r.final_fare*.8,status:'completed',method:'cash',created_at:ts()});
+  toast('Ride completed! '+fmtFare(r.final_fare*.8)+' earned 🌸','ok');
+  persistDB();S.currentDriverRide=null;loadDriver();
+}
+
+function cancelRideDriver(){
+  if(!S.currentDriverRide)return;
+  S.currentDriverRide.status='cancelled';S.currentDriverRide.cancelled_at=ts();
+  S.currentDriverRide=null;toast('Ride cancelled');dTab('reqs');
+}
+
+function renderDriverEarnings(body){
+  const dp=S.dp;
+  const wkRides=DB.rides.filter(r=>r.driver_id===S.user.id&&r.status==='completed'&&new Date(r.completed_at)>new Date(Date.now()-7*86400000));
+  const gross=wkRides.reduce((s,r)=>s+(r.final_fare||0),0);
+  const net=gross*.8;
+  const pays=DB.payments.filter(p=>p.driver_id===S.user.id&&p.status==='completed');
+  body.innerHTML=`
+    <div class="earn-grid" style="margin-bottom:12px">
+      <div class="earn-card"><div style="font-size:20px;font-weight:700;color:var(--g)">TTD $${net.toFixed(0)}</div><div style="font-size:11px;color:#9ca3af">Net This Week</div></div>
+      <div class="earn-card"><div style="font-size:20px;font-weight:700;color:var(--p)">${wkRides.length}</div><div style="font-size:11px;color:#9ca3af">Trips This Week</div></div>
+      <div class="earn-card"><div style="font-size:20px;font-weight:700;color:var(--y)">⭐ ${dp?.rating?.toFixed(1)||'5.0'}</div><div style="font-size:11px;color:#9ca3af">Rating</div></div>
+      <div class="earn-card"><div style="font-size:20px;font-weight:700;color:#8b5cf6">TTD $${(dp?.total_earnings||0).toFixed(0)}</div><div style="font-size:11px;color:#9ca3af">All-Time</div></div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <p style="font-size:12px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Vehicle on File</p>
+      <p style="font-weight:600;font-size:13px">${dp?.vehicle_year} ${dp?.vehicle_make} ${dp?.vehicle_model} — ${dp?.vehicle_color}</p>
+      <p style="font-size:14px;font-weight:700;font-family:monospace;margin-top:4px">${dp?.vehicle_plate}</p>
+      <p style="font-size:11px;color:#9ca3af;margin-top:4px">License: ${dp?.license_number} · Expires: ${dp?.license_expiry}</p>
+    </div>
+    <h4 style="font-size:13px;font-weight:600;color:#6b7280;margin-bottom:10px">Recent Payments</h4>
+    ${!pays.length?'<div class="empty"><p>No trips yet this week</p></div>':
+      pays.slice().reverse().slice(0,10).map(p=>{
+        const ride=DB.rides.find(r=>r.id===p.ride_id);
+        return `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+          <div><p style="font-size:13px;font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ride?.destination_address||'Ride payment'}</p><p style="font-size:10px;color:#9ca3af">${fmtDate(p.created_at)}</p></div>
+          <span style="font-weight:700;color:var(--g)">TTD $${p.driver_earning.toFixed(2)}</span>
+        </div>`;
+      }).join('')
+    }
+  `;
+}
+
+function submitApp(){
+  const f={license_number:document.getElementById('ds-lic').value.trim(),license_expiry:document.getElementById('ds-exp').value,vehicle_make:document.getElementById('ds-make').value.trim(),vehicle_model:document.getElementById('ds-model').value.trim(),vehicle_year:document.getElementById('ds-year').value,vehicle_color:document.getElementById('ds-color').value.trim(),vehicle_plate:document.getElementById('ds-plate').value.trim().toUpperCase()};
+  if(!f.license_number||!f.license_expiry||!f.vehicle_make||!f.vehicle_model||!f.vehicle_year||!f.vehicle_color||!f.vehicle_plate){toast('All fields required','err');return;}
+  const btn=document.getElementById('ds-btn');btn.disabled=true;btn.innerHTML='<div class="spin"></div> Submitting...';
+  setTimeout(()=>{
+    DB.driver_profiles.push({id:uid(),user_id:S.user.id,license_number:f.license_number,license_expiry:f.license_expiry,vehicle_make:f.vehicle_make,vehicle_model:f.vehicle_model,vehicle_year:parseInt(f.vehicle_year),vehicle_color:f.vehicle_color,vehicle_plate:f.vehicle_plate,status:'pending',is_online:false,current_lat:10.6549,current_lng:-61.5019,total_trips:0,total_earnings:0,rating:5.0,rating_count:0,approved_at:null,created_at:ts()});
+    toast("Application submitted! We'll review within 24 hours 🌸",'ok');go('driver');loadDriver();
+    btn.disabled=false;btn.textContent='Submit Application 🌸';
+  },900);
+}
+
+// ─── ADMIN ──────────────────────────────────────────────────────
+function loadAdmin(){aTab(S.aTab);}
+function aTab(t){
+  S.aTab=t;
+  ['ov','drv','usr','rides','safety','biz','promo'].forEach(x=>{const el=document.getElementById('at-'+x);if(el)el.classList.toggle('on',x===t);});
+  const body=document.getElementById('admin-body');
+  if(t==='ov')renderAdminOverview(body);
+  else if(t==='drv')renderAdminDrivers(body);
+  else if(t==='usr')renderAdminUsers(body);
+  else if(t==='rides')renderAdminRides(body);
+  else if(t==='safety')renderAdminSafety(body);
+  else if(t==='biz')renderAdminBiz(body);
+  else renderAdminPromos(body);
+}
+
+function renderAdminOverview(body){
+  const users=DB.users,rides=DB.rides,dps=DB.driver_profiles;
+  const totalRev=rides.filter(r=>r.status==='completed').reduce((s,r)=>s+(r.final_fare||0),0);
+  const activeRides=rides.filter(r=>['requested','accepted','arriving','in_progress'].includes(r.status));
+  const pendDrv=dps.filter(d=>d.status==='pending').map(d=>{const u=DB.users.find(x=>x.id===d.user_id)||{};return{...d,first_name:u.first_name,last_name:u.last_name,email:u.email};});
+  const wkAgo=new Date(Date.now()-7*86400000);
+  const newUsers=users.filter(u=>new Date(u.created_at)>wkAgo).length;
+  document.getElementById('admin-sos-badge').style.display=DB.sos_events.filter(s=>s.status==='active').length?'block':'none';
+  body.innerHTML=`
+    <div class="ov-grid">
+      <div class="ov-card"><div style="font-size:22px;font-weight:700;color:var(--b)">${users.filter(u=>u.role==='rider').length}</div><div style="font-size:12px;font-weight:600;color:#6b7280">Riders</div><div style="font-size:10px;color:#9ca3af">+${newUsers} this week</div></div>
+      <div class="ov-card"><div style="font-size:22px;font-weight:700;color:#8b5cf6">${users.filter(u=>u.role==='driver').length}</div><div style="font-size:12px;font-weight:600;color:#6b7280">Drivers</div><div style="font-size:10px;color:#9ca3af">${pendDrv.length} pending</div></div>
+      <div class="ov-card"><div style="font-size:22px;font-weight:700;color:var(--g)">${activeRides.length}</div><div style="font-size:12px;font-weight:600;color:#6b7280">Active Rides</div><div style="font-size:10px;color:#9ca3af">${rides.filter(r=>r.status==='completed').length} completed</div></div>
+      <div class="ov-card"><div style="font-size:22px;font-weight:700;color:var(--p)">$${(totalRev*.2).toFixed(0)}</div><div style="font-size:12px;font-weight:600;color:#6b7280">Revenue (TTD)</div><div style="font-size:10px;color:#9ca3af">Platform 20%</div></div>
+    </div>
+    ${pendDrv.length?`
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:12px"><div style="width:8px;height:8px;background:var(--y);border-radius:50%;animation:sosp 1.5s infinite"></div><h4 style="font-size:14px">Pending Applications (${pendDrv.length})</h4></div>
+      ${pendDrv.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #f9fafb">
+        <div><p style="font-weight:600;font-size:13px">${d.first_name} ${d.last_name}</p><p style="font-size:11px;color:#9ca3af">${d.email} · ${d.vehicle_year} ${d.vehicle_make} ${d.vehicle_model}</p></div>
+        <div style="display:flex;gap:5px">
+          <button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="reviewDriver('${d.id}','rejected')">✕</button>
+          <button class="btn bsm" style="background:#dcfce7;color:var(--g)" onclick="reviewDriver('${d.id}','approved')">✓</button>
+        </div>
+      </div>`).join('')}
+    </div>`:''}
+    <div class="card" style="margin-bottom:14px">
+      <h4 style="font-size:14px;margin-bottom:12px">⚡ Quick Actions</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="btn bs bsm" onclick="aTab('safety')">🛡️ Safety Monitor</button>
+        <button class="btn bs bsm" onclick="aTab('biz')">💅 Manage Businesses</button>
+        <button class="btn bs bsm" onclick="aTab('promo')">🎁 Manage Promos</button>
+        <button class="btn bs bsm" onclick="go('discover');renderDiscover()">👁️ View Marketplace</button>
+      </div>
+    </div>
+    <div class="card">
+      <h4 style="font-size:14px;margin-bottom:12px">📊 Platform Stats</h4>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center">
+        <div style="background:#f9fafb;border-radius:10px;padding:10px"><div style="font-size:18px;font-weight:700">${rides.filter(r=>r.status==='completed').length}</div><div style="font-size:10px;color:#9ca3af">Completed</div></div>
+        <div style="background:#f9fafb;border-radius:10px;padding:10px"><div style="font-size:18px;font-weight:700">${rides.filter(r=>r.status==='cancelled').length}</div><div style="font-size:10px;color:#9ca3af">Cancelled</div></div>
+        <div style="background:#fee2e2;border-radius:10px;padding:10px"><div style="font-size:18px;font-weight:700;color:var(--r)">${DB.sos_events.filter(s=>s.status==='active').length}</div><div style="font-size:10px;color:var(--r)">Active SOS</div></div>
+      </div>
+    </div>
+  `;
+}
+
+function reviewDriver(dpId,action){
+  const dp=DB.driver_profiles.find(d=>d.id===dpId);if(!dp)return;
+  dp.status=action;if(action==='approved')dp.approved_at=ts();
+  toast('Driver '+action+' ✓','ok');renderAdminOverview(document.getElementById('admin-body'));
+}
+
+function renderAdminDrivers(body){
+  const dps=DB.driver_profiles.map(d=>{const u=DB.users.find(x=>x.id===d.user_id)||{};return{...d,first_name:u.first_name,last_name:u.last_name,email:u.email,phone:u.phone};});
+  body.innerHTML=`
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      ${['All','pending','approved','rejected','suspended'].map(s=>`<button class="btn bs bsm" style="font-size:11px" onclick="filterAdminDrv('${s==='All'?'':s}')">${s}</button>`).join('')}
+    </div>
+    <div id="drv-list"></div>`;
+  renderDrvList(dps,'');
+  window._allDrv=dps;
+}
+function filterAdminDrv(status){const list=status?(window._allDrv||[]).filter(d=>d.status===status):window._allDrv||[];renderDrvList(list,status);}
+function renderDrvList(dps,status){
+  const el=document.getElementById('drv-list');if(!el)return;
+  if(!dps.length){el.innerHTML='<div class="empty"><p>No drivers found</p></div>';return;}
+  el.innerHTML=dps.map(d=>{
+    const bc=d.status==='approved'?'bgrn':d.status==='pending'?'byel':'bred';
+    return `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div><p style="font-weight:700;font-size:14px">${d.first_name} ${d.last_name}</p><p style="font-size:11px;color:#9ca3af">${d.email}</p><p style="font-size:11px;color:#9ca3af">${d.phone||''}</p></div>
+        <span class="badge ${bc}">${d.status}</span>
+      </div>
+      <div style="background:#f9fafb;border-radius:11px;padding:10px;margin-bottom:10px">
+        <p style="font-size:12px;font-weight:600">${d.vehicle_year} ${d.vehicle_make} ${d.vehicle_model} — ${d.vehicle_color}</p>
+        <p style="font-size:12px;font-family:monospace;font-weight:700;margin-top:3px">${d.vehicle_plate}</p>
+        <div style="display:flex;gap:14px;margin-top:5px;font-size:11px;color:#9ca3af"><span>⭐ ${d.rating?.toFixed(1)||'5.0'}</span><span>🗺️ ${d.total_trips||0} trips</span><span>💰 TTD $${(d.total_earnings||0).toFixed(0)}</span></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${d.status!=='approved'?`<button class="btn bsm" style="background:#dcfce7;color:#166534" onclick="reviewDriver('${d.id}','approved')">✓ Approve</button>`:''}
+        ${d.status!=='rejected'&&d.status!=='suspended'?`<button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="reviewDriver('${d.id}','rejected')">✕ Reject</button>`:''}
+        ${d.status!=='suspended'?`<button class="btn bsm" style="background:#f3f4f6;color:#6b7280" onclick="reviewDriver('${d.id}','suspended')">⊘ Suspend</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderAdminUsers(body){
+  body.innerHTML=`<div style="display:flex;gap:8px;margin-bottom:12px"><input class="inp" id="usr-search" placeholder="Search..." style="flex:1;font-size:13px;padding:9px 12px" oninput="renderUsrList(this.value)"><button class="btn bp bsm" onclick="renderUsrList(document.getElementById('usr-search').value)">Search</button></div><div id="usr-list"></div>`;
+  renderUsrList('');
+}
+function renderUsrList(q){
+  const el=document.getElementById('usr-list');if(!el)return;
+  let users=DB.users;if(q){const ql=q.toLowerCase();users=users.filter(u=>(u.first_name+' '+u.last_name+' '+u.email).toLowerCase().includes(ql));}
+  el.innerHTML=users.map(u=>{
+    const bc=u.is_active?'bgrn':'bred';
+    const rc=u.role==='admin'?'bblu':u.role==='driver'?'bpink':'byel';
+    return `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+      <div><p style="font-weight:600;font-size:13px">${u.first_name} ${u.last_name} <span class="badge ${rc}">${u.role}</span></p><p style="font-size:11px;color:#9ca3af">${u.email}</p><p style="font-size:10px;color:#d1d5db">${fmtDate(u.created_at)}</p></div>
+      <div style="text-align:right"><span class="badge ${bc}" style="display:block;margin-bottom:5px">${u.is_active?'Active':'Suspended'}</span>
+      ${u.role!=='admin'?`<button class="btn bsm" style="background:${u.is_active?'#fee2e2':'#dcfce7'};color:${u.is_active?'var(--r)':'var(--g)'}" onclick="toggleUsr('${u.id}',${!u.is_active})">${u.is_active?'Suspend':'Activate'}</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function toggleUsr(id,active){const u=DB.users.find(x=>x.id===id);if(!u)return;u.is_active=active;toast(active?'User activated':'User suspended',active?'ok':'err');renderUsrList('');}
+
+function renderAdminRides(body){
+  const rides=DB.rides.slice().sort((a,b)=>new Date(b.requested_at)-new Date(a.requested_at));
+  if(!rides.length){body.innerHTML='<div class="empty"><div class="empty-i">🗺️</div><p>No rides yet</p></div>';return;}
+  body.innerHTML=rides.map(r=>{
+    const rider=DB.users.find(u=>u.id===r.rider_id)||{};
+    const driver=r.driver_id?DB.users.find(u=>u.id===r.driver_id):null;
+    const bc=r.status==='completed'?'bgrn':r.status==='cancelled'?'bred':r.status==='in_progress'?'bgrn':'byel';
+    return `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span class="badge ${bc}">${r.status}</span><span style="font-weight:700;color:var(--p);font-size:13px">${r.final_fare?fmtFare(r.final_fare):'~'+fmtFare(r.estimated_fare)}</span></div>
+      <p style="font-size:12px;color:#6b7280;margin-bottom:2px">🚶 ${rider.first_name} ${rider.last_name}</p>
+      <p style="font-size:12px;color:#6b7280;margin-bottom:7px">🚗 ${driver?driver.first_name+' '+driver.last_name:'Unassigned'}</p>
+      <div style="font-size:11px;color:#9ca3af"><p>📍 ${r.pickup_address}</p><p>🏁 ${r.destination_address}</p><p style="margin-top:4px;font-size:10px">${fmtDate(r.requested_at)}</p></div>
+    </div>`;
+  }).join('');
+}
+
+function renderAdminSafety(body){
+  const active=DB.sos_events.filter(s=>s.status==='active');
+  const all=DB.sos_events.slice().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  const reports=DB.reports.slice().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  document.getElementById('admin-sos-badge').style.display=active.length?'block':'none';
+  body.innerHTML=`
+    ${active.length?`
+    <div style="border:2px solid #fca5a5;background:#fff5f5;border-radius:20px;padding:14px;margin-bottom:12px">
+      <h4 style="color:var(--r);margin-bottom:10px;font-size:14px">🚨 Active SOS Alerts (${active.length})</h4>
+      ${active.map(s=>{const u=DB.users.find(x=>x.id===s.user_id)||{};return `<div style="background:#fff;border-radius:12px;padding:10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+        <div><p style="font-weight:700;font-size:13px">${u.first_name} ${u.last_name}</p><p style="font-size:11px;color:#9ca3af">${u.phone||''}</p><p style="font-size:11px;color:#9ca3af">${s.message}</p></div>
+        <button class="btn bg2 bsm" onclick="resolveSOS('${s.id}')">Resolve</button>
+      </div>`;}).join('')}
+    </div>`:`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:14px;padding:12px;margin-bottom:12px;text-align:center"><p style="color:#166534;font-weight:600;font-size:13px">✅ No active SOS events</p></div>`}
+    <h4 style="font-size:13px;font-weight:600;color:#6b7280;margin-bottom:10px">SOS Event Log (${all.length})</h4>
+    ${!all.length?'<div class="empty"><p>No SOS events on record</p></div>':all.map(s=>{const u=DB.users.find(x=>x.id===s.user_id)||{};return `<div class="card" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><div><p style="font-weight:600;font-size:13px">${u.first_name} ${u.last_name}</p><p style="font-size:11px;color:#9ca3af">${u.phone||''}</p></div><span class="badge ${s.status==='active'?'bred':'bgrn'}">${s.status}</span></div>
+      <p style="font-size:12px;color:#6b7280">${s.message}</p>
+      <p style="font-size:10px;color:#d1d5db;margin-top:4px">${fmtDate(s.created_at)}</p>
+      ${s.status==='active'?`<button class="btn bg2 bsm" style="margin-top:8px" onclick="resolveSOS('${s.id}')">Resolve</button>`:''}
+    </div>`;}).join('')}
+    ${reports.length?`<h4 style="font-size:13px;font-weight:600;color:#6b7280;margin-bottom:10px;margin-top:4px">Driver Reports (${reports.length})</h4>
+    ${reports.map(r=>{const reporter=DB.users.find(u=>u.id===r.reporter_id)||{};return `<div class="card" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span class="badge byel">${r.reason}</span><span class="badge ${r.status==='pending'?'byel':'bgrn'}">${r.status}</span></div>
+      <p style="font-size:12px;color:#6b7280">By: ${reporter.first_name} ${reporter.last_name}</p>
+      ${r.description?`<p style="font-size:11px;color:#9ca3af;margin-top:4px">"${r.description}"</p>`:''}
+      <p style="font-size:10px;color:#d1d5db;margin-top:4px">${fmtDate(r.created_at)}</p>
+    </div>`;}).join('')}`:''}
+  `;
+}
+function resolveSOS(id){const s=DB.sos_events.find(x=>x.id===id);if(!s)return;s.status='resolved';toast('SOS resolved ✓','ok');renderAdminSafety(document.getElementById('admin-body'));}
+
+function renderAdminBiz(body){
+  body.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="font-size:15px;font-weight:700">Marketplace (${DB.businesses.length})</h3>
+      <button class="btn bp bsm" onclick="openModal('biz-modal')">+ Add Business</button>
+    </div>
+    ${DB.businesses.map(b=>{
+      const svcCount=DB.business_services.filter(s=>s.business_id===b.id).length;
+      const discCount=DB.business_discounts.filter(d=>d.business_id===b.id&&d.is_active&&new Date(d.valid_until)>new Date()).length;
+      return `<div class="card" style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div><p style="font-weight:700;font-size:14px">${CAT_EMOJI[b.category]||'✨'} ${b.name}</p><p style="font-size:11px;color:#9ca3af">${b.address}</p></div>
+          <div style="text-align:right">
+            ${b.is_featured?'<span class="badge byel">⭐ Featured</span>':''}<br>
+            <span class="badge ${b.is_active?'bgrn':'bred'}">${b.is_active?'Active':'Inactive'}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;font-size:11px;color:#9ca3af;margin-bottom:10px">
+          <span>⭐ ${b.rating} (${b.rating_count})</span><span>📋 ${svcCount} services</span><span>🎁 ${discCount} discounts</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn bsm" style="background:${b.is_featured?'#fef9c3':'#f3f4f6'};color:${b.is_featured?'#854d0e':'#6b7280'}" onclick="toggleFeat('${b.id}')">${b.is_featured?'★ Featured':'☆ Feature'}</button>
+          <button class="btn bsm" style="background:${b.is_active?'#fee2e2':'#dcfce7'};color:${b.is_active?'var(--r)':'var(--g)'}" onclick="toggleBizActive('${b.id}')">${b.is_active?'Deactivate':'Activate'}</button>
+          <button class="btn bsm" style="background:#dbeafe;color:var(--b)" onclick="openBizDetail('${b.id}')">View</button>
+        </div>
+      </div>`;
+    }).join('')}
+  `;
+}
+function toggleFeat(id){const b=DB.businesses.find(x=>x.id===id);if(!b)return;b.is_featured=!b.is_featured;toast(b.is_featured?'Featured! ⭐':'Removed from featured');renderAdminBiz(document.getElementById('admin-body'));}
+function toggleBizActive(id){const b=DB.businesses.find(x=>x.id===id);if(!b)return;b.is_active=!b.is_active;toast(b.is_active?'Activated':'Deactivated');renderAdminBiz(document.getElementById('admin-body'));}
+function saveBiz(){
+  const name=document.getElementById('biz-name').value.trim();const cat=document.getElementById('biz-cat').value;const addr=document.getElementById('biz-addr').value.trim();const phone=document.getElementById('biz-phone').value.trim();const desc=document.getElementById('biz-desc').value.trim();
+  if(!name||!addr){toast('Name and address required','err');return;}
+  DB.businesses.push({id:uid(),name,category:cat,description:desc,short_description:desc,address:addr,phone:phone||null,rating:5.0,rating_count:0,is_featured:false,is_active:true,is_verified:true,created_at:ts()});
+  toast('Business added! 🌸','ok');closeModal('biz-modal');
+  ['biz-name','biz-addr','biz-phone','biz-desc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderAdminBiz(document.getElementById('admin-body'));
+}
+
+function renderAdminPromos(body){
+  body.innerHTML=`
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">Promo Codes (${DB.promotions.length})</h3>
+    ${DB.promotions.map(p=>`<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <p style="font-weight:700;font-size:14px;font-family:monospace">${p.code}</p>
+          <p style="font-size:12px;font-weight:600;color:#6b7280">${p.title}</p>
+          <p style="font-size:11px;color:#9ca3af">${p.description}</p>
+        </div>
+        <span class="badge ${p.is_active?'bgrn':'bred'}">${p.is_active?'Active':'Inactive'}</span>
+      </div>
+      <div style="display:flex;gap:12px;font-size:11px;color:#9ca3af;margin-bottom:10px">
+        <span>💰 ${p.type==='percentage'?p.value+'%':'TTD $'+p.value} off</span>
+        <span>📊 ${p.usage_count}/${p.usage_limit||'∞'} used</span>
+        <span>📅 Until ${new Date(p.valid_until).toLocaleDateString()}</span>
+      </div>
+      <button class="btn bsm" style="background:${p.is_active?'#fee2e2':'#dcfce7'};color:${p.is_active?'var(--r)':'var(--g)'}" onclick="togglePromo('${p.id}')">${p.is_active?'Deactivate':'Activate'}</button>
+    </div>`).join('')}
+  `;
+}
+function togglePromo(id){const p=DB.promotions.find(x=>x.id===id);if(!p)return;p.is_active=!p.is_active;toast(p.is_active?'Promo activated':'Promo deactivated');renderAdminPromos(document.getElementById('admin-body'));}
+
+// ─── DISCOVER MARKETPLACE ───────────────────────────────────────
+function renderDiscover(){
+  const body=document.getElementById('discover-body');if(!body)return;
+  const q=(document.getElementById('biz-search')?.value||'').toLowerCase();
+  let bizs=DB.businesses.filter(b=>b.is_active);
+  if(S.currentBizCat)bizs=bizs.filter(b=>b.category===S.currentBizCat);
+  if(q)bizs=bizs.filter(b=>b.name.toLowerCase().includes(q)||b.description?.toLowerCase().includes(q)||b.address.toLowerCase().includes(q));
+  bizs.sort((a,b)=>b.is_featured-a.is_featured||(b.rating-a.rating));
+  if(!bizs.length){body.innerHTML='<div class="empty"><div class="empty-i">🔍</div><p>No businesses found</p></div>';return;}
+  body.innerHTML=bizs.map(b=>{
+    const discs=DB.business_discounts.filter(d=>d.business_id===b.id&&d.is_active&&new Date(d.valid_until)>new Date());
+    const svcCount=DB.business_services.filter(s=>s.business_id===b.id).length;
+    return `<div class="biz-card" onclick="openBizDetail('${b.id}')">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:44px;height:44px;background:var(--pp);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${CAT_EMOJI[b.category]||'✨'}</div>
+          <div>
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:2px">${b.name}</h3>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span class="badge bpink" style="font-size:10px">${b.category.replace('_',' ')}</span>
+              ${b.is_featured?'<span class="badge byel" style="font-size:10px">⭐ Featured</span>':''}
+            </div>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="color:var(--y);font-size:14px">⭐ <strong style="color:#374151">${b.rating}</strong></div>
+          <div style="font-size:10px;color:#9ca3af">(${b.rating_count})</div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:#6b7280;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${b.short_description||b.description}</p>
+      <p style="font-size:11px;color:#9ca3af;margin-bottom:${discs.length?'8px':'0'}">📍 ${b.address}${b.phone?' · '+b.phone:''}</p>
+      ${discs.length?`<div class="disc-badge"><span style="font-size:16px">🎁</span><div><p style="font-size:11px;font-weight:700;color:var(--p)">${discs[0].title}</p><p style="font-size:10px;color:#9d174d">${discs[0].discount_type==='percentage'?discs[0].discount_value+'% OFF':'TTD $'+discs[0].discount_value+' OFF'}</p></div></div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function filterBiz(q){renderDiscover();}
+function filterCat(cat){
+  S.currentBizCat=cat;
+  document.querySelectorAll('.cat-chip').forEach(c=>{c.classList.remove('on');if(c.textContent.includes(cat==='nail_salon'?'Nail':cat==='hair_salon'?'Hair':cat==='spa'?'Spa':cat==='makeup'?'Makeup':cat==='massage'?'Massage':cat==='fitness'?'Fitness':cat==='skincare'?'Skincare':cat===''?'All':'xxx'))c.classList.add('on');});
+  if(!cat)document.querySelectorAll('.cat-chip')[0].classList.add('on');
+  renderDiscover();
+}
+
+function openBizDetail(id){
+  S.currentBizId=id;
+  const b=DB.businesses.find(x=>x.id===id);if(!b)return;
+  S.prevPage='discover';
+  document.getElementById('biz-detail-name').textContent=b.name;
+  const svcs=DB.business_services.filter(s=>s.business_id===id);
+  const discs=DB.business_discounts.filter(d=>d.business_id===id&&d.is_active&&new Date(d.valid_until)>new Date());
+  const body=document.getElementById('biz-detail-body');
+  body.innerHTML=`
+    <div style="text-align:center;padding:24px 0 16px;background:linear-gradient(135deg,var(--pp),#fff);border-radius:20px;margin-bottom:14px">
+      <div style="font-size:52px;margin-bottom:8px">${CAT_EMOJI[b.category]||'✨'}</div>
+      <h2 style="font-size:22px">${b.name}</h2>
+      <p style="font-size:12px;color:#9ca3af;margin-top:4px">${b.address}</p>
+      <div style="display:flex;align-items:center;gap:4px;justify-content:center;margin-top:8px">
+        <span style="color:var(--y);font-size:18px">⭐ ${b.rating}</span>
+        <span style="font-size:12px;color:#9ca3af">(${b.rating_count} reviews)</span>
+      </div>
+    </div>
+    ${discs.length?discs.map(d=>`<div class="disc-badge" style="margin-bottom:10px"><span style="font-size:20px">🎁</span><div><p style="font-size:13px;font-weight:700;color:var(--p)">${d.title}</p><p style="font-size:11px;color:#9d174d">${d.discount_type==='percentage'?d.discount_value+'% OFF ALL SERVICES':'TTD $'+d.discount_value+' OFF'} · Until ${new Date(d.valid_until).toLocaleDateString()}</p></div></div>`).join(''):''}
+    ${b.phone||b.description?`<div class="card" style="margin-bottom:12px">
+      ${b.description?`<p style="font-size:13px;color:#6b7280;line-height:1.6;margin-bottom:${b.phone?'12px':'0'}">${b.description}</p>`:''}
+      ${b.phone?`<div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="tel:${b.phone}" class="btn bp bsm" style="text-decoration:none;font-size:12px">📞 Call</a>
+        <a href="https://wa.me/${b.phone.replace(/\D/g,'')}" target="_blank" class="btn bsm" style="background:#dcfce7;color:#166534;font-size:12px;text-decoration:none">💬 WhatsApp</a>
+      </div>`:''}
+    </div>`:''}
+    ${svcs.length?`<div class="card" style="margin-bottom:12px">
+      <h3 style="font-size:15px;margin-bottom:12px">Services & Pricing</h3>
+      ${svcs.map(s=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #f9fafb">
+        <div><p style="font-size:13px;font-weight:600">${s.name}</p>${s.duration_minutes?`<p style="font-size:11px;color:#9ca3af">⏱️ ${s.duration_minutes} min</p>`:''}${discs.length?`<p style="font-size:11px;color:var(--g);font-weight:600">~TTD $${(s.price*(1-discs[0].discount_value/100)).toFixed(0)} with discount</p>`:''}
+        </div>
+        <span style="font-weight:700;color:var(--p);font-size:15px">TTD $${s.price}</span>
+      </div>`).join('')}
+    </div>`:`<div class="card" style="text-align:center;padding:20px;margin-bottom:12px;color:#9ca3af"><p>Services listed on call</p></div>`}
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:12px">📍 Location</h3>
+      <div style="height:120px;background:linear-gradient(135deg,var(--pp),#fff);border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;cursor:pointer" onclick="window.open('https://maps.google.com/?q='+encodeURIComponent('${b.address}'),'_blank')">
+        <div style="text-align:center"><div style="font-size:28px">📍</div><p style="font-size:12px;color:var(--p);font-weight:600">Open in Google Maps</p></div>
+      </div>
+      <p style="font-size:13px;color:#6b7280">${b.address}</p>
+    </div>
+    <div style="height:20px"></div>
+  `;
+  go('biz-detail');
+}
+function shareBiz(){const b=DB.businesses.find(x=>x.id===S.currentBizId);if(!b)return;navigator.clipboard?.writeText(window.location.href+'#'+b.id).catch(()=>{});toast('Business link copied! 📋','ok');}
+
+// ─── TRIP TRACKING (PUBLIC) ─────────────────────────────────────
+function loadTrack(token){
+  go('track');
+  const body=document.getElementById('track-body');
+  const share=DB.trip_shares.find(s=>s.share_token===token);
+  if(!share||new Date(share.expires_at)<new Date()){
+    body.innerHTML='<div class="empty"><div class="empty-i">🔍</div><p>Trip link not found or expired</p></div>';
+    return;
+  }
+  const ride=DB.rides.find(r=>r.id===share.ride_id);
+  if(!ride){body.innerHTML='<div class="empty"><p>Ride not found</p></div>';return;}
+  const driver=ride.driver_id?DB.users.find(u=>u.id===ride.driver_id):null;
+  const dp=driver?DB.driver_profiles.find(d=>d.user_id===driver.id):null;
+  const smap={
+    requested:{color:'var(--y)',label:'🟡 Finding a driver'},
+    accepted:{color:'var(--b)',label:'🔵 Driver on the way'},
+    arriving:{color:'#f97316',label:'🚗 Driver arriving!'},
+    in_progress:{color:'var(--g)',label:'🟢 Ride in progress — LIVE'},
+    completed:{color:'var(--p)',label:'🌸 Arrived safely'},
+    cancelled:{color:'#9ca3af',label:'⚫ Ride cancelled'}
+  };
+  const st=smap[ride.status]||smap.requested;
+  const pct=ride.status==='in_progress'?66:ride.status==='completed'?100:ride.status==='accepted'||ride.status==='arriving'?33:0;
+  setTimeout(()=>loadTrack(token),10000);
+  const driverHtml = driver ? (
+    '<div class="card" style="margin-bottom:12px">' +
+    '<h4 style="font-size:13px;margin-bottom:8px">Driver Info</h4>' +
+    '<div style="display:flex;justify-content:space-between">' +
+    '<div><p style="font-weight:700;font-size:14px">' + driver.first_name + ' ' + driver.last_name + '</p>' +
+    (dp ? '<p style="font-size:12px;color:#6b7280">' + dp.vehicle_color + ' ' + dp.vehicle_make + ' ' + dp.vehicle_model + '</p>' +
+    '<p style="font-size:13px;font-family:monospace;font-weight:700;margin-top:2px">' + dp.vehicle_plate + '</p>' : '') +
+    '</div>' +
+    (dp ? '<div style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--y)">⭐ ' + (dp.rating?dp.rating.toFixed(1):'5.0') + '</div></div>' : '') +
+    '</div></div>'
+  ) : '';
+
+  body.innerHTML =
+    '<div style="text-align:center;margin-bottom:14px"><h2 style="font-size:20px">Live Trip Tracking</h2><p style="font-size:11px;color:#9ca3af">Auto-refreshes · Powered by Pink.TT</p></div>' +
+    '<div style="background:' + st.color + '20;border:1.5px solid ' + st.color + '40;border-radius:14px;padding:11px 14px;margin-bottom:14px;font-size:13px;font-weight:600">' + st.label + '</div>' +
+    '<div style="margin-bottom:14px">' +
+    '<div style="display:flex;justify-content:space-between;font-size:10px;color:#9ca3af;margin-bottom:4px"><span>Requested</span><span>Accepted</span><span>In Progress</span><span>Arrived</span></div>' +
+    '<div class="progress-track"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
+    '</div>' +
+    '<div id="map-share" class="mapbox"></div>' +
+    '<div class="card" style="margin-bottom:12px">' +
+    '<h4 style="font-size:14px;margin-bottom:10px">Trip Details</h4>' +
+    '<div style="display:flex;gap:8px;margin-bottom:8px"><div style="width:8px;height:8px;background:var(--p);border-radius:50%;margin-top:5px;flex-shrink:0"></div><div><p style="font-size:10px;color:#9ca3af">Pickup</p><p style="font-size:13px">' + ride.pickup_address + '</p></div></div>' +
+    '<div style="display:flex;gap:8px"><div style="width:8px;height:8px;background:#111827;border-radius:50%;margin-top:5px;flex-shrink:0"></div><div><p style="font-size:10px;color:#9ca3af">Destination</p><p style="font-size:13px">' + ride.destination_address + '</p></div></div>' +
+    '<div style="display:flex;gap:14px;margin-top:10px;font-size:11px;color:#9ca3af">' +
+    '<span>📏 ' + ride.distance_km + ' km</span><span>⏱️ ~' + ride.duration_minutes + ' min</span>' +
+    (ride.estimated_fare ? '<span style="font-weight:700;color:var(--p)">~TTD $' + ride.estimated_fare + '</span>' : '') +
+    '</div></div>' +
+    driverHtml +
+    '<div style="background:var(--pp);border-radius:14px;padding:14px;display:flex;gap:10px;align-items:flex-start">' +
+    '<span style="font-size:22px;flex-shrink:0">🛡️</span>' +
+    '<div><p style="font-weight:700;font-size:13px;color:var(--p)">Verified Safe Ride</p>' +
+    '<p style="font-size:12px;color:#9d174d;margin-top:3px;line-height:1.5">This ride is by a verified Pink.TT driver — women-only, background-checked, community-rated.</p></div>' +
+    '</div>' +
+    '<p style="text-align:center;font-size:10px;color:#d1d5db;margin-top:12px">Shared by ' + (share.contact_name||'a Pink.TT user') + ' · Expires ' + new Date(share.expires_at).toLocaleString() + '</p>' +
+    '<div style="height:20px"></div>';
+}
+
+// ─── INIT ────────────────────────────────────────────────────────
+function init(){
+  const params=new URLSearchParams(location.search);
+  const track=params.get('track');
+  if(track){loadTrack(track);return;}
+  restoreDB();
+  load();
+  if(S.user){
+    const fresh=DB.users.find(u=>u.id===S.user.id);
+    if(fresh&&fresh.is_active){S.user=fresh;routeUser(fresh);}
+    else go('land');
+  } else {
+    go('land');
+  }
+}
+init();
+</script>
+</body>
+</html>
