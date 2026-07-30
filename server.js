@@ -1,16 +1,24 @@
 'use strict';
-const express=require('express'),http=require('http'),WebSocket=require('ws'),bcrypt=require('bcryptjs'),jwt=require('jsonwebtoken'),{v4:uuidv4}=require('uuid'),path=require('path'),os=require('os');
-const JWT_SECRET='pinktt_2025_secure',PORT=process.env.PORT||3000;
+const express=require('express'),http=require('http'),WebSocket=require('ws'),bcrypt=require('bcryptjs'),jwt=require('jsonwebtoken'),{v4:uuidv4}=require('uuid'),path=require('path'),os=require('os'),rateLimit=require('express-rate-limit');
+const PORT=process.env.PORT||3000;
+const JWT_SECRET=process.env.JWT_SECRET||'pinktt_2025_secure';
+if(!process.env.JWT_SECRET)console.warn('⚠️  JWT_SECRET not set — using an insecure default. Set JWT_SECRET in production.');
+if(!process.env.ANTHROPIC_API_KEY)console.warn('⚠️  ANTHROPIC_API_KEY not set — ID verification will run in DEMO MODE (auto-approves).');
+const SHOW_DEMO_ACCOUNTS=process.env.SHOW_DEMO_ACCOUNTS==='true'||(process.env.NODE_ENV!=='production'&&process.env.SHOW_DEMO_ACCOUNTS!=='false');
 
 // ── Database abstraction: Turso cloud if env set, else local SQLite ───────────
 let dbGet,dbAll,dbRun,dbInit;
 const SCHEMA_SQL=[
   `CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL COLLATE NOCASE,password_hash TEXT NOT NULL,first_name TEXT,last_name TEXT,phone TEXT DEFAULT'',role TEXT DEFAULT'rider',gender TEXT DEFAULT'female',is_verified INTEGER DEFAULT 0,is_active INTEGER DEFAULT 1,emergency_contact_name TEXT DEFAULT'',emergency_contact_phone TEXT DEFAULT'',wallet_balance REAL DEFAULT 0,total_rides INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`,
-  `CREATE TABLE IF NOT EXISTS driver_profiles(id TEXT PRIMARY KEY,user_id TEXT UNIQUE,license_number TEXT DEFAULT'',vehicle_make TEXT DEFAULT'',vehicle_model TEXT DEFAULT'',vehicle_year TEXT DEFAULT'',vehicle_color TEXT DEFAULT'',vehicle_plate TEXT DEFAULT'',status TEXT DEFAULT'pending',is_online INTEGER DEFAULT 0,current_lat REAL DEFAULT 10.6549,current_lng REAL DEFAULT -61.5019,total_trips INTEGER DEFAULT 0,total_earnings REAL DEFAULT 0,balance REAL DEFAULT 0,today_earnings REAL DEFAULT 0,rating REAL DEFAULT 5.0,rating_count INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(user_id)REFERENCES users(id))`,
+  `CREATE TABLE IF NOT EXISTS driver_profiles(id TEXT PRIMARY KEY,user_id TEXT UNIQUE,license_number TEXT DEFAULT'',license_photo TEXT DEFAULT'',vehicle_make TEXT DEFAULT'',vehicle_model TEXT DEFAULT'',vehicle_year TEXT DEFAULT'',vehicle_color TEXT DEFAULT'',vehicle_plate TEXT DEFAULT'',status TEXT DEFAULT'pending',is_online INTEGER DEFAULT 0,current_lat REAL DEFAULT 10.6549,current_lng REAL DEFAULT -61.5019,total_trips INTEGER DEFAULT 0,total_earnings REAL DEFAULT 0,balance REAL DEFAULT 0,today_earnings REAL DEFAULT 0,rating REAL DEFAULT 5.0,rating_count INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(user_id)REFERENCES users(id))`,
   `CREATE TABLE IF NOT EXISTS rides(id TEXT PRIMARY KEY,rider_id TEXT,driver_id TEXT,status TEXT DEFAULT'requested',pickup_address TEXT,pickup_lat REAL,pickup_lng REAL,destination_address TEXT,destination_lat REAL,destination_lng REAL,estimated_fare REAL,final_fare REAL,distance_km REAL,duration_minutes INTEGER,rider_rating INTEGER,requested_at TEXT DEFAULT(datetime('now')),accepted_at TEXT,started_at TEXT,completed_at TEXT,cancelled_at TEXT,created_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS payments(id TEXT PRIMARY KEY,ride_id TEXT,rider_id TEXT,driver_id TEXT,amount REAL,platform_fee REAL,driver_earning REAL,status TEXT DEFAULT'pending',method TEXT DEFAULT'cash',created_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS sos_events(id TEXT PRIMARY KEY,user_id TEXT,ride_id TEXT,status TEXT DEFAULT'active',lat REAL,lng REAL,message TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,user_id TEXT,type TEXT DEFAULT'info',message TEXT,is_read INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`
+];
+// Additive migrations for DBs created before a column existed — safe to fail if already applied.
+const MIGRATIONS_SQL=[
+  `ALTER TABLE driver_profiles ADD COLUMN license_photo TEXT DEFAULT ''`
 ];
 
 if(process.env.TURSO_DATABASE_URL){
@@ -20,7 +28,11 @@ if(process.env.TURSO_DATABASE_URL){
   dbGet=async(sql,args=[])=>{const r=await turso.execute({sql,args});return r.rows.length?toPlain(r.rows,r.columns)[0]:null;};
   dbAll=async(sql,args=[])=>{const r=await turso.execute({sql,args});return toPlain(r.rows,r.columns);};
   dbRun=async(sql,args=[])=>{await turso.execute({sql,args});};
-  dbInit=async()=>{await turso.batch(SCHEMA_SQL.map(sql=>({sql})),'write');console.log('✅ Connected to Turso cloud database');};
+  dbInit=async()=>{
+    await turso.batch(SCHEMA_SQL.map(sql=>({sql})),'write');
+    for(const sql of MIGRATIONS_SQL){try{await turso.execute({sql,args:[]});}catch{}}
+    console.log('✅ Connected to Turso cloud database');
+  };
 }else{
   const Database=require('better-sqlite3');
   const sqlite=new Database(path.join(__dirname,'pinktt.db'));
@@ -28,7 +40,11 @@ if(process.env.TURSO_DATABASE_URL){
   dbGet=async(sql,args=[])=>sqlite.prepare(sql).get(...args)??null;
   dbAll=async(sql,args=[])=>sqlite.prepare(sql).all(...args);
   dbRun=async(sql,args=[])=>{sqlite.prepare(sql).run(...args);};
-  dbInit=async()=>{SCHEMA_SQL.forEach(s=>sqlite.exec(s));console.log('✅ Using local SQLite (no TURSO_DATABASE_URL set)');};
+  dbInit=async()=>{
+    SCHEMA_SQL.forEach(s=>sqlite.exec(s));
+    for(const sql of MIGRATIONS_SQL){try{sqlite.exec(sql);}catch{}}
+    console.log('✅ Using local SQLite (no TURSO_DATABASE_URL set)');
+  };
 }
 
 // ── Business logic ────────────────────────────────────────────────────────────
@@ -38,8 +54,8 @@ function calcFare(km,min){const h=new Date().getHours(),raw=25+km*3.5+min*1.5,s=
 function dist(p,d){const R=6371,dLat=(d[0]-p[0])*Math.PI/180,dLon=(d[1]-p[1])*Math.PI/180,a=Math.sin(dLat/2)**2+Math.cos(p[0]*Math.PI/180)*Math.cos(d[0]*Math.PI/180)*Math.sin(dLon/2)**2;return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*10)/10;}
 
 async function buildDB(){
-  const users=(await dbAll('SELECT id,email,password_hash,first_name,last_name,phone,role,gender,is_verified,is_active,emergency_contact_name,emergency_contact_phone,wallet_balance,total_rides,created_at FROM users')).map(u=>({...u,is_verified:!!u.is_verified,is_active:!!u.is_active}));
-  const driver_profiles=(await dbAll('SELECT * FROM driver_profiles')).map(d=>({...d,is_online:!!d.is_online,approved_at:d.status==='approved'?d.created_at:null}));
+  const users=(await dbAll('SELECT id,email,first_name,last_name,phone,role,gender,is_verified,is_active,emergency_contact_name,emergency_contact_phone,wallet_balance,total_rides,created_at FROM users')).map(u=>({...u,is_verified:!!u.is_verified,is_active:!!u.is_active}));
+  const driver_profiles=(await dbAll('SELECT id,user_id,license_number,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status,is_online,current_lat,current_lng,total_trips,total_earnings,balance,today_earnings,rating,rating_count,created_at FROM driver_profiles')).map(d=>({...d,is_online:!!d.is_online,approved_at:d.status==='approved'?d.created_at:null}));
   const rides=await dbAll('SELECT * FROM rides');
   const payments=await dbAll('SELECT * FROM payments');
   const sos_events=await dbAll('SELECT * FROM sos_events');
@@ -55,7 +71,14 @@ app.use(express.json({limit:'5mb'}));
 app.use(express.static(path.join(__dirname,'public')));
 function authMW(req,res,next){const t=(req.headers.authorization||'').replace('Bearer ','').trim();if(!t)return res.status(401).json({error:'No token'});try{req.jwt=jwt.verify(t,JWT_SECRET);next();}catch{res.status(401).json({error:'Session expired — please log in again'});}}
 
-app.post('/api/register',async(req,res)=>{
+// ── Rate limiting ────────────────────────────────────────────────────────────
+const authLimiter=rateLimit({windowMs:15*60*1000,max:20,standardHeaders:true,legacyHeaders:false,message:{error:'Too many attempts — please try again in a few minutes'}});
+const mutationLimiter=rateLimit({windowMs:60*1000,max:60,standardHeaders:true,legacyHeaders:false,message:{error:'Too many requests — please slow down'}});
+const verifyLimiter=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{error:'Too many verification attempts — please try again later'}});
+
+app.get('/api/config',(req,res)=>{res.json({showDemoAccounts:SHOW_DEMO_ACCOUNTS});});
+
+app.post('/api/register',authLimiter,async(req,res)=>{
   const{first_name,last_name,email,password,phone,role,emergency_contact_name,emergency_contact_phone}=req.body;
   if(!first_name||!last_name||!email||!password)return res.status(400).json({error:'Missing required fields'});
   if(password.length<8)return res.status(400).json({error:'Password must be 8+ characters'});
@@ -68,7 +91,7 @@ app.post('/api/register',async(req,res)=>{
   res.json({ok:true,token,user_id:id});
 });
 
-app.post('/api/login',async(req,res)=>{
+app.post('/api/login',authLimiter,async(req,res)=>{
   const{email,password}=req.body;
   if(!email||!password)return res.status(400).json({error:'Email and password required'});
   const user=await dbGet('SELECT * FROM users WHERE email=?',[email.toLowerCase()]);
@@ -92,14 +115,71 @@ app.post('/api/fare',(req,res)=>{
   res.json({km,min,fare,pickup_lat:p[0],pickup_lng:p[1],dest_lat:d[0],dest_lng:d[1],surge:s});
 });
 
-app.post('/api/mutation',authMW,async(req,res)=>{
+// ── ID verification (server-side, key never reaches the client) ──────────────
+app.post('/api/verify-id',verifyLimiter,authMW,async(req,res)=>{
+  const{image}=req.body;
+  if(!image||typeof image!=='string')return res.status(400).json({ok:false,error:'No photo provided'});
+  const m=image.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if(!m)return res.status(400).json({ok:false,error:'Invalid image format — please upload a JPEG, PNG, or WebP photo'});
+  const[,mediaType,base64Data]=m;
+
+  if(!process.env.ANTHROPIC_API_KEY){
+    console.warn(`⚠️  DEMO MODE: ANTHROPIC_API_KEY not set — auto-approving ID verification for ${req.jwt.email}`);
+    await dbRun('UPDATE users SET is_verified=1 WHERE id=?',[req.jwt.id]);
+    broadcastDBUpdate();
+    return res.json({ok:true,verified:true,demo:true});
+  }
+
+  try{
+    const apiRes=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:10,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:mediaType,data:base64Data}},
+          {type:'text',text:'This photo was submitted for identity verification on a women-only rideshare platform. Respond with exactly one lowercase word and nothing else: "female", "male", or "unclear" — describing the apparent gender presentation of the person in the photo.'}
+        ]}]
+      })
+    });
+    if(!apiRes.ok){
+      const errText=await apiRes.text();
+      console.error('Anthropic API error',apiRes.status,errText);
+      return res.status(502).json({ok:false,error:'Verification service is temporarily unavailable — please try again shortly'});
+    }
+    const apiData=await apiRes.json();
+    const answer=(apiData.content?.[0]?.text||'').trim().toLowerCase();
+    if(answer.includes('female')){
+      await dbRun('UPDATE users SET is_verified=1 WHERE id=?',[req.jwt.id]);
+      broadcastDBUpdate();
+      return res.json({ok:true,verified:true});
+    }else if(answer.includes('male')){
+      return res.json({ok:false,verified:false,error:'This photo did not pass verification. Pink.TT is a women-only platform — contact support@pink.tt if you believe this is an error.'});
+    }else{
+      return res.json({ok:false,verified:false,retry:true,error:'Could not verify clearly — please retake the photo in good lighting with your face visible.'});
+    }
+  }catch(e){
+    console.error('verify-id error',e.message);
+    res.status(500).json({ok:false,error:'Verification failed — please try again'});
+  }
+});
+
+// Admin-only: fetch a pending driver's licence photo for review (kept out of the general /api/db broadcast for privacy).
+app.get('/api/driver-license-photo/:userId',authMW,async(req,res)=>{
+  if(req.jwt.role!=='admin')return res.status(403).json({error:'Admin only'});
+  const dp=await dbGet('SELECT license_photo FROM driver_profiles WHERE user_id=?',[req.params.userId]);
+  res.json({license_photo:dp?.license_photo||''});
+});
+
+app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
   const{type,data}=req.body,userId=req.jwt.id;
   try{
     if(type==='driver_apply'){
-      const{vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number}=data;
+      const{vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_photo}=data;
       const ex=await dbGet('SELECT id FROM driver_profiles WHERE user_id=?',[userId]);
-      if(ex)await dbRun('UPDATE driver_profiles SET vehicle_make=?,vehicle_model=?,vehicle_year=?,vehicle_color=?,vehicle_plate=?,license_number=? WHERE user_id=?',[vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,userId]);
-      else await dbRun('INSERT INTO driver_profiles(id,user_id,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,status)VALUES(?,?,?,?,?,?,?,?,?)',[uuidv4(),userId,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,'pending']);
+      if(ex)await dbRun('UPDATE driver_profiles SET vehicle_make=?,vehicle_model=?,vehicle_year=?,vehicle_color=?,vehicle_plate=?,license_number=?,license_photo=COALESCE(?,license_photo) WHERE user_id=?',[vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_photo||null,userId]);
+      else await dbRun('INSERT INTO driver_profiles(id,user_id,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_photo,status)VALUES(?,?,?,?,?,?,?,?,?,?)',[uuidv4(),userId,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_photo||'','pending']);
     }else if(type==='book_ride'){
       const ex=await dbGet("SELECT id FROM rides WHERE rider_id=? AND status NOT IN('completed','cancelled')",[userId]);
       if(ex)return res.json({ok:false,error:'You already have an active ride'});
@@ -156,6 +236,9 @@ app.post('/api/mutation',authMW,async(req,res)=>{
     }else if(type==='reject_driver'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       await dbRun("UPDATE driver_profiles SET status='rejected' WHERE user_id=?",[data.user_id]);
+    }else if(type==='suspend_driver'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      await dbRun("UPDATE driver_profiles SET status='suspended',is_online=0 WHERE user_id=?",[data.user_id]);
     }else if(type==='rate_ride'){
       await dbRun('UPDATE rides SET rider_rating=? WHERE id=?',[data.score,data.ride_id]);
       const ride=await dbGet('SELECT driver_id FROM rides WHERE id=?',[data.ride_id]);
@@ -170,6 +253,17 @@ app.post('/api/mutation',authMW,async(req,res)=>{
     broadcastDBUpdate();
     res.json({ok:true,db:await buildDB()});
   }catch(e){console.error('Mutation',type,e.message);res.status(500).json({ok:false,error:e.message});}
+});
+
+// ── Fallbacks ─────────────────────────────────────────────────────────────────
+app.use((req,res,next)=>{
+  if(req.path.startsWith('/api/'))return res.status(404).json({error:'Not found'});
+  res.status(404).sendFile(path.join(__dirname,'public','offline.html'));
+});
+app.use((err,req,res,next)=>{
+  console.error('Unhandled error',err);
+  if(req.path.startsWith('/api/'))return res.status(500).json({error:'Something went wrong'});
+  res.status(500).sendFile(path.join(__dirname,'public','offline.html'));
 });
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
@@ -194,8 +288,17 @@ wss.on('connection',ws=>{
 (async()=>{
   await dbInit();
   if(!(await dbGet("SELECT id FROM users WHERE role='admin' LIMIT 1"))){
-    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,role,is_active,is_verified)VALUES(?,?,?,?,?,?,1,1)',[uuidv4(),'admin@pink.tt',bcrypt.hashSync('Admin@2024',10),'Admin','Pink.TT','admin']);
-    console.log('✅ Admin seeded: admin@pink.tt / Admin@2024');
+    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,role,is_active,is_verified)VALUES(?,?,?,?,?,?,1,1)',[uuidv4(),'admin@pink.tt',bcrypt.hashSync('Admin@PinkTT2024',10),'Admin','Pink.TT','admin']);
+    console.log('✅ Admin seeded: admin@pink.tt / Admin@PinkTT2024');
+  }
+  if(SHOW_DEMO_ACCOUNTS&&!(await dbGet('SELECT id FROM users WHERE email=?',['sarah@demo.pink.tt']))){
+    const riderId=uuidv4(),drv1Id=uuidv4(),drv2Id=uuidv4();
+    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified,emergency_contact_name,emergency_contact_phone)VALUES(?,?,?,?,?,?,?,1,1,?,?)',[riderId,'sarah@demo.pink.tt',bcrypt.hashSync('Rider@2024',10),'Sarah','Mohammed','+18681111001','rider','Mom','+18681111000']);
+    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified)VALUES(?,?,?,?,?,?,?,1,1)',[drv1Id,'aminah@demo.pink.tt',bcrypt.hashSync('Driver@2024',10),'Aminah','Ali','+18681112001','driver']);
+    await dbRun('INSERT INTO driver_profiles(id,user_id,license_number,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status,rating,rating_count,total_trips,total_earnings)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',[uuidv4(),drv1Id,'TT-DL-AM2021','Toyota','Corolla','2021','Silver','PAB 1234','approved',4.8,43,47,2340.50]);
+    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified)VALUES(?,?,?,?,?,?,?,1,1)',[drv2Id,'priya@demo.pink.tt',bcrypt.hashSync('Driver@2024',10),'Priya','Ramkissoon','+18681112002','driver']);
+    await dbRun('INSERT INTO driver_profiles(id,user_id,license_number,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status)VALUES(?,?,?,?,?,?,?,?,?)',[uuidv4(),drv2Id,'TT-DL-PR2019','Nissan','Tiida','2019','White','PCE 5678','pending']);
+    console.log('✅ Demo accounts seeded (rider, approved driver, pending driver) — set SHOW_DEMO_ACCOUNTS=false to skip this in production');
   }
   server.listen(PORT,'0.0.0.0',()=>{
     let ip='localhost';
@@ -204,7 +307,7 @@ wss.on('connection',ws=>{
     console.log('   Pink.TT Server LIVE');
     console.log(`   Local  →  http://localhost:${PORT}`);
     console.log(`   Network→  http://${ip}:${PORT}  ← Share with others`);
-    console.log('   Admin  →  admin@pink.tt / Admin@2024');
+    console.log('   Admin  →  admin@pink.tt / Admin@PinkTT2024');
     console.log('🌸 ─────────────────────────────────────────────\n');
   });
 })();

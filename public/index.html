@@ -2,8 +2,27 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pink.TT — Safe Rides for Women</title>
+<meta name="description" content="Pink.TT connects women riders with verified women drivers across Trinidad & Tobago. Women-only, police-linked SOS, live GPS tracking.">
+<meta name="theme-color" content="#E91E8C">
+<!-- NOTE: og:url and og:image below use relative paths as a placeholder — replace with the absolute
+     deployed URL (e.g. https://pinktt.koyeb.app/og-image.png) once hosting is finalized. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Pink.TT">
+<meta property="og:title" content="Pink.TT — Safe Rides for Women, By Women">
+<meta property="og:description" content="Women-only rideshare for Trinidad & Tobago. Verified women drivers, police-linked SOS, live GPS tracking.">
+<meta property="og:image" content="/og-image.png">
+<meta property="og:url" content="/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Pink.TT — Safe Rides for Women, By Women">
+<meta name="twitter:description" content="Women-only rideshare for Trinidad & Tobago. Verified women drivers, police-linked SOS, live GPS tracking.">
+<meta name="twitter:image" content="/og-image.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -11,6 +30,9 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{--p:#E91E8C;--pl:#FF6BB5;--pd:#C4006F;--pp:#FFF0F6;--pb:#fce7f3;--g:#22c55e;--y:#f59e0b;--r:#ef4444;--b:#3b82f6;--gray:#f9fafb;--shadow:0 4px 20px rgba(0,0,0,.08);--pink-shadow:0 4px 20px rgba(233,30,140,.25)}
 html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#f0f0f0;-webkit-font-smoothing:antialiased}
+@media (min-width:500px){
+  html,body{background:linear-gradient(160deg,var(--pp) 0%,#f0f0f0 45%)}
+}
 h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 #shell{display:flex;flex-direction:column;height:100vh;max-width:430px;margin:0 auto;background:#fff;position:relative;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.15)}
 .page{display:none;flex-direction:column;height:100%;overflow:hidden}
@@ -25,6 +47,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .logo-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--p)}
 /* Buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;font-family:inherit;font-weight:600;border-radius:14px;transition:all .15s;outline:none;font-size:14px;padding:11px 20px}
+.btn:focus-visible,.tab:focus-visible,.role-o:focus-visible,.tog:focus-visible,a:focus-visible{outline:2px solid var(--p);outline-offset:2px}
 .bp{background:var(--p);color:#fff;box-shadow:var(--pink-shadow)}
 .bp:hover{background:var(--pd);transform:translateY(-1px)}
 .bp:active{transform:none}
@@ -235,6 +258,15 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
   </div>
 </div>
 
+<!-- Driver Licence Photo Modal (Admin) -->
+<div class="overlay" id="license-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:14px">Driver's Licence</h3>
+    <div id="license-photo-box" style="margin-bottom:14px"></div>
+    <button class="btn bs bw" onclick="closeModal('license-modal')">Close</button>
+  </div>
+</div>
+
 <div id="shell">
 
 <!-- ══ LANDING ══ -->
@@ -305,10 +337,10 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div style="border-top:1px solid #f0f0f0;margin:18px 0"></div>
     <div class="demo-box">
       <p>Demo Accounts — Click to fill</p>
-      <div class="demo-row"><span>Admin:</span><code style="font-size:10px"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a4c5c0c9cdcae4d4cdcacf8ad0d0">[email&#160;protected]</a> / Admin@PinkTT2024</code></div>
-      <div class="demo-row"><span>Rider:</span><code style="font-size:10px"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b7c4d6c5d6dff7d3d2dad899c7ded9dc99c3c3">[email&#160;protected]</a> / Rider@2024</code></div>
-      <div class="demo-row"><span>Driver ✓:</span><code style="font-size:10px"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="5a3b3733343b321a3e3f3735742a333431742e2e">[email&#160;protected]</a> / Driver@2024</code></div>
-      <div class="demo-row"><span>Driver ⏳:</span><code style="font-size:10px"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f18183988890b195949c9edf81989f9adf8585">[email&#160;protected]</a> / Driver@2024</code></div>
+      <div class="demo-row"><span>Admin:</span><code style="font-size:10px">admin@pink.tt / Admin@PinkTT2024</code></div>
+      <div class="demo-row"><span>Rider:</span><code style="font-size:10px">sarah@demo.pink.tt / Rider@2024</code></div>
+      <div class="demo-row"><span>Driver ✓:</span><code style="font-size:10px">aminah@demo.pink.tt / Driver@2024</code></div>
+      <div class="demo-row"><span>Driver ⏳:</span><code style="font-size:10px">priya@demo.pink.tt / Driver@2024</code></div>
       <div class="demo-btns">
         <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('admin@pink.tt','Admin@PinkTT2024')">Admin</button>
         <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('sarah@demo.pink.tt','Rider@2024')">Rider</button>
@@ -351,14 +383,36 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
   </div>
 </div>
 
+<!-- ══ ID VERIFY ══ -->
+<div class="page" id="pg-idverify">
+  <div class="topbar">
+    <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
+    <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">⎋</button>
+  </div>
+  <div class="scroll" style="padding:20px 18px">
+    <div style="text-align:center;margin-bottom:22px">
+      <div style="font-size:50px;margin-bottom:8px">🪪</div>
+      <h2 style="font-size:22px">Verify Your Identity</h2>
+      <p style="color:#9ca3af;font-size:13px;margin-top:4px;line-height:1.6">Pink.TT is a women-only platform. Upload a clear photo of your face so we can confirm your account before you continue.</p>
+    </div>
+    <div id="idv-preview-box" style="background:#f9fafb;border-radius:16px;height:200px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;overflow:hidden">
+      <span style="color:#9ca3af;font-size:13px">No photo selected</span>
+    </div>
+    <input type="file" accept="image/*" capture="user" id="idv-photo" style="display:none" onchange="_previewFile('idv-photo','idv-preview-box')">
+    <button class="btn bs bw" style="margin-bottom:10px" onclick="document.getElementById('idv-photo').click()">📷 Choose Photo</button>
+    <button class="btn bp bw" id="idv-btn" onclick="submitIdVerify()">Verify My Identity 🌸</button>
+    <p style="text-align:center;font-size:11px;color:#9ca3af;margin-top:14px;line-height:1.6">Your photo is used only to confirm eligibility and is not stored after review.</p>
+  </div>
+</div>
+
 <!-- ══ RIDER ══ -->
 <div class="page" id="pg-rider">
   <div class="topbar">
     <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
     <div style="display:flex;align-items:center;gap:8px">
       <button class="sosbtn" onclick="openModal('sos-modal')">SOS</button>
-      <button onclick="go('discover')" style="background:var(--pp);border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:16px" title="Discover">💅</button>
-      <button onclick="showMenu()" style="background:#f3f4f6;border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:15px;position:relative">👤<span id="r-notif-dot" class="notif-dot" style="display:none"></span></button>
+      <button onclick="go('discover')" style="background:var(--pp);border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:16px" title="Discover" aria-label="Discover businesses">💅</button>
+      <button onclick="showMenu()" style="background:#f3f4f6;border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:15px;position:relative" aria-label="Account menu">👤<span id="r-notif-dot" class="notif-dot" style="display:none"></span></button>
     </div>
   </div>
   <div class="tabs">
@@ -376,7 +430,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div style="display:flex;align-items:center;gap:7px">
       <div id="tog" class="tog" onclick="toggleOnline()"></div>
       <span id="tog-lbl" style="font-size:11px;color:#9ca3af;font-weight:600">Offline</span>
-      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px">⎋</button>
+      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">⎋</button>
     </div>
   </div>
   <div id="driver-banner" style="display:none"></div>
@@ -417,6 +471,12 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     </div>
     <div style="height:10px"></div>
     <div class="fg"><label class="lbl">License Plate</label><input class="inp" id="ds-plate" placeholder="PAB 1234"></div>
+    <p style="font-size:10px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 10px">🪪 Licence Photo</p>
+    <div id="ds-lic-photo-box" style="background:#f9fafb;border-radius:14px;height:140px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;overflow:hidden">
+      <span style="color:#9ca3af;font-size:13px">No photo selected</span>
+    </div>
+    <input type="file" accept="image/*" id="ds-lic-photo" style="display:none" onchange="_previewFile('ds-lic-photo','ds-lic-photo-box')">
+    <button class="btn bs bw" style="margin-bottom:16px" onclick="document.getElementById('ds-lic-photo').click()">📷 Upload Licence Photo</button>
     <div style="background:var(--pp);border-radius:14px;padding:14px;margin-bottom:16px">
       <p style="font-weight:700;font-size:13px;color:var(--p);margin-bottom:8px">What happens next?</p>
       <ul style="font-size:12px;color:#9d174d;list-style:none;display:flex;flex-direction:column;gap:4px">
@@ -437,7 +497,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div style="display:flex;align-items:center;gap:7px">
       <div id="admin-sos-badge" style="display:none;background:var(--r);color:#fff;font-size:10px;font-weight:800;padding:4px 9px;border-radius:20px;cursor:pointer;animation:sosp 1.5s infinite" onclick="aTab('safety')">🚨 SOS</div>
       <button onclick="go('discover')" style="background:var(--pp);border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:14px" title="Marketplace">💅</button>
-      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px">⎋</button>
+      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">⎋</button>
     </div>
   </div>
   <div class="tabs" style="overflow-x:auto;flex-shrink:0">
@@ -498,7 +558,30 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 
 </div><!-- #shell -->
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script>
+// ── Accessibility: keyboard operability for custom clickable divs ─────────────
+// .tab / .role-o / .tog are plain <div onclick> controls rendered via innerHTML
+// throughout the app; tag them focusable + activate on Enter/Space app-wide
+// rather than editing every template that creates one.
+(function(){
+  function tagFocusable(root){
+    root.querySelectorAll('.tab,.role-o,.tog').forEach(el=>{
+      if(!el.hasAttribute('tabindex'))el.setAttribute('tabindex','0');
+      if(!el.hasAttribute('role'))el.setAttribute('role',el.classList.contains('tog')?'switch':'button');
+    });
+  }
+  document.addEventListener('keydown',e=>{
+    if((e.key==='Enter'||e.key===' ')&&e.target.matches?.('.tab,.role-o,.tog')){
+      e.preventDefault();e.target.click();
+    }
+  });
+  document.addEventListener('DOMContentLoaded',()=>{
+    const root=document.getElementById('shell')||document.body;
+    tagFocusable(document);
+    new MutationObserver(()=>tagFocusable(root)).observe(root,{childList:true,subtree:true});
+  });
+})();
+
 /* ═══════════════════════════════════════════════════════════════
    PINK.TT — COMPLETE APPLICATION ENGINE v2.0
    Full in-memory database · All features · Production-ready UI
@@ -603,8 +686,9 @@ function go(page){
 function goBack(){ go(S.prevPage||'land'); }
 function goRole(role){ S.regRole=role; setRole(role); go('register'); }
 function routeUser(user){
-  if(user.role==='admin'){go('admin');loadAdmin();}
-  else if(user.role==='driver'){go('driver');loadDriver();}
+  if(user.role==='admin'){go('admin');loadAdmin();return;}
+  if(!user.is_verified){go('idverify');renderIdVerify&&renderIdVerify();return;}
+  if(user.role==='driver'){go('driver');loadDriver();}
   else{go('rider');renderRiderBook();}
 }
 
@@ -1297,8 +1381,8 @@ function renderAdminOverview(body){
       ${pendDrv.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #f9fafb">
         <div><p style="font-weight:600;font-size:13px">${d.first_name} ${d.last_name}</p><p style="font-size:11px;color:#9ca3af">${d.email} · ${d.vehicle_year} ${d.vehicle_make} ${d.vehicle_model}</p></div>
         <div style="display:flex;gap:5px">
-          <button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="reviewDriver('${d.id}','rejected')">✕</button>
-          <button class="btn bsm" style="background:#dcfce7;color:var(--g)" onclick="reviewDriver('${d.id}','approved')">✓</button>
+          <button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="rejectDriver('${d.user_id}')">✕</button>
+          <button class="btn bsm" style="background:#dcfce7;color:var(--g)" onclick="approveDriver('${d.user_id}')">✓</button>
         </div>
       </div>`).join('')}
     </div>`:''}
@@ -1355,9 +1439,10 @@ function renderDrvList(dps,status){
         <div style="display:flex;gap:14px;margin-top:5px;font-size:11px;color:#9ca3af"><span>⭐ ${d.rating?.toFixed(1)||'5.0'}</span><span>🗺️ ${d.total_trips||0} trips</span><span>💰 TTD $${(d.total_earnings||0).toFixed(0)}</span></div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${d.status!=='approved'?`<button class="btn bsm" style="background:#dcfce7;color:#166534" onclick="reviewDriver('${d.id}','approved')">✓ Approve</button>`:''}
-        ${d.status!=='rejected'&&d.status!=='suspended'?`<button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="reviewDriver('${d.id}','rejected')">✕ Reject</button>`:''}
-        ${d.status!=='suspended'?`<button class="btn bsm" style="background:#f3f4f6;color:#6b7280" onclick="reviewDriver('${d.id}','suspended')">⊘ Suspend</button>`:''}
+        ${d.status!=='approved'?`<button class="btn bsm" style="background:#dcfce7;color:#166534" onclick="approveDriver('${d.user_id}')">✓ Approve</button>`:''}
+        ${d.status!=='rejected'&&d.status!=='suspended'?`<button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="rejectDriver('${d.user_id}')">✕ Reject</button>`:''}
+        ${d.status!=='suspended'?`<button class="btn bsm" style="background:#f3f4f6;color:#6b7280" onclick="suspendDriver('${d.user_id}')">⊘ Suspend</button>`:''}
+        <button class="btn bsm" style="background:var(--pp);color:var(--p)" onclick="viewLicensePhoto('${d.user_id}')">🪪 View Licence</button>
       </div>
     </div>`;
   }).join('');
@@ -1857,10 +1942,63 @@ doRegister=async function(){
     if(!user){toast('Error loading account','err');return;}
     S.user=user;save();_wsConnect();
     toast('Welcome to Pink.TT, '+first+'! 🌸','ok');
-    if(S.regRole==='driver')go('dsetup');else routeUser(user);
+    routeUser(user);
   }catch(e){toast('Network error — is the server running?','err');}
   if(btn){btn.disabled=false;btn.textContent='Create Account 🌸';}
 };
+
+// ── ID verification (photo upload → server-side gender-scan) ──────
+function _fileToCompressedDataURL(file,maxDim=640,quality=0.82){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        let w=img.width,h=img.height;
+        if(w>h&&w>maxDim){h=Math.round(h*maxDim/w);w=maxDim;}
+        else if(h>maxDim){w=Math.round(w*maxDim/h);h=maxDim;}
+        const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg',quality));
+      };
+      img.onerror=()=>reject(new Error('Could not read image'));
+      img.src=reader.result;
+    };
+    reader.onerror=()=>reject(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+}
+function _previewFile(inputId,boxId){
+  const f=document.getElementById(inputId)?.files?.[0];if(!f)return;
+  const reader=new FileReader();
+  reader.onload=()=>{const box=document.getElementById(boxId);if(box)box.innerHTML=`<img src="${reader.result}" style="width:100%;height:100%;object-fit:cover">`;};
+  reader.readAsDataURL(f);
+}
+function renderIdVerify(){
+  const box=document.getElementById('idv-preview-box');
+  if(box)box.innerHTML='<span style="color:#9ca3af;font-size:13px">No photo selected</span>';
+  const inp=document.getElementById('idv-photo');if(inp)inp.value='';
+}
+async function submitIdVerify(){
+  const f=document.getElementById('idv-photo')?.files?.[0];
+  if(!f){toast('Please choose a photo first','err');return;}
+  const btn=document.getElementById('idv-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Verifying...';}
+  try{
+    const dataUrl=await _fileToCompressedDataURL(f,640,0.82);
+    const r=await fetch('/api/verify-id',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_PTT_TOKEN},body:JSON.stringify({image:dataUrl})});
+    const data=await r.json();
+    if(data.ok&&data.verified){
+      toast(data.demo?'Verified (demo mode) 🌸':'Identity verified! 🌸','ok');
+      await _pttLoadDB();
+      const fresh=DB.users.find(u=>u.id===S.user.id);if(fresh)S.user=fresh;save();
+      routeUser(S.user);
+    }else{
+      toast(data.error||'Verification failed — please try again','err');
+    }
+  }catch(e){toast('Network error — please try again','err');}
+  if(btn){btn.disabled=false;btn.textContent='Verify My Identity 🌸';}
+}
 
 // ── Override bookRide to hit server ─────────────────────────────
 const _origBookRide=bookRide;
@@ -1963,8 +2101,11 @@ submitApp=async function(){
     license_number:document.getElementById('ds-lic')?.value.trim()||''
   };
   if(!f.vehicle_make||!f.vehicle_model||!f.vehicle_year||!f.vehicle_color||!f.vehicle_plate||!f.license_number){toast('All fields required','err');return;}
+  const licFile=document.getElementById('ds-lic-photo')?.files?.[0];
+  if(!licFile){toast('Please upload a photo of your driver\'s licence','err');return;}
   const btn=document.getElementById('ds-btn');
   if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Submitting...';}
+  try{f.license_photo=await _fileToCompressedDataURL(licFile,900,0.85);}catch(e){toast('Could not read licence photo — please try another','err');if(btn){btn.disabled=false;btn.textContent='Submit Application 🌸';}return;}
   const res=await _mutate('driver_apply',f);
   if(res.ok){
     toast('Application submitted! Under review within 24 hours 🌸','ok');
@@ -1998,6 +2139,19 @@ rejectDriver=async function(userId){
   const res=await _mutate('reject_driver',{user_id:userId});
   if(res.ok){toast('Driver rejected');await _pttLoadDB();loadAdmin&&loadAdmin();}
 };
+async function suspendDriver(userId){
+  const res=await _mutate('suspend_driver',{user_id:userId});
+  if(res.ok){toast('Driver suspended');await _pttLoadDB();loadAdmin&&loadAdmin();}
+}
+async function viewLicensePhoto(userId){
+  try{
+    const r=await fetch('/api/driver-license-photo/'+userId,{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    const data=await r.json();
+    const box=document.getElementById('license-photo-box');
+    box.innerHTML=data.license_photo?`<img src="${data.license_photo}" style="width:100%;border-radius:14px;display:block">`:`<p style="text-align:center;color:#9ca3af;font-size:13px;padding:30px 0">No licence photo on file for this driver.</p>`;
+    openModal('license-modal');
+  }catch(e){toast('Could not load licence photo','err');}
+}
 
 // ── Override rideStatus changes (for driver progress buttons) ────
 // Wrap declineRide to just remove from pending display
@@ -2036,9 +2190,18 @@ doLogout=function(){
 // ── Patch renderPendingRides to use server accept ─────────────────
 const _origRenderPending=typeof renderPendingRides!=='undefined'?renderPendingRides:null;
 
+// ── Demo accounts panel visibility (server-controlled via SHOW_DEMO_ACCOUNTS) ──
+async function _loadConfig(){
+  let show=true;
+  try{const r=await fetch('/api/config');const data=await r.json();show=!!data.showDemoAccounts;}catch{}
+  const box=document.querySelector('.demo-box');
+  if(box)box.style.display=show?'':'none';
+}
+
 // ── Hook into init ────────────────────────────────────────────────
 const _origInit=init;
 init=async function(){
+  _loadConfig();
   const params=new URLSearchParams(location.search);
   const track=params.get('track');
   if(track){if(typeof loadTrack==='function')loadTrack(track);return;}
