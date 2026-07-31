@@ -26,7 +26,7 @@ can sign up, book rides, and interact with real drivers in real time.
 
 ## How It Works
 
-- **Database** — Turso (libSQL) in production when `TURSO_DATABASE_URL` is set, falling back automatically to local SQLite (`pinktt.db`) for dev
+- **Database** — checked in this order: Postgres (e.g. Supabase) if `DATABASE_URL` is set, else Turso (libSQL) if `TURSO_DATABASE_URL` is set, else local SQLite (`pinktt.db`) for dev
 - **WebSocket** — riders and drivers communicate in real time (no refresh needed)
 - **JWT auth** — secure tokens, 30-day sessions (set `JWT_SECRET` in production)
 - **Live map** — CARTO/OpenStreetMap tiles, Leaflet.js, animated GPS tracking
@@ -39,7 +39,8 @@ See `.env.example`. Notable ones:
 
 | Variable | Purpose |
 |---|---|
-| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Hosted Turso DB — omit both for local SQLite |
+| `DATABASE_URL` | Postgres connection string (e.g. Supabase) — takes priority over Turso if both are set |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Hosted Turso DB — used if `DATABASE_URL` isn't set |
 | `JWT_SECRET` | Signs auth tokens — **set a long random value in production**, otherwise an insecure default is used (with a startup warning) |
 | `ANTHROPIC_API_KEY` | Powers `/api/verify-id`. Without it, verification auto-approves in demo mode |
 | `SHOW_DEMO_ACCOUNTS` | `true`/`false`. Controls the tap-to-fill demo accounts panel on the login screen. Defaults to visible outside production, hidden when `NODE_ENV=production` |
@@ -148,9 +149,17 @@ Bonto ([bonto.dev](https://bonto.dev)) is the current pick: no card required and
 5. Deploy. Bonto gives you a live `*.bonto.run` URL with HTTPS (needed for camera/GPS access on mobile).
 6. Push-to-deploy means future commits to this branch redeploy automatically — confirm that's on in the app settings.
 
-### Setting up Turso (persistent database)
+### Setting up a persistent database
 
-Local SQLite doesn't survive redeploys on most hosts. Run `node turso-setup.js` with a `TURSO_API_TOKEN` (get one free at [turso.tech](https://turso.tech), no card required) to provision a database and print the `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` to set on your host.
+Local SQLite doesn't survive redeploys on most hosts — pick one of these.
+
+**Supabase (Postgres)** — if you already have a Supabase project:
+1. Dashboard → Project Settings → Database → Connection string → copy the URI (either "Session pooler" or direct connection both work with this app).
+2. Fill in your database password (set at project creation, or reset it from that same page).
+3. Set that full string as `DATABASE_URL` on your host. No separate setup script needed — the app creates its own tables on first boot.
+
+**Turso (libSQL)** — alternative if you'd rather not use Postgres:
+Run `node turso-setup.js` with a `TURSO_API_TOKEN` (get one free at [turso.tech](https://turso.tech), no card required) to provision a database and print the `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` to set on your host.
 
 ### Alternative: Koyeb
 

@@ -6,7 +6,7 @@ if(!process.env.JWT_SECRET)console.warn('⚠️  JWT_SECRET not set — using an
 if(!process.env.ANTHROPIC_API_KEY)console.warn('⚠️  ANTHROPIC_API_KEY not set — ID verification will run in DEMO MODE (auto-approves).');
 const SHOW_DEMO_ACCOUNTS=process.env.SHOW_DEMO_ACCOUNTS==='true'||(process.env.NODE_ENV!=='production'&&process.env.SHOW_DEMO_ACCOUNTS!=='false');
 
-// ── Database abstraction: Turso cloud if env set, else local SQLite ───────────
+// ── Database abstraction: Postgres (Supabase/any) > Turso cloud > local SQLite ─
 let dbGet,dbAll,dbRun,dbInit;
 const SCHEMA_SQL=[
   `CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL COLLATE NOCASE,password_hash TEXT NOT NULL,first_name TEXT,last_name TEXT,phone TEXT DEFAULT'',role TEXT DEFAULT'rider',gender TEXT DEFAULT'female',is_verified INTEGER DEFAULT 0,is_active INTEGER DEFAULT 1,emergency_contact_name TEXT DEFAULT'',emergency_contact_phone TEXT DEFAULT'',wallet_balance REAL DEFAULT 0,total_rides INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`,
@@ -20,8 +20,34 @@ const SCHEMA_SQL=[
 const MIGRATIONS_SQL=[
   `ALTER TABLE driver_profiles ADD COLUMN license_photo TEXT DEFAULT ''`
 ];
+// Postgres-flavored schema: same tables, but datetime('now') and COLLATE NOCASE
+// aren't valid Postgres syntax. Email case-insensitivity is handled at the app
+// layer already (every query lowercases the email first), so COLLATE NOCASE is
+// simply dropped rather than replicated.
+const SCHEMA_SQL_PG=SCHEMA_SQL.map(s=>s.replace(/ COLLATE NOCASE/g,''));
+const MIGRATIONS_SQL_PG=[
+  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS license_photo TEXT DEFAULT ''`
+];
+// Both SCHEMA_SQL and the app's query strings use SQLite syntax (`?` placeholders,
+// datetime('now')); translate to Postgres syntax (`$1,$2,...`, now()) at the call
+// site so the rest of the file stays backend-agnostic.
+function pgify(sql){
+  let i=0;
+  return sql.replace(/datetime\('now'\)/g,'now()').replace(/\?/g,()=>'$'+(++i));
+}
 
-if(process.env.TURSO_DATABASE_URL){
+if(process.env.DATABASE_URL){
+  const{Pool}=require('pg');
+  const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.PGSSLMODE==='disable'?false:{rejectUnauthorized:false}});
+  dbGet=async(sql,args=[])=>{const r=await pool.query(pgify(sql),args);return r.rows[0]??null;};
+  dbAll=async(sql,args=[])=>{const r=await pool.query(pgify(sql),args);return r.rows;};
+  dbRun=async(sql,args=[])=>{await pool.query(pgify(sql),args);};
+  dbInit=async()=>{
+    for(const sql of SCHEMA_SQL_PG)await pool.query(pgify(sql));
+    for(const sql of MIGRATIONS_SQL_PG){try{await pool.query(pgify(sql));}catch{}}
+    console.log('✅ Connected to Postgres (DATABASE_URL)');
+  };
+}else if(process.env.TURSO_DATABASE_URL){
   const{createClient}=require('@libsql/client');
   const turso=createClient({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN||''});
   const toPlain=(rows,cols)=>rows.map(row=>{const o={};cols.forEach((c,i)=>{o[c]=row[i];});return o;});
@@ -43,7 +69,7 @@ if(process.env.TURSO_DATABASE_URL){
   dbInit=async()=>{
     SCHEMA_SQL.forEach(s=>sqlite.exec(s));
     for(const sql of MIGRATIONS_SQL){try{sqlite.exec(sql);}catch{}}
-    console.log('✅ Using local SQLite (no TURSO_DATABASE_URL set)');
+    console.log('✅ Using local SQLite (no TURSO_DATABASE_URL or DATABASE_URL set)');
   };
 }
 
