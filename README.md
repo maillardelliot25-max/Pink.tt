@@ -132,27 +132,26 @@ python3 patch.py
 
 ---
 
-## Deploy to Production (Koyeb — free, no card required)
+## Deploy to Production (Bonto — free, no card required)
 
-Koyeb's free Hobby instance doesn't require a credit card for most signups (it may ask for card-based human verification in some cases — if that happens, stop and confirm with the project owner before proceeding on a paid tier). Tradeoffs to know going in: the free instance **scales to zero after 1 hour idle** (cold start on the next request) and only runs in Frankfurt or Washington D.C.
+Bonto ([bonto.dev](https://bonto.dev)) is the current pick: no card required and account creation is stable. The tradeoff — free tier is capped at **~75 compute hours/month**, which runs out mid-month for an always-on server unless the app sleeps between use. Fine for demoing/testing now; revisit for a paid always-on tier before a real public launch.
 
 1. Push this repo to GitHub (already done if you're reading this from the repo).
-2. At [koyeb.com](https://www.koyeb.com), create an account and click **Create App → GitHub** and select this repo/branch.
-3. Build settings: Koyeb auto-detects Node.js via `package.json`/`Procfile` — no Dockerfile needed. Run command: `node server.js`.
-4. Set the port to `3000` (or leave `PORT` unset — the app reads `process.env.PORT`).
-5. Add environment variables in the Koyeb dashboard:
+2. At [bonto.dev](https://bonto.dev), create an account and create a new app, connecting it to this GitHub repo/branch (Git push-to-deploy).
+3. Bonto auto-detects Node.js via `package.json` — no Dockerfile needed. It runs `npm install` then the `start` script (`node server.js`), and auto-assigns `PORT` (the app already reads `process.env.PORT`, no changes needed).
+4. In the app's environment variables settings, add:
    - `NODE_ENV=production`
    - `JWT_SECRET=<a long random string>`
    - `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` (see below — without these, data won't persist across redeploys)
    - `ANTHROPIC_API_KEY` (for real ID verification — omit to run verification in demo mode)
    - `SHOW_DEMO_ACCOUNTS=false`
-6. Deploy. Koyeb gives you a `*.koyeb.app` URL with HTTPS automatically (needed for camera/GPS access on mobile).
-7. Enable auto-deploy on push so future commits to this branch redeploy automatically.
+5. Deploy. Bonto gives you a live `*.bonto.run` URL with HTTPS (needed for camera/GPS access on mobile).
+6. Push-to-deploy means future commits to this branch redeploy automatically — confirm that's on in the app settings.
 
 ### Setting up Turso (persistent database)
 
 Local SQLite doesn't survive redeploys on most hosts. Run `node turso-setup.js` with a `TURSO_API_TOKEN` (get one free at [turso.tech](https://turso.tech), no card required) to provision a database and print the `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` to set on your host.
 
-### Alternative: Bonto
+### Alternative: Koyeb
 
-[Bonto](https://bonto.dev) also requires no card, but its free tier is capped at ~75 compute hours/month — it will run out mid-month for an always-on server unless the app sleeps between use. Workable for testing/demoing, not for a live always-on backend.
+[Koyeb](https://www.koyeb.com) was the original pick — free Hobby instance, no card for most signups, scales to zero after 1hr idle (cold start), Frankfurt/Washington D.C. only. As of this writing Koyeb is in the process of being acquired by Mistral AI, and account creation (email verification) was unreliable during testing — worth retrying later if Bonto's hour cap becomes a problem, but not the current recommendation.
