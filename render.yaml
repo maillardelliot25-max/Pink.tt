@@ -2,11 +2,18 @@ services:
   - type: web
     name: pinktt
     runtime: node
+    plan: free
     buildCommand: npm install
     startCommand: node server.js
+    healthCheckPath: /
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: "3000"
-    healthCheckPath: /
+      - key: SHOW_DEMO_ACCOUNTS
+        value: "false"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
