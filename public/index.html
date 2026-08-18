@@ -115,8 +115,8 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    frosted glass panel so the video blurs softly behind the actual words/inputs. */
 #pg-login,#pg-register{position:relative}
 #pg-login .topbar,#pg-login .scroll,#pg-register .topbar,#pg-register .scroll{position:relative;z-index:1}
-.auth-video-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.48}
-.auth-video-wash{position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,.85) 55%,#fff 88%);pointer-events:none}
+.auth-video-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.62}
+.auth-video-wash{position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,rgba(255,255,255,.4) 0%,rgba(255,255,255,.78) 55%,#fff 88%);pointer-events:none}
 .auth-wrap{max-width:440px;margin:0 auto;width:100%}
 .glass-card{background:rgba(255,255,255,.68);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.6);border-radius:20px;padding:22px 20px;box-shadow:0 8px 30px rgba(122,18,99,.1)}
 @media (prefers-reduced-motion:reduce){#install-banner{animation:none}#install-banner .ib-bg{display:none}}
@@ -971,6 +971,14 @@ function renderRiderBook(){
           <div style="text-align:right;font-size:11px;color:#9ca3af"><div id="fare-km">—</div><div id="fare-min">—</div></div>
         </div>
       </div>
+      <div id="approx-warning" style="display:none;background:#fff8e1;border:1.5px solid #f5d576;border-radius:14px;padding:12px 14px;margin-bottom:14px">
+        <p style="font-size:12px;font-weight:700;color:#7c5800">⚠️ Location may not be exact</p>
+        <p style="font-size:11px;color:#8a6d00;margin-top:3px;line-height:1.5">We couldn't confirm an exact match for this address — the pin shown may only be the general area. Check the map above before booking.</p>
+        <label style="display:flex;align-items:center;gap:7px;margin-top:9px;cursor:pointer;font-size:12px;color:#7c5800;font-weight:600">
+          <input type="checkbox" id="approx-confirm" onchange="document.getElementById('book-btn').disabled=!this.checked">
+          I've checked the map — this location is correct
+        </label>
+      </div>
       ${S.user?.pink_points>0?`
       <label style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--pb);border-radius:14px;padding:11px 14px;margin-bottom:14px;cursor:pointer;font-size:12px">
         <input type="checkbox" id="ride-redeem-points" onchange="showFarePreview(document.getElementById('ride-dest').value)">
@@ -1013,8 +1021,8 @@ function showFarePreview(dest){
   const pickupCoord=S._pickupSuggest,destCoord=S._destSuggest;
   fetch('/api/fare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
     pickup,destination,
-    pickup_lat:pickupCoord?.lat??S.myLat,pickup_lng:pickupCoord?.lng??S.myLng,
-    destination_lat:destCoord?.lat,destination_lng:destCoord?.lng
+    pickup_lat:pickupCoord?.lat??S.myLat,pickup_lng:pickupCoord?.lng??S.myLng,pickup_precise:pickupCoord?.precise,
+    destination_lat:destCoord?.lat,destination_lng:destCoord?.lng,destination_precise:destCoord?.precise
   })})
     .then(r=>r.json()).then(d=>{
       S._km=d.km;S._min=d.min;S._fare=d.fare;S._pickupCoord=[d.pickup_lat,d.pickup_lng];S._destCoord=[d.dest_lat,d.dest_lng];
@@ -1026,10 +1034,22 @@ function showFarePreview(dest){
       document.getElementById('fare-amt').innerHTML=fmtFare(final);
       document.getElementById('fare-km').textContent=d.km.toFixed(1)+' km';
       document.getElementById('fare-min').textContent='~'+d.min+' min';
+      // A safety-critical check: never silently trust an imprecise geocode match --
+      // require the rider to explicitly confirm the pin before Book Ride is enabled.
+      const warn=document.getElementById('approx-warning'),bookBtn=document.getElementById('book-btn');
+      const isApprox=!!(d.pickup_approx||d.destination_approx);
+      if(warn)warn.style.display=isApprox?'block':'none';
+      const confirmBox=document.getElementById('approx-confirm');
+      if(confirmBox)confirmBox.checked=false;
+      if(bookBtn)bookBtn.disabled=isApprox;
       // Update idle map with route
       updateIdleMap(d);
       if(_MAP_IDLE&&d.route)_drawRoute(_MAP_IDLE,d.route);
     }).catch(()=>{
+      // The fare API itself was unreachable -- this is a fabricated placeholder
+      // estimate with no real geocoding behind it at all, so it's never safe to let a
+      // booking through on this alone. Same hard block as an imprecise-but-resolved
+      // address: warn and require explicit confirmation before Book Ride is enabled.
       const hsh=destination.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
       const km=Math.max(3,(hsh%35)+3),min=Math.ceil(km*2.5+5),f=calcFare(km,min);
       S._km=km;S._min=min;S._fare=f;
@@ -1038,6 +1058,11 @@ function showFarePreview(dest){
       document.getElementById('fare-amt').textContent=S.promoResult?fmtFare(f-S.promoResult.discount_amount):fmtFare(f);
       document.getElementById('fare-km').textContent=km.toFixed(1)+' km';
       document.getElementById('fare-min').textContent='~'+min+' min';
+      const warn=document.getElementById('approx-warning'),bookBtn=document.getElementById('book-btn');
+      if(warn)warn.style.display='block';
+      const confirmBox=document.getElementById('approx-confirm');
+      if(confirmBox)confirmBox.checked=false;
+      if(bookBtn)bookBtn.disabled=true;
     });
 }
 function applyPromo(){
@@ -2120,14 +2145,14 @@ function _attachAddressSuggest(inputId,dropdownId,onPick){
         const r=await fetch('/api/geocode-suggest?q='+encodeURIComponent(q));
         const{results}=await r.json();
         if(!results||!results.length){dropdown.classList.remove('show');return;}
-        dropdown.innerHTML=results.map((res,i)=>`<div class="addr-suggest-item" data-i="${i}">${res.label}</div>`).join('');
+        dropdown.innerHTML=results.map((res,i)=>`<div class="addr-suggest-item" data-i="${i}">${res.label}${res.precise===false?' <span style="color:var(--y);font-weight:700;font-size:11px">⚠ approximate area</span>':''}</div>`).join('');
         dropdown.classList.add('show');
         dropdown.querySelectorAll('.addr-suggest-item').forEach(el=>{
           el.onclick=()=>{
             const res=results[+el.dataset.i];
             input.value=res.label;
             dropdown.classList.remove('show');
-            onPick({lat:res.lat,lng:res.lng});
+            onPick({lat:res.lat,lng:res.lng,precise:res.precise});
           };
         });
       }catch{dropdown.classList.remove('show');}

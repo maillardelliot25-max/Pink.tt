@@ -140,6 +140,23 @@ function getCoord(a){for(const k in COORDS){if(a&&a.toLowerCase().includes(k.toL
 // browser geolocation glitch or a spoofed value) rather than trusting client input blindly.
 function isValidTTCoord(lat,lng){return typeof lat==='number'&&typeof lng==='number'&&lat>=9.5&&lat<=11.5&&lng>=-62&&lng<=-60;}
 
+// A Nominatim result can confidently return a real place -- just not the specific
+// street/address that was actually queried, only the broad suburb/town/region it falls
+// in. Silently treating that as an exact match risks sending a driver to the wrong
+// place. Flags anything typed as a broad administrative area, or whose bounding box
+// spans more than ~1.2km, as imprecise so callers can warn instead of trusting it blindly.
+const IMPRECISE_NOMINATIM_TYPES=new Set(['suburb','city','town','village','state','county','region','municipality','administrative','state_district','country','island']);
+function _isPreciseNominatimResult(r){
+  if(IMPRECISE_NOMINATIM_TYPES.has(r.type))return false;
+  const bb=r.boundingbox;
+  if(bb&&bb.length===4){
+    const s=parseFloat(bb[0]),n=parseFloat(bb[1]),w=parseFloat(bb[2]),e=parseFloat(bb[3]);
+    const kmLat=(n-s)*111,kmLng=(e-w)*111*Math.cos((s+n)/2*Math.PI/180);
+    if(Math.sqrt(kmLat*kmLat+kmLng*kmLng)>1.2)return false;
+  }
+  return true;
+}
+
 // Real geocoding (free, no API key) via OpenStreetMap's Nominatim, for typed addresses
 // that don't match one of the ~18 hardcoded neighborhood names in COORDS -- without
 // this, an address like "81 Sunset Drive" fell back to a random point that could land
@@ -163,17 +180,25 @@ async function geocodeAddress(address){
     if(!results.length){_geocodeCache.set(key,null);return null;}
     const coord=[parseFloat(results[0].lat),parseFloat(results[0].lon)];
     if(!isValidTTCoord(coord[0],coord[1])){_geocodeCache.set(key,null);return null;}
-    _geocodeCache.set(key,coord);
-    return coord;
+    const result={coord,precise:_isPreciseNominatimResult(results[0])};
+    _geocodeCache.set(key,result);
+    return result;
   }catch(e){console.error('Geocoding error',e.message);_geocodeCache.set(key,null);return null;}
 }
-// Resolves an address to a coordinate: known neighborhood name (instant) -> real
-// geocoding (Nominatim) -> last-resort nearby-jitter placeholder, flagged as approximate
-// so callers/UI can be honest about it rather than presenting it as an exact match.
+// Resolves an address to a coordinate: real geocoding (Nominatim) first -- since it
+// actually looks at the specific address typed -- falling back to a known neighborhood
+// centroid only if geocoding fails outright, and finally a last-resort nearby-jitter
+// placeholder. Used to check the ~18 hardcoded neighborhood names FIRST via a naive
+// substring match, which meant any address merely containing a neighborhood name
+// anywhere in the string (e.g. "Victory Street, Tunapuna-Piarco" matching "Tunapuna")
+// got silently redirected to that neighborhood's generic center point instead of the
+// actual address -- exactly backwards, since the specific geocoded result is more
+// trustworthy than a crude text match. approx is true whenever the result isn't a
+// confident, precise match, so callers/UI can warn rather than presenting it as exact.
 async function resolveCoord(address){
-  for(const k in COORDS){if(address&&address.toLowerCase().includes(k.toLowerCase()))return{coord:COORDS[k],approx:false};}
   const geo=await geocodeAddress(address);
-  if(geo)return{coord:geo,approx:false};
+  if(geo)return{coord:geo.coord,approx:!geo.precise};
+  for(const k in COORDS){if(address&&address.toLowerCase().includes(k.toLowerCase()))return{coord:COORDS[k],approx:true};}
   return{coord:[10.6549+(Math.random()-.5)*.02,-61.5019+(Math.random()-.5)*.02],approx:true};
 }
 // Matches TTRS's publicly reported "Regular" tier rates (Dec 2022 fare increase --
@@ -230,7 +255,7 @@ async function suggestAddresses(query){
     if(!apiRes.ok)return[];
     const results=await apiRes.json();
     return results.filter(r=>isValidTTCoord(parseFloat(r.lat),parseFloat(r.lon)))
-      .map(r=>({label:r.display_name,lat:parseFloat(r.lat),lng:parseFloat(r.lon)}));
+      .map(r=>({label:r.display_name,lat:parseFloat(r.lat),lng:parseFloat(r.lon),precise:_isPreciseNominatimResult(r)}));
   }catch(e){console.error('Address suggest error',e.message);return[];}
 }
 
@@ -406,13 +431,19 @@ app.get('/api/db',authMW,async(req,res)=>{
 });
 
 app.post('/api/fare',async(req,res)=>{
-  const{pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng}=req.body;
-  const p=isValidTTCoord(pickup_lat,pickup_lng)?[pickup_lat,pickup_lng]:(await resolveCoord(pickup)).coord;
-  const dResolved=isValidTTCoord(destination_lat,destination_lng)?{coord:[destination_lat,destination_lng],approx:false}:(await resolveCoord(destination));
+  const{pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng,pickup_precise,destination_precise}=req.body;
+  // pickup_precise/destination_precise come from the address-suggest dropdown (which now
+  // flags each suggestion's own precision) when the rider picked a suggestion rather than
+  // typing free text -- a valid lat/lng alone doesn't mean it was actually a precise
+  // match, just that a coordinate exists. Only an explicit false counts as imprecise;
+  // undefined (e.g. a real GPS fix) is trusted as precise.
+  const pResolved=isValidTTCoord(pickup_lat,pickup_lng)?{coord:[pickup_lat,pickup_lng],approx:pickup_precise===false}:(await resolveCoord(pickup));
+  const p=pResolved.coord;
+  const dResolved=isValidTTCoord(destination_lat,destination_lng)?{coord:[destination_lat,destination_lng],approx:destination_precise===false}:(await resolveCoord(destination));
   const d=dResolved.coord;
   const route=await getRoute(p,d);
   const fare=calcFare(route.km,route.min);
-  res.json({km:route.km,min:route.min,fare,pickup_lat:p[0],pickup_lng:p[1],dest_lat:d[0],dest_lng:d[1],destination_approx:dResolved.approx,route:route.geometry,routeIsReal:route.real});
+  res.json({km:route.km,min:route.min,fare,pickup_lat:p[0],pickup_lng:p[1],dest_lat:d[0],dest_lng:d[1],pickup_approx:pResolved.approx,destination_approx:dResolved.approx,route:route.geometry,routeIsReal:route.real});
 });
 
 // Address suggestions dropdown -- returns up to 6 candidate addresses as the rider types.
