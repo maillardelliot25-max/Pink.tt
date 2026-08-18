@@ -51,7 +51,8 @@ const SCHEMA_SQL=[
   `CREATE TABLE IF NOT EXISTS sos_events(id TEXT PRIMARY KEY,user_id TEXT,ride_id TEXT,status TEXT DEFAULT'active',lat REAL,lng REAL,message TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,user_id TEXT,type TEXT DEFAULT'info',message TEXT,is_read INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT DEFAULT'',updated_at TEXT DEFAULT(datetime('now')))`,
-  `CREATE TABLE IF NOT EXISTS audit_log(id TEXT PRIMARY KEY,admin_id TEXT,admin_email TEXT,action TEXT,target_type TEXT DEFAULT'',target_id TEXT DEFAULT'',details TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`
+  `CREATE TABLE IF NOT EXISTS audit_log(id TEXT PRIMARY KEY,admin_id TEXT,admin_email TEXT,action TEXT,target_type TEXT DEFAULT'',target_id TEXT DEFAULT'',details TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`,
+  `CREATE TABLE IF NOT EXISTS businesses(id TEXT PRIMARY KEY,name TEXT NOT NULL,category TEXT DEFAULT'',description TEXT DEFAULT'',address TEXT DEFAULT'',phone TEXT DEFAULT'',rating REAL DEFAULT 5.0,rating_count INTEGER DEFAULT 0,is_featured INTEGER DEFAULT 0,is_active INTEGER DEFAULT 1,discount TEXT DEFAULT'',discount_code TEXT DEFAULT'',lat REAL DEFAULT 0,lng REAL DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`
 ];
 // Public-safe settings keys: readable by any authenticated user via buildDB() (e.g.
 // so a rider can see the real safety contact number). Anything more sensitive than
@@ -316,7 +317,11 @@ async function buildDB(){
   const sos_events=await dbAll('SELECT * FROM sos_events');
   const notifications=await dbAll('SELECT * FROM notifications');
   const promotions=[{id:'p1',code:'WELCOME25',title:'Welcome Discount',description:'25% off your first ride',type:'percentage',value:25,is_active:true,valid_until:'2026-12-31T00:00:00Z'},{id:'p2',code:'PINK10',title:'Pink Loyalty',description:'TTD $10 off any ride over $50',type:'fixed',value:10,is_active:true,valid_until:'2026-12-31T00:00:00Z'},{id:'p3',code:'SAFE20',title:'Safety Bonus',description:'20% off for referring a friend',type:'percentage',value:20,is_active:true,valid_until:'2026-12-31T00:00:00Z'}];
-  const businesses=[{id:'b1',name:'Luxe Nail Lounge',category:'nail_salon',description:'Premium nail care & nail art',address:'Long Circular Road, St. James, POS',phone:'+1 868 222 1001',rating:4.9,rating_count:89,is_featured:true,is_active:true,discount:'Pink.TT Rider Special — 15% OFF',discount_code:'PINK15',lat:10.665,lng:-61.521},{id:'b2',name:'Serenity Spa & Wellness',category:'spa',description:'Full-service day spa & wellness',address:'Ariapita Avenue, Woodbrook, POS',phone:'+1 868 222 1003',rating:4.9,rating_count:223,is_featured:true,is_active:true,discount:'Weekday Special — 10% OFF',discount_code:'WEEKDAY10',lat:10.652,lng:-61.514},{id:'b3',name:'TT Skincare Clinic',category:'skincare',description:'Medical skincare & facial treatments',address:'Trincity Mall, Trincity',phone:'+1 868 222 1008',rating:4.9,rating_count:205,is_featured:true,is_active:true,discount:'New Client Package — 25% OFF',discount_code:'NEWCLIENT25',lat:10.604,lng:-61.350},{id:'b4',name:'The Curl Bar T&T',category:'hair',description:'Natural hair & protective styles',address:'Maraval Road, POS',phone:'+1 868 222 1002',rating:4.8,rating_count:134,is_featured:true,is_active:true,discount:'New Client Welcome — 20% OFF',discount_code:'NEWCURL20',lat:10.672,lng:-61.522}];
+  // Used to be a hardcoded array of businesses (Luxe Nail Lounge, Serenity Spa, etc.)
+  // that Elliot never actually added -- placeholder demo data presented as if real, with
+  // no way to add/remove anything since it wasn't backed by a table at all. Now a real
+  // table, starts empty, managed entirely from Admin > Biz.
+  const businesses=(await dbAll('SELECT * FROM businesses')).map(b=>({...b,is_featured:!!b.is_featured,is_active:!!b.is_active}));
   const settingsRows=await dbAll('SELECT key,value FROM settings');
   const settings={...DEFAULT_SETTINGS};
   settingsRows.forEach(r=>{settings[r.key]=r.value;});
@@ -721,11 +726,37 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       await logAudit(req.jwt,'resolve_sos','sos_event',data.sos_id,'');
     }else if(type==='admin_reset_test_data'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      // Irreversible and platform-wide, so re-verifying the admin's own password here
+      // (not just a JS confirm() dialog) is the actual safeguard against a stray click
+      // or a compromised/left-open session doing this by accident.
+      const admin=await dbGet('SELECT password_hash FROM users WHERE id=?',[req.jwt.id]);
+      if(!admin||!bcrypt.compareSync(data.password||'',admin.password_hash))return res.json({ok:false,error:'Incorrect password'});
       await dbRun('DELETE FROM payments');
       await dbRun('DELETE FROM rides');
       await dbRun('UPDATE users SET total_rides=0,pink_points=0,pink_points_lifetime=0,wallet_balance=0');
       await dbRun('UPDATE driver_profiles SET total_trips=0,total_earnings=0,today_earnings=0,balance=0');
       await logAudit(req.jwt,'reset_test_data','platform','','Cleared all ride/payment history and reset earnings/points counters');
+    }else if(type==='admin_add_business'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const{name,category,description,address,phone,discount,discount_code}=data;
+      if(!name||!address)return res.json({ok:false,error:'Name and address required'});
+      const bizId=uuidv4();
+      await dbRun('INSERT INTO businesses(id,name,category,description,address,phone,discount,discount_code,is_active)VALUES(?,?,?,?,?,?,?,?,1)',[bizId,name,category||'',description||'',address,phone||'',discount||'',discount_code||'']);
+      await logAudit(req.jwt,'add_business','business',bizId,name);
+    }else if(type==='admin_delete_business'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      await dbRun('DELETE FROM businesses WHERE id=?',[data.business_id]);
+      await logAudit(req.jwt,'delete_business','business',data.business_id,'');
+    }else if(type==='admin_toggle_biz_featured'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const biz=await dbGet('SELECT is_featured FROM businesses WHERE id=?',[data.business_id]);
+      if(!biz)return res.json({ok:false,error:'Business not found'});
+      await dbRun('UPDATE businesses SET is_featured=? WHERE id=?',[biz.is_featured?0:1,data.business_id]);
+    }else if(type==='admin_toggle_biz_active'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const biz=await dbGet('SELECT is_active FROM businesses WHERE id=?',[data.business_id]);
+      if(!biz)return res.json({ok:false,error:'Business not found'});
+      await dbRun('UPDATE businesses SET is_active=? WHERE id=?',[biz.is_active?0:1,data.business_id]);
     }else if(type==='rate_ride'){
       await dbRun('UPDATE rides SET rider_rating=?,driver_review=? WHERE id=?',[data.score,data.review||'',data.ride_id]);
       const ride=await dbGet('SELECT driver_id FROM rides WHERE id=?',[data.ride_id]);

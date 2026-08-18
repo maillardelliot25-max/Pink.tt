@@ -1779,19 +1779,30 @@ function renderAdminBiz(body){
           <button class="btn bsm" style="background:${b.is_featured?'#fef9c3':'#f3f4f6'};color:${b.is_featured?'#854d0e':'#6b7280'}" onclick="toggleFeat('${b.id}')">${b.is_featured?'★ Featured':'☆ Feature'}</button>
           <button class="btn bsm" style="background:${b.is_active?'#fee2e2':'#dcfce7'};color:${b.is_active?'var(--r)':'var(--g)'}" onclick="toggleBizActive('${b.id}')">${b.is_active?'Deactivate':'Activate'}</button>
           <button class="btn bsm" style="background:#dbeafe;color:var(--b)" onclick="openBizDetail('${b.id}')">View</button>
+          <button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="deleteBiz('${b.id}','${b.name.replace(/'/g,"\\'")}')">🗑️ Remove</button>
         </div>
       </div>`;
     }).join('')}
   `;
 }
-function toggleFeat(id){const b=DB.businesses.find(x=>x.id===id);if(!b)return;b.is_featured=!b.is_featured;toast(b.is_featured?'Featured! ⭐':'Removed from featured');renderAdminBiz(document.getElementById('admin-body'));}
-function toggleBizActive(id){const b=DB.businesses.find(x=>x.id===id);if(!b)return;b.is_active=!b.is_active;toast(b.is_active?'Activated':'Deactivated');renderAdminBiz(document.getElementById('admin-body'));}
-function saveBiz(){
+// These three, and saveBiz below, used to only mutate local DB.businesses state --
+// nothing was backed by a real table at all, so "adding" a business (or featuring/
+// deactivating/removing one) never actually persisted anywhere.
+async function toggleFeat(id){const res=await _mutate('admin_toggle_biz_featured',{business_id:id});if(res.ok){await _pttLoadDB();renderAdminBiz(document.getElementById('admin-body'));}}
+async function toggleBizActive(id){const res=await _mutate('admin_toggle_biz_active',{business_id:id});if(res.ok){await _pttLoadDB();renderAdminBiz(document.getElementById('admin-body'));}}
+async function deleteBiz(id,name){
+  if(!confirm(`Remove "${name}" from the marketplace? This can't be undone.`))return;
+  const res=await _mutate('admin_delete_business',{business_id:id});
+  if(res.ok){toast('Business removed','ok');await _pttLoadDB();renderAdminBiz(document.getElementById('admin-body'));}
+}
+async function saveBiz(){
   const name=document.getElementById('biz-name').value.trim();const cat=document.getElementById('biz-cat').value;const addr=document.getElementById('biz-addr').value.trim();const phone=document.getElementById('biz-phone').value.trim();const desc=document.getElementById('biz-desc').value.trim();
   if(!name||!addr){toast('Name and address required','err');return;}
-  DB.businesses.push({id:uid(),name,category:cat,description:desc,short_description:desc,address:addr,phone:phone||null,rating:5.0,rating_count:0,is_featured:false,is_active:true,is_verified:true,created_at:ts()});
+  const res=await _mutate('admin_add_business',{name,category:cat,description:desc,address:addr,phone});
+  if(!res.ok)return;
   toast('Business added! 🌸','ok');closeModal('biz-modal');
   ['biz-name','biz-addr','biz-phone','biz-desc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  await _pttLoadDB();
   renderAdminBiz(document.getElementById('admin-body'));
 }
 
@@ -1866,8 +1877,11 @@ function renderAdminSettings(body){
 }
 async function resetTestData(){
   if(!confirm('This permanently deletes ALL rides and payments on the platform and resets earnings/points to zero. This cannot be undone. Continue?'))return;
-  if(!confirm('Are you absolutely sure? Type OK to confirm this cannot be reversed.'))return;
-  const res=await _mutate('admin_reset_test_data',{});
+  // A JS confirm() dialog alone is too easy to click through by habit -- re-entering
+  // the admin's actual password is the real safeguard here, verified server-side.
+  const password=prompt('Enter your admin password to confirm this irreversible action:');
+  if(!password)return;
+  const res=await _mutate('admin_reset_test_data',{password});
   if(res.ok){toast('Test data cleared','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
   else toast(res.error||'Could not reset data','err');
 }
