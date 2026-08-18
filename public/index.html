@@ -908,7 +908,7 @@ function renderRiderBook(){
 
 let destTimer;
 function onDestChange(v){
-  clearTimeout(destTimer);destTimer=setTimeout(()=>{if(v.length>2){showFarePreview(v);document.getElementById('promo-row').style.display='flex';}},500);
+  clearTimeout(destTimer);destTimer=setTimeout(()=>{if(v.length>2){showFarePreview(v);const pr=document.getElementById('promo-row');if(pr)pr.style.display='flex';}},500);
 }
 function setDest(d){const inp=document.getElementById('ride-dest');if(inp){inp.value=d;showFarePreview(d);document.getElementById('promo-row').style.display='flex';}}
 function showFarePreview(dest){
@@ -1219,7 +1219,7 @@ function renderDriverRequests(body){
   body.innerHTML=pending.map(r=>{
     const rider=DB.users.find(u=>u.id===r.rider_id)||{};
     const dist=(1.5+Math.random()*4).toFixed(1);
-    return `<div class="req-card slide-up">
+    return `<div class="req-card slide-up" data-ride="${r.id}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <span class="badge bpink">New Request</span>
         <span style="font-weight:700;color:var(--p);font-size:16px">${fmtFare(r.estimated_fare)}</span>
@@ -2156,21 +2156,6 @@ function _startRidePoll(){
   },3000);
 }
 
-// ── Override driver accept ────────────────────────────────────────
-const _origDriverAccept=typeof driverAccept!=='undefined'?driverAccept:null;
-// Intercept accept button at DOM level - patch happens after renderPendingRides
-function _patchAccept(rideId){
-  return async function(){
-    const res=await _mutate('accept_ride',{ride_id:rideId});
-    if(res.ok){
-      toast('✅ Ride accepted! Head to pickup 📍','ok');
-      await _pttLoadDB();
-      loadDriver&&loadDriver();
-      _startRidePoll();
-    }
-  };
-}
-
 // ── Override toggleOnline ─────────────────────────────────────────
 const _origToggle=toggleOnline;
 toggleOnline=async function(){
@@ -2272,13 +2257,43 @@ async function _driverRideStatus(rideId, status){
   const res=await _mutate('ride_status',{ride_id:rideId,status});
   if(res.ok){
     await _pttLoadDB();
-    loadDriver&&loadDriver();
-    if(status==='completed'){
+    if(status==='completed'||status==='cancelled'){
+      const ride=DB.rides.find(r=>r.id===rideId);
+      if(status==='completed')toast('Ride completed! '+fmtFare((ride?.final_fare||0)*.8)+' earned 🌸','ok');
+      else toast('Ride cancelled');
       S.currentDriverRide=null;
       clearInterval(_ridePollTimer);_ridePollTimer=null;
+      S.dTab='reqs';
+    }else{
+      S.currentDriverRide=DB.rides.find(r=>r.id===rideId)||null;
+      if(status==='in_progress')toast('Ride started! Safe driving 🌸','ok');
     }
+    loadDriver&&loadDriver();
   }
+  return res;
 }
+
+// ── Override acceptRide/startRide/completeRide/cancelRideDriver to hit server ──
+// (the base functions only mutated the in-memory demo DB and never told the server,
+// so a driver "accepting" a ride never actually persisted -- the rider stayed stuck
+// on "Finding your driver..." forever. These replace them with real API calls.)
+acceptRide=async function(id){
+  const res=await _mutate('accept_ride',{ride_id:id});
+  if(res.ok){
+    toast('Ride accepted! Head to pickup 🌸','ok');
+    await _pttLoadDB();
+    S.currentDriverRide=DB.rides.find(r=>r.id===id)||null;
+    S.dTab='active';
+    loadDriver&&loadDriver();
+    _startRidePoll();
+  }else{
+    await _pttLoadDB();
+    loadDriver&&loadDriver();
+  }
+};
+startRide=async function(){if(S.currentDriverRide)await _driverRideStatus(S.currentDriverRide.id,'in_progress');};
+completeRide=async function(){if(S.currentDriverRide)await _driverRideStatus(S.currentDriverRide.id,'completed');};
+cancelRideDriver=async function(){if(S.currentDriverRide)await _driverRideStatus(S.currentDriverRide.id,'cancelled');};
 
 // ── Override doLogout ────────────────────────────────────────────
 const _origLogout=doLogout;
@@ -2290,9 +2305,6 @@ doLogout=function(){
   if(_MAP_TRACK){try{_MAP_TRACK.remove();}catch{}}_MAP_TRACK=null;
   _origLogout();
 };
-
-// ── Patch renderPendingRides to use server accept ─────────────────
-const _origRenderPending=typeof renderPendingRides!=='undefined'?renderPendingRides:null;
 
 // ── Demo accounts panel visibility (server-controlled via SHOW_DEMO_ACCOUNTS) ──
 async function _loadConfig(){
@@ -2331,6 +2343,7 @@ renderRiderBook=function(){
     // Init/refresh tracking map
     if(S.activeRide){
       setTimeout(()=>{
+        if(!S.activeRide)return;
         initTrackMap(S.activeRide.pickup_address,S.activeRide.destination_address);
         if(S.rideStatus==='in_progress'&&_MAP_TRACK)moveCarToward(_MAP_TRACK._dLat,_MAP_TRACK._dLng);
         else if(['accepted','arriving'].includes(S.rideStatus)&&_MAP_TRACK)moveCarToward(_MAP_TRACK._pLat,_MAP_TRACK._pLng);
@@ -2338,46 +2351,6 @@ renderRiderBook=function(){
     }
   }
 };
-
-// ── Patch driver renderPending to use server accept ───────────────
-// Intercept accept button clicks via event delegation
-document.addEventListener('click',async function(e){
-  const btn=e.target.closest('[data-accept-ride]');
-  if(btn){
-    e.preventDefault();e.stopPropagation();
-    const rideId=btn.getAttribute('data-accept-ride');
-    btn.disabled=true;btn.innerHTML='<div class="spin"></div>';
-    const res=await _mutate('accept_ride',{ride_id:rideId});
-    if(res.ok){
-      toast('✅ Ride accepted! Head to pickup 📍','ok');
-      await _pttLoadDB();
-      S.currentDriverRide=DB.rides.find(r=>r.id===rideId)||null;
-      loadDriver&&loadDriver();
-      _startRidePoll();
-    }else{btn.disabled=false;btn.innerHTML='✓ Accept';}
-  }
-  // Driver status update buttons
-  const statusBtn=e.target.closest('[data-ride-status]');
-  if(statusBtn){
-    e.preventDefault();e.stopPropagation();
-    const rideId=statusBtn.getAttribute('data-ride-id');
-    const status=statusBtn.getAttribute('data-ride-status');
-    statusBtn.disabled=true;statusBtn.innerHTML='<div class="spin"></div>';
-    await _driverRideStatus(rideId,status);
-  }
-});
-
-// ─── Patch renderPendingRides to add data-accept-ride attrs ──────
-// After any DOM render that includes ride cards, rewrite accept buttons
-const _mutObs=new MutationObserver(()=>{
-  document.querySelectorAll('[data-raw-accept]').forEach(btn=>{
-    const rideId=btn.getAttribute('data-raw-accept');
-    btn.setAttribute('data-accept-ride',rideId);
-    btn.removeAttribute('data-raw-accept');
-    btn.removeAttribute('onclick');
-  });
-});
-_mutObs.observe(document.getElementById('shell')||document.body,{childList:true,subtree:true});
 
 console.log('🌸 Pink.TT Network Bridge loaded');
 
