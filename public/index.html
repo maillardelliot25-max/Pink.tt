@@ -1280,6 +1280,14 @@ function loadDriver(){
   }
   banner.style.display='none';tabs.style.display='flex';
   S.isOnline=S.dp.is_online;updateToggle();
+  // A driver who was already online (server-side) before reloading/reopening the app
+  // used to never get their request-polling or location-tracking restarted -- only the
+  // manual toggle click did that, so a fresh page load left them "online" but silently
+  // frozen on stale data until they toggled off and back on.
+  if(S.isOnline){
+    if(!_ridePollTimer)_startRidePoll();
+    _startDriverLocationTracking();
+  }
   const wkRides=DB.rides.filter(r=>r.driver_id===S.user.id&&r.status==='completed'&&new Date(r.completed_at)>new Date(Date.now()-7*86400000));
   const wkNet=wkRides.reduce((s,r)=>s+(r.final_fare||0)*.8,0);
   summary.style.display='block';
@@ -1347,13 +1355,28 @@ function dTab(t){
   else renderDriverEarnings(body);
 }
 
+// Requests used to show every unclaimed ride platform-wide to every online driver,
+// with a "km away" figure that was pure fake (1.5 + random()*4) -- a driver at one end
+// of Trinidad could see, and accept, a ride actually at the other end, and the distance
+// shown had nothing to do with reality. Now uses the driver's real tracked location
+// (see _startDriverLocationTracking) to compute the actual distance and caps what's
+// shown to a sensible dispatch radius -- generous enough that a driver in a quieter
+// area still sees requests, but not the whole country.
+const DRIVER_MAX_RADIUS_KM=20;
 function renderDriverRequests(body){
   if(!S.isOnline){body.innerHTML=`<div class="empty"><div class="empty-i">💤</div><p style="font-weight:600;margin-bottom:8px">You're Offline</p><p style="font-size:13px;margin-bottom:20px">Toggle online to receive ride requests</p><button class="btn bp" onclick="toggleOnline()">Go Online</button></div>`;return;}
-  const pending=DB.rides.filter(r=>r.status==='requested'&&r.driver_id===null);
-  if(!pending.length){body.innerHTML=`<div class="empty"><div class="empty-i">🎯</div><p style="font-weight:600;margin-bottom:8px">Waiting for requests</p><p style="font-size:13px">New ride requests appear here</p><div style="display:flex;justify-content:center;gap:5px;margin-top:20px">${[0,1,2].map(i=>`<div style="width:7px;height:7px;background:var(--p);border-radius:50%;animation:sosp 1s ${i*.3}s infinite"></div>`).join('')}</div></div>`;return;}
+  const haveLoc=typeof S.myLat==='number'&&typeof S.myLng==='number';
+  let pending=DB.rides.filter(r=>r.status==='requested'&&r.driver_id===null)
+    .map(r=>({...r,_km:haveLoc&&isFinite(r.pickup_lat)&&isFinite(r.pickup_lng)?haversine(S.myLat,S.myLng,r.pickup_lat,r.pickup_lng):null}));
+  // Only filter/sort by distance once we actually have a location fix -- showing
+  // everything unfiltered is safer than showing nothing while GPS is still warming up.
+  if(haveLoc){
+    pending=pending.filter(r=>r._km===null||r._km<=DRIVER_MAX_RADIUS_KM).sort((a,b)=>(a._km??999)-(b._km??999));
+  }
+  if(!pending.length){body.innerHTML=`<div class="empty"><div class="empty-i">🎯</div><p style="font-weight:600;margin-bottom:8px">Waiting for requests</p><p style="font-size:13px">${haveLoc?'No requests within '+DRIVER_MAX_RADIUS_KM+'km right now':'New ride requests appear here'}</p><div style="display:flex;justify-content:center;gap:5px;margin-top:20px">${[0,1,2].map(i=>`<div style="width:7px;height:7px;background:var(--p);border-radius:50%;animation:sosp 1s ${i*.3}s infinite"></div>`).join('')}</div></div>`;return;}
   body.innerHTML=pending.map(r=>{
     const rider=DB.users.find(u=>u.id===r.rider_id)||{};
-    const dist=(1.5+Math.random()*4).toFixed(1);
+    const distLabel=r._km!==null?r._km.toFixed(1)+' km away':'distance unknown';
     return `<div class="req-card slide-up" data-ride="${r.id}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <span class="badge bpink">New Request</span>
@@ -1364,7 +1387,7 @@ function renderDriverRequests(body){
         <div style="display:flex;gap:8px"><div style="width:22px;height:22px;background:#f3f4f6;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0"><div style="width:7px;height:7px;background:#111827;border-radius:50%"></div></div><div><p style="font-size:10px;color:#9ca3af">Destination</p><p style="font-size:13px;font-weight:500">${r.destination_address}</p></div></div>
       </div>
       <div style="display:flex;gap:12px;font-size:11px;color:#9ca3af;margin-bottom:12px">
-        <span>📍 ${dist} km away</span><span>🛣️ ${r.distance_km.toFixed(1)} km</span><span>⏱️ ~${r.duration_minutes} min</span>
+        <span>📍 ${distLabel}</span><span>🛣️ ${r.distance_km.toFixed(1)} km</span><span>⏱️ ~${r.duration_minutes} min</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <button class="btn bs bsm" onclick="declineRide('${r.id}')">✕ Decline</button>
@@ -2567,9 +2590,34 @@ function _startRidePoll(){
     }else if(role==='driver'){
       const dp=DB.driver_profiles.find(d=>d.user_id===S.user.id);
       if(dp)S.dp=dp;
-      renderRiderBook&&renderRiderBook();
+      if(S.dTab==='reqs')renderDriverRequests(document.getElementById('driver-body'));
     }
   },3000);
+}
+
+// ── Driver live location tracking ─────────────────────────────────
+// While online, a driver's position needs to be both current on their own device
+// (to compute real "km away" for the request list) and reported to the server
+// (current_lat/current_lng) so a future dispatch pass or another rider's tracking view
+// can rely on it too. watchPosition keeps S.myLat/S.myLng fresh; the mutation send is
+// throttled since GPS callbacks can fire far more often than the value meaningfully
+// changes or the server needs to know.
+let _driverWatchId=null,_driverLocLastSent=0;
+function _startDriverLocationTracking(){
+  if(_driverWatchId!==null||!navigator.geolocation)return;
+  _driverWatchId=navigator.geolocation.watchPosition(
+    pos=>{
+      S.myLat=pos.coords.latitude;S.myLng=pos.coords.longitude;
+      if(S.dTab==='reqs')renderDriverRequests(document.getElementById('driver-body'));
+      const now=Date.now();
+      if(now-_driverLocLastSent>15000){_driverLocLastSent=now;_mutate('driver_location',{lat:S.myLat,lng:S.myLng});}
+    },
+    err=>console.warn('Driver geolocation unavailable:',err.message),
+    {enableHighAccuracy:true,maximumAge:20000,timeout:15000}
+  );
+}
+function _stopDriverLocationTracking(){
+  if(_driverWatchId!==null){navigator.geolocation.clearWatch(_driverWatchId);_driverWatchId=null;}
 }
 
 // ── Override toggleOnline ─────────────────────────────────────────
@@ -2583,8 +2631,8 @@ toggleOnline=async function(){
     S.isOnline=!!S.dp?.is_online;
     updateToggle&&updateToggle();
     toast(S.isOnline?'You\'re online! Ready for rides 🌸':'You\'re offline',S.isOnline?'ok':'');
-    if(S.isOnline)_startRidePoll();
-    else{clearInterval(_ridePollTimer);_ridePollTimer=null;}
+    if(S.isOnline){_startRidePoll();_startDriverLocationTracking();}
+    else{clearInterval(_ridePollTimer);_ridePollTimer=null;_stopDriverLocationTracking();}
     loadDriver&&loadDriver();
   }
 };
@@ -2723,6 +2771,7 @@ const _origLogout=doLogout;
 doLogout=function(){
   localStorage.removeItem('ptt_token');_PTT_TOKEN=null;
   clearInterval(_ridePollTimer);_ridePollTimer=null;
+  _stopDriverLocationTracking();
   try{if(_PTT_WS)_PTT_WS.close();}catch{}
   if(_MAP_IDLE){try{_MAP_IDLE.remove();}catch{}}_MAP_IDLE=null;
   if(_MAP_TRACK){try{_MAP_TRACK.remove();}catch{}}_MAP_TRACK=null;
