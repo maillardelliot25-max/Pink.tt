@@ -1350,11 +1350,11 @@ function initDriverActiveMap(ride){
     _MAP_DRIVER_ACTIVE=L.map(el,{zoomControl:false,attributionControl:false}).setView([pLat,pLng],13);
     _watchTiles(_MAP_DRIVER_ACTIVE,el);
     _tileLayer(_MAP_DRIVER_ACTIVE);L.control.zoom({position:'bottomright'}).addTo(_MAP_DRIVER_ACTIVE);
-    L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_DRIVER_ACTIVE).bindPopup('📍 Pickup');
-    L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_DRIVER_ACTIVE).bindPopup('🏁 Destination');
+    const pMk=L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_DRIVER_ACTIVE).bindPopup('📍 Pickup');
+    const dMk=L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_DRIVER_ACTIVE).bindPopup('🏁 Destination');
     _MAP_DRIVER_ACTIVE.fitBounds([[pLat,pLng],[dLat,dLng]],{padding:[20,20]});
     setTimeout(()=>_MAP_DRIVER_ACTIVE&&_MAP_DRIVER_ACTIVE.invalidateSize(),300);
-    _fetchAndDrawRoute(()=>_MAP_DRIVER_ACTIVE,pLat,pLng,dLat,dLng);
+    _fetchAndDrawRoute(()=>_MAP_DRIVER_ACTIVE,pLat,pLng,dLat,dLng,pMk,dMk);
   }).catch(()=>{
     const el=document.getElementById('driver-active-map');
     if(el)_showMapError(el,()=>initDriverActiveMap(ride));
@@ -2109,15 +2109,15 @@ function initTrackMap(pickup,destination,driverLat,driverLng){
     _MAP_TRACK=L.map(el,{zoomControl:false,attributionControl:false}).setView([pLat,pLng],13);
     _watchTiles(_MAP_TRACK,el);
     _tileLayer(_MAP_TRACK);L.control.zoom({position:'bottomright'}).addTo(_MAP_TRACK);
-    L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_TRACK).bindPopup('📍 Pickup');
-    L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_TRACK).bindPopup('🏁 Destination');
+    const pMk=L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_TRACK).bindPopup('📍 Pickup');
+    const dMk=L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_TRACK).bindPopup('🏁 Destination');
     const carStart=driverLat||pLat+(Math.random()-.5)*.02;
     const carStartLng=driverLng||pLng+(Math.random()-.5)*.02;
     _CAR_MARKER=L.marker([carStart,carStartLng],{icon:_carIcon()}).addTo(_MAP_TRACK);
     _MAP_TRACK.fitBounds([[pLat,pLng],[dLat,dLng]],{padding:[20,20]});
     _MAP_TRACK._pLat=pLat;_MAP_TRACK._pLng=pLng;_MAP_TRACK._dLat=dLat;_MAP_TRACK._dLng=dLng;
     setTimeout(()=>_MAP_TRACK&&_MAP_TRACK.invalidateSize(),300);
-    _fetchAndDrawRoute(()=>_MAP_TRACK,pLat,pLng,dLat,dLng);
+    _fetchAndDrawRoute(()=>_MAP_TRACK,pLat,pLng,dLat,dLng,pMk,dMk);
   }).catch(()=>{
     const el=document.getElementById('track-map');
     if(el)_showMapError(el,()=>initTrackMap(pickup,destination,driverLat,driverLng));
@@ -2126,12 +2126,21 @@ function initTrackMap(pickup,destination,driverLat,driverLng){
 // Fetches the real driving route for a map and draws it once loaded. Takes a getter
 // (not the map instance directly) since the map may be torn down/rebuilt again before
 // this async fetch resolves.
-async function _fetchAndDrawRoute(getMap,pLat,pLng,dLat,dLng){
+async function _fetchAndDrawRoute(getMap,pLat,pLng,dLat,dLng,pMarker,dMarker){
   try{
     const r=await fetch(`/api/route?pickup_lat=${pLat}&pickup_lng=${pLng}&dest_lat=${dLat}&dest_lng=${dLng}`);
     const route=await r.json();
     const map=getMap();
-    if(map&&route.geometry)_drawRoute(map,route.geometry);
+    if(map&&route.geometry){
+      _drawRoute(map,route.geometry);
+      // Snap the pin/flag markers onto the real road route so they never appear
+      // off-road (e.g. in water) when the raw geocoded coordinate is imprecise --
+      // OSRM always snaps its route endpoints to the nearest routable road.
+      if(route.real&&route.geometry.length>1){
+        if(pMarker)pMarker.setLatLng(route.geometry[0]);
+        if(dMarker)dMarker.setLatLng(route.geometry[route.geometry.length-1]);
+      }
+    }
   }catch{}
 }
 // Map for the public "Share Trip" tracking page (loadTrack) -- a trusted contact opening
@@ -2147,12 +2156,12 @@ function initShareMap(ride){
     _MAP_SHARE=L.map(el,{zoomControl:false,attributionControl:false}).setView([pLat,pLng],13);
     _watchTiles(_MAP_SHARE,el);
     _tileLayer(_MAP_SHARE);
-    L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_SHARE).bindPopup('📍 Pickup');
-    L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_SHARE).bindPopup('🏁 Destination');
+    const pMk=L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_SHARE).bindPopup('📍 Pickup');
+    const dMk=L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_SHARE).bindPopup('🏁 Destination');
     _SHARE_CAR_MARKER=L.marker([pLat+(Math.random()-.5)*.02,pLng+(Math.random()-.5)*.02],{icon:_carIcon()}).addTo(_MAP_SHARE);
     _MAP_SHARE.fitBounds([[pLat,pLng],[dLat,dLng]],{padding:[20,20]});
     setTimeout(()=>_MAP_SHARE&&_MAP_SHARE.invalidateSize(),300);
-    _fetchAndDrawRoute(()=>_MAP_SHARE,pLat,pLng,dLat,dLng);
+    _fetchAndDrawRoute(()=>_MAP_SHARE,pLat,pLng,dLat,dLng,pMk,dMk);
   }).catch(()=>{
     const el=document.getElementById('share-map');
     if(el)_showMapError(el,()=>initShareMap(ride));
