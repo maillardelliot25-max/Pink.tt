@@ -32,12 +32,17 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{--p:#E91E8C;--pl:#FF6BB5;--pd:#C4006F;--pp:#FFF0F6;--pb:#fce7f3;--g:#22c55e;--y:#f59e0b;--r:#ef4444;--b:#3b82f6;--gray:#f9fafb;--shadow:0 4px 20px rgba(0,0,0,.08);--pink-shadow:0 4px 20px rgba(233,30,140,.25)}
-html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#f0f0f0;-webkit-font-smoothing:antialiased}
+html,body{height:100%;overflow:hidden;font-family:'DM Sans',system-ui,sans-serif;background:#f0f0f0;-webkit-font-smoothing:antialiased}
 @media (min-width:500px){
   html,body{background:linear-gradient(160deg,var(--pp) 0%,#f0f0f0 45%)}
 }
 h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
-#shell{display:flex;flex-direction:column;height:100vh;max-width:430px;margin:0 auto;background:#fff;position:relative;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.15)}
+/* height:100dvh (dynamic viewport height) accounts for the mobile browser address bar
+   showing/hiding; the plain 100vh fallback above it is for older browsers that don't
+   support dvh. Without this, #shell could be sized taller than what's actually visible
+   when the address bar is showing, and with html,body now overflow:hidden that extra
+   height was simply inaccessible -- looked exactly like "can't scroll down". */
+#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:430px;margin:0 auto;background:#fff;position:relative;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.15)}
 .page{display:none;flex-direction:column;height:100%;overflow:hidden}
 .page.active{display:flex}
 .scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
@@ -237,6 +242,15 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div class="fg"><label class="lbl">Description</label><textarea class="inp" id="report-desc" rows="3" placeholder="Describe what happened..." style="resize:none"></textarea></div>
     <button class="btn br bw" onclick="submitReport()">Submit Report</button>
     <button class="btn bs bw" style="margin-top:8px" onclick="closeModal('report-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- Notifications Modal -->
+<div class="overlay" id="notif-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:14px">Notifications 🔔</h3>
+    <div id="notif-list" style="max-height:50vh;overflow-y:auto"></div>
+    <button class="btn bs bw" style="margin-top:12px" onclick="closeModal('notif-modal')">Close</button>
   </div>
 </div>
 
@@ -501,6 +515,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div class="logo"><div class="logo-dot">P</div><span class="logo-name" style="font-size:14px">Pink.TT <span style="font-size:10px;background:var(--pp);color:var(--p);padding:1px 6px;border-radius:6px;font-family:sans-serif;font-weight:700">Admin</span></span></div>
     <div style="display:flex;align-items:center;gap:7px">
       <div id="admin-sos-badge" style="display:none;background:var(--r);color:#fff;font-size:10px;font-weight:800;padding:4px 9px;border-radius:20px;cursor:pointer;animation:sosp 1.5s infinite" onclick="aTab('safety')">🚨 SOS</div>
+      <button onclick="showNotifs()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:14px;position:relative" aria-label="Notifications">🔔<span id="admin-notif-dot" class="notif-dot" style="display:none"></span></button>
       <button onclick="go('discover')" style="background:var(--pp);border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:14px" title="Marketplace">💅</button>
       <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">⎋</button>
     </div>
@@ -762,7 +777,7 @@ function setRole(r){
 
 function doLogout(){
   clearInterval(S.simTimer);
-  S={user:null,regRole:'rider',rTab:'book',dTab:'reqs',aTab:'ov',isOnline:false,dp:null,activeRide:null,rideStatus:null,driverInfo:null,currentDriverRide:null,pendingRides:[],rating:0,rideToRate:null,shareRideId:null,reportRideId:null,reportDriverId:null,simTimer:null,currentBizCat:'',currentBizId:null,prevPage:'land',promoResult:null};
+  S={user:null,regRole:'rider',rTab:'book',dTab:'reqs',aTab:'ov',isOnline:false,dp:null,activeRide:null,rideStatus:null,driverInfo:null,currentDriverRide:null,pendingRides:[],rating:0,rideToRate:null,shareRideId:null,reportRideId:null,reportDriverId:null,simTimer:null,currentBizCat:'',currentBizId:null,prevPage:'land',promoResult:null,myLat:null,myLng:null};
   try{sessionStorage.removeItem('pinktt')}catch{}
   go('land');
 }
@@ -781,9 +796,28 @@ function showMenu(){
   const div=document.createElement('div');div.id='user-menu-wrap';div.innerHTML=html;document.body.appendChild(div);
 }
 function closeUserMenu(){const m=document.getElementById('user-menu-wrap');if(m)m.remove();}
-function showNotifs(){
-  const notifs=DB.notifications.filter(n=>n.user_id===S.user?.id).slice(0,10);
-  toast(notifs.length?`${notifs.length} notifications — feature in full API version`:'No new notifications 🌸');
+async function showNotifs(){
+  const notifs=DB.notifications.filter(n=>n.user_id===S.user?.id).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,20);
+  const list=document.getElementById('notif-list');
+  list.innerHTML=notifs.length?notifs.map(n=>`
+    <div style="padding:11px 0;border-bottom:1px solid #f0f0f0;${n.is_read?'':'background:var(--pp)'}">
+      <p style="font-size:13px;line-height:1.4">${n.message}</p>
+      <p style="font-size:10px;color:#9ca3af;margin-top:3px">${fmtDate(n.created_at)}</p>
+    </div>`).join(''):'<p style="text-align:center;color:#9ca3af;font-size:13px;padding:20px 0">No notifications yet</p>';
+  openModal('notif-modal');
+  const unreadIds=notifs.filter(n=>!n.is_read).map(n=>n.id);
+  if(unreadIds.length){
+    await _mutate('mark_notifs_read',{ids:unreadIds});
+    await _pttLoadDB();
+    _updateNotifDots();
+  }
+}
+// Toggles the unread-notification dot for whichever role is currently signed in.
+function _updateNotifDots(){
+  if(!S.user)return;
+  const unread=DB.notifications.filter(n=>n.user_id===S.user.id&&!n.is_read).length;
+  const rDot=document.getElementById('r-notif-dot');if(rDot)rDot.style.display=unread?'block':'none';
+  const aDot=document.getElementById('admin-notif-dot');if(aDot)aDot.style.display=unread?'block':'none';
 }
 
 // ─── RIDER DASHBOARD ────────────────────────────────────────────
@@ -869,7 +903,7 @@ function renderRiderBook(){
       <h3 style="font-size:16px;margin-bottom:14px">Where to?</h3>
       <div style="position:relative;margin-bottom:10px">
         <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:9px;height:9px;background:var(--p);border-radius:50%;z-index:1"></div>
-        <input class="inp" id="ride-pickup" style="padding-left:28px" placeholder="Pickup location" value="Current Location — Port of Spain">
+        <input class="inp" id="ride-pickup" style="padding-left:28px" placeholder="Locating you…">
       </div>
       <div style="position:relative;margin-bottom:14px">
         <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:9px;height:9px;background:#111827;border-radius:50%;z-index:1"></div>
@@ -1916,15 +1950,52 @@ function _showMapError(el,retryFn){
 function _pinkIcon(){return L.divIcon({html:'<div style="background:#E91E8C;width:13px;height:13px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(233,30,140,.5)"></div>',iconSize:[13,13],iconAnchor:[6.5,6.5],className:''});}
 function _greenIcon(){return L.divIcon({html:'<div style="background:#22c55e;width:13px;height:13px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(34,197,94,.5)"></div>',iconSize:[13,13],iconAnchor:[6.5,6.5],className:''});}
 function _carIcon(){return L.divIcon({html:'<div style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))">🚗</div>',iconSize:[28,28],iconAnchor:[14,14],className:''});}
+function _meIcon(){return L.divIcon({html:'<div style="background:#3b82f6;width:15px;height:15px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.3)"></div>',iconSize:[15,15],iconAnchor:[7.5,7.5],className:''});}
+
+// ── Real GPS pickup location ──────────────────────────────────────
+// The pickup field used to default to hardcoded text ("Current Location — Port of
+// Spain") that never reflected where the rider actually was, and unrecognized/typo'd
+// addresses fell back to a random offset that could land anywhere nearby -- including
+// in the ocean. This asks the browser for the real position and uses those exact
+// coordinates for the pickup point, only falling back to the fake address lookup if
+// location access is denied or unavailable.
+let _ME_MARKER=null;
+function _locateRider(){
+  const input=document.getElementById('ride-pickup');
+  if(!navigator.geolocation){
+    if(input&&!input.value)input.placeholder='Enter pickup location';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      S.myLat=pos.coords.latitude;S.myLng=pos.coords.longitude;
+      const el=document.getElementById('ride-pickup');
+      if(el&&!el.value)el.value='Current Location';
+      if(_MAP_IDLE){
+        _MAP_IDLE.setView([S.myLat,S.myLng],15);
+        if(_ME_MARKER)try{_ME_MARKER.remove();}catch{}
+        _ME_MARKER=L.marker([S.myLat,S.myLng],{icon:_meIcon()}).addTo(_MAP_IDLE).bindPopup('📍 You are here');
+      }
+    },
+    err=>{
+      console.warn('Geolocation unavailable:',err.message);
+      const el=document.getElementById('ride-pickup');
+      if(el&&!el.value)el.placeholder='Enter pickup location';
+    },
+    {enableHighAccuracy:true,timeout:10000,maximumAge:60000}
+  );
+}
 
 function initIdleMap(){
   const el0=document.getElementById('idle-map');if(!el0)return;
   _initLeaflet().then(()=>{
     const el=document.getElementById('idle-map');if(!el)return; // page moved on while the library was loading
-    if(_MAP_IDLE){try{_MAP_IDLE.remove();}catch{}}_MAP_IDLE=null;
-    _MAP_IDLE=L.map(el,{zoomControl:false,attributionControl:false}).setView([10.6549,-61.5019],12);
+    if(_MAP_IDLE){try{_MAP_IDLE.remove();}catch{}}_MAP_IDLE=null;_ME_MARKER=null;
+    const haveLoc=typeof S.myLat==='number'&&typeof S.myLng==='number';
+    _MAP_IDLE=L.map(el,{zoomControl:false,attributionControl:false}).setView(haveLoc?[S.myLat,S.myLng]:[10.6549,-61.5019],haveLoc?15:12);
     _watchTiles(_MAP_IDLE,el);
     _tileLayer(_MAP_IDLE);L.control.zoom({position:'bottomright'}).addTo(_MAP_IDLE);
+    if(haveLoc)_ME_MARKER=L.marker([S.myLat,S.myLng],{icon:_meIcon()}).addTo(_MAP_IDLE).bindPopup('📍 You are here');
     setTimeout(()=>_MAP_IDLE&&_MAP_IDLE.invalidateSize(),300);
   }).catch(()=>{
     const el=document.getElementById('idle-map');
@@ -2034,6 +2105,7 @@ function _rerender(){
   if(cur==='rider')renderRiderBook&&renderRiderBook();
   else if(cur==='driver'){S.dp=DB.driver_profiles?.find(d=>d.user_id===S.user?.id)||null;loadDriver&&loadDriver();}
   else if(cur==='admin')loadAdmin&&loadAdmin();
+  _updateNotifDots();
 }
 
 // ── Server DB load ───────────────────────────────────────────────
@@ -2045,6 +2117,7 @@ async function _pttLoadDB(){
     const{db:serverDB,user}=await r.json();
     Object.keys(serverDB).forEach(k=>{if(DB[k]!==undefined)DB[k]=serverDB[k];});
     if(user&&!S.user){S.user=user;save();}
+    _updateNotifDots();
   }catch(e){console.log('DB load error',e);}
 }
 
@@ -2185,7 +2258,7 @@ bookRide=async function(){
   if(pickup===dest){toast('Pickup and destination cannot be the same','err');return;}
   const btn=document.getElementById('book-btn');
   if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Booking...';}
-  const res=await _mutate('book_ride',{pickup_address:pickup,destination_address:dest});
+  const res=await _mutate('book_ride',{pickup_address:pickup,destination_address:dest,pickup_lat:S.myLat,pickup_lng:S.myLng});
   if(res.ok){
     toast('🌸 Ride requested! Finding your driver...','ok');
     await _pttLoadDB();
@@ -2416,6 +2489,7 @@ renderRiderBook=function(){
   // Init idle map only when no active ride
   if(!S.rideStatus||S.rideStatus==='completed'){
     setTimeout(()=>initIdleMap(),150);
+    _locateRider();
   } else {
     // Init/refresh tracking map
     if(S.activeRide){

@@ -1,5 +1,5 @@
 'use strict';
-const express=require('express'),http=require('http'),WebSocket=require('ws'),bcrypt=require('bcryptjs'),jwt=require('jsonwebtoken'),{v4:uuidv4}=require('uuid'),path=require('path'),os=require('os'),rateLimit=require('express-rate-limit');
+const express=require('express'),http=require('http'),WebSocket=require('ws'),bcrypt=require('bcryptjs'),jwt=require('jsonwebtoken'),{v4:uuidv4}=require('uuid'),path=require('path'),os=require('os'),rateLimit=require('express-rate-limit'),nodemailer=require('nodemailer');
 const PORT=process.env.PORT||3000;
 const JWT_SECRET=process.env.JWT_SECRET||'pinktt_2025_secure';
 if(!process.env.JWT_SECRET)console.warn('⚠️  JWT_SECRET not set — using an insecure default. Set JWT_SECRET in production.');
@@ -7,6 +7,21 @@ if(!process.env.ANTHROPIC_API_KEY&&!process.env.GEMINI_API_KEY)console.warn('⚠
 const TWILIO_READY=!!(process.env.TWILIO_ACCOUNT_SID&&process.env.TWILIO_AUTH_TOKEN&&process.env.TWILIO_FROM_NUMBER);
 if(!TWILIO_READY)console.warn('⚠️  Twilio not configured (TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER) — SOS will log to the database and notify the admin panel only, no real call/SMS will be sent.');
 const SHOW_DEMO_ACCOUNTS=process.env.SHOW_DEMO_ACCOUNTS==='true'||(process.env.NODE_ENV!=='production'&&process.env.SHOW_DEMO_ACCOUNTS!=='false');
+
+// ── Admin email notifications (new signups, etc.) via Gmail SMTP ──────────────
+// Uses a free Gmail "App Password" (console.google.com -> Security -> App Passwords,
+// needs 2-Step Verification on) rather than a paid transactional email service.
+const ADMIN_EMAIL=process.env.ADMIN_NOTIFICATION_EMAIL||'Maillardelliot25@gmail.com';
+const EMAIL_READY=!!(process.env.GMAIL_USER&&process.env.GMAIL_APP_PASSWORD);
+if(!EMAIL_READY)console.warn('⚠️  Email not configured (GMAIL_USER/GMAIL_APP_PASSWORD) — admin notifications will show in the dashboard only, no email will be sent.');
+const mailer=EMAIL_READY?nodemailer.createTransport({service:'gmail',auth:{user:process.env.GMAIL_USER,pass:process.env.GMAIL_APP_PASSWORD}}):null;
+async function sendAdminEmail(subject,text){
+  if(!mailer)return{sent:false,reason:'not_configured'};
+  try{
+    await mailer.sendMail({from:`Pink.TT <${process.env.GMAIL_USER}>`,to:ADMIN_EMAIL,subject,text});
+    return{sent:true};
+  }catch(e){console.error('Admin email error',e.message);return{sent:false,reason:'send_error'};}
+}
 
 // ── Database abstraction: Postgres (Supabase/any) > Turso cloud > local SQLite ─
 let dbGet,dbAll,dbRun,dbInit;
@@ -89,6 +104,46 @@ if(process.env.DATABASE_URL){
 // ── Business logic ────────────────────────────────────────────────────────────
 const COORDS={'Port of Spain':[10.6549,-61.5019],'Independence Square':[10.653,-61.5105],"Queen's Park Savannah":[10.663,-61.5178],'Maraval':[10.672,-61.522],'Airport':[10.5954,-61.3372],'Piarco':[10.5954,-61.3372],'Chaguanas':[10.517,-61.4115],'San Fernando':[10.2796,-61.4688],'Arima':[10.637,-61.283],'Tunapuna':[10.637,-61.383],'Trincity':[10.604,-61.350],'Diego Martin':[10.69,-61.56],'Woodbrook':[10.652,-61.514],'St. Clair':[10.668,-61.523],'Curepe':[10.639,-61.408],'Barataria':[10.63,-61.43],'Point Fortin':[10.17,-61.685],'Princes Town':[10.27,-61.373]};
 function getCoord(a){for(const k in COORDS){if(a&&a.toLowerCase().includes(k.toLowerCase()))return COORDS[k];}return[10.6549+(Math.random()-.5)*.05,-61.5019+(Math.random()-.5)*.05];}
+// Rough Trinidad & Tobago bounding box -- rejects garbage/out-of-range coords (e.g. a
+// browser geolocation glitch or a spoofed value) rather than trusting client input blindly.
+function isValidTTCoord(lat,lng){return typeof lat==='number'&&typeof lng==='number'&&lat>=9.5&&lat<=11.5&&lng>=-62&&lng<=-60;}
+
+// Real geocoding (free, no API key) via OpenStreetMap's Nominatim, for typed addresses
+// that don't match one of the ~18 hardcoded neighborhood names in COORDS -- without
+// this, an address like "81 Sunset Drive" fell back to a random point that could land
+// anywhere nearby, including in the ocean, and the resulting "distance" (and therefore
+// fare) was meaningless. Cached per address for the process lifetime since Nominatim's
+// usage policy asks for at most ~1 request/sec and addresses repeat often (quick
+// destinations, common streets).
+const _geocodeCache=new Map();
+async function geocodeAddress(address){
+  if(!address)return null;
+  const key=address.trim().toLowerCase();
+  if(_geocodeCache.has(key))return _geocodeCache.get(key);
+  try{
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),4000);
+    const url=`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=tt&q=${encodeURIComponent(address+', Trinidad and Tobago')}`;
+    const apiRes=await fetch(url,{headers:{'User-Agent':'PinkTT-Rideshare/1.0 (support@pink.tt)'},signal:controller.signal});
+    clearTimeout(timer);
+    if(!apiRes.ok){_geocodeCache.set(key,null);return null;}
+    const results=await apiRes.json();
+    if(!results.length){_geocodeCache.set(key,null);return null;}
+    const coord=[parseFloat(results[0].lat),parseFloat(results[0].lon)];
+    if(!isValidTTCoord(coord[0],coord[1])){_geocodeCache.set(key,null);return null;}
+    _geocodeCache.set(key,coord);
+    return coord;
+  }catch(e){console.error('Geocoding error',e.message);_geocodeCache.set(key,null);return null;}
+}
+// Resolves an address to a coordinate: known neighborhood name (instant) -> real
+// geocoding (Nominatim) -> last-resort nearby-jitter placeholder, flagged as approximate
+// so callers/UI can be honest about it rather than presenting it as an exact match.
+async function resolveCoord(address){
+  for(const k in COORDS){if(address&&address.toLowerCase().includes(k.toLowerCase()))return{coord:COORDS[k],approx:false};}
+  const geo=await geocodeAddress(address);
+  if(geo)return{coord:geo,approx:false};
+  return{coord:[10.6549+(Math.random()-.5)*.02,-61.5019+(Math.random()-.5)*.02],approx:true};
+}
 function calcFare(km,min){const h=new Date().getHours(),raw=25+km*3.5+min*1.5,s=(h>=22||h<5)?1.25:((h>=6&&h<9)||(h>=16&&h<19))?1.20:1;return Math.round(raw*s*100)/100;}
 function dist(p,d){const R=6371,dLat=(d[0]-p[0])*Math.PI/180,dLon=(d[1]-p[1])*Math.PI/180,a=Math.sin(dLat/2)**2+Math.cos(p[0]*Math.PI/180)*Math.cos(d[0]*Math.PI/180)*Math.sin(dLon/2)**2;return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*10)/10;}
 
@@ -160,6 +215,23 @@ const verifyLimiter=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,l
 
 app.get('/api/config',(req,res)=>{res.json({showDemoAccounts:SHOW_DEMO_ACCOUNTS});});
 
+// Notifies every active admin (dashboard notification + email) that a new account
+// signed up. DB inserts are awaited so the notification is already there by the time
+// broadcastDBUpdate() below pushes fresh state to connected admin sessions; the email
+// itself is fire-and-forget (sendAdminEmail catches its own errors) so a slow/failed
+// send never delays the registration response.
+async function notifyAdminsOfSignup(user){
+  const admins=await dbAll("SELECT id FROM users WHERE role='admin' AND is_active=1");
+  const msg=`🆕 New ${user.role} signup: ${user.first_name} ${user.last_name} (${user.email})`;
+  for(const a of admins){
+    await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),a.id,'signup',msg]);
+  }
+  sendAdminEmail(
+    `New Pink.TT ${user.role} signup — ${user.first_name} ${user.last_name}`,
+    `A new ${user.role} just registered on Pink.TT.\n\nName: ${user.first_name} ${user.last_name}\nEmail: ${user.email}\nPhone: ${user.phone||'—'}\n\nReview in the admin dashboard${process.env.PUBLIC_URL?': '+process.env.PUBLIC_URL:''}.`
+  );
+}
+
 app.post('/api/register',authLimiter,async(req,res)=>{
   const{first_name,last_name,email,password,phone,role,emergency_contact_name,emergency_contact_phone}=req.body;
   if(!first_name||!last_name||!email||!password)return res.status(400).json({error:'Missing required fields'});
@@ -169,6 +241,7 @@ app.post('/api/register',authLimiter,async(req,res)=>{
   const hash=bcrypt.hashSync(password,10),id=uuidv4();
   await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,emergency_contact_name,emergency_contact_phone,is_active,is_verified)VALUES(?,?,?,?,?,?,?,?,?,1,0)',[id,email.toLowerCase(),hash,first_name,last_name,phone||'',role,emergency_contact_name||'',emergency_contact_phone||'']);
   const token=jwt.sign({id,role,email:email.toLowerCase()},JWT_SECRET,{expiresIn:'30d'});
+  await notifyAdminsOfSignup({first_name,last_name,email:email.toLowerCase(),phone:phone||'',role});
   broadcastDBUpdate();
   res.json({ok:true,token,user_id:id});
 });
@@ -204,12 +277,14 @@ app.get('/api/db',authMW,async(req,res)=>{
   res.json({db:dbObj,user});
 });
 
-app.post('/api/fare',(req,res)=>{
-  const{pickup,destination}=req.body;
-  const p=getCoord(pickup),d=getCoord(destination);
+app.post('/api/fare',async(req,res)=>{
+  const{pickup,destination,pickup_lat,pickup_lng}=req.body;
+  const p=isValidTTCoord(pickup_lat,pickup_lng)?[pickup_lat,pickup_lng]:(await resolveCoord(pickup)).coord;
+  const dResolved=await resolveCoord(destination);
+  const d=dResolved.coord;
   const km=dist(p,d),min=Math.round(km*2.5+5),fare=calcFare(km,min);
   const h=new Date().getHours(),s=(h>=22||h<5)?'night':((h>=6&&h<9)||(h>=16&&h<19))?'peak':'standard';
-  res.json({km,min,fare,pickup_lat:p[0],pickup_lng:p[1],dest_lat:d[0],dest_lng:d[1],surge:s});
+  res.json({km,min,fare,pickup_lat:p[0],pickup_lng:p[1],dest_lat:d[0],dest_lng:d[1],surge:s,destination_approx:dResolved.approx});
 });
 
 // ── ID verification (server-side, key never reaches the client) ──────────────
@@ -325,7 +400,9 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
     }else if(type==='book_ride'){
       const ex=await dbGet("SELECT id FROM rides WHERE rider_id=? AND status NOT IN('completed','cancelled')",[userId]);
       if(ex)return res.json({ok:false,error:'You already have an active ride'});
-      const p=getCoord(data.pickup_address),d=getCoord(data.destination_address),km=dist(p,d),min=Math.round(km*2.5+5),fare=calcFare(km,min);
+      const p=isValidTTCoord(data.pickup_lat,data.pickup_lng)?[data.pickup_lat,data.pickup_lng]:(await resolveCoord(data.pickup_address)).coord;
+      const d=(await resolveCoord(data.destination_address)).coord;
+      const km=dist(p,d),min=Math.round(km*2.5+5),fare=calcFare(km,min);
       await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes)VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',[uuidv4(),userId,'requested',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min]);
     }else if(type==='accept_ride'){
       const ride=await dbGet("SELECT * FROM rides WHERE id=? AND status='requested'",[data.ride_id]);

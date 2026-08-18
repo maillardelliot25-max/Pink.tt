@@ -34,6 +34,9 @@ can sign up, book rides, and interact with real drivers in real time.
 - **Rate limiting** — `/api/register`, `/api/login` (20 req/15min), `/api/mutation` (60 req/min), `/api/verify-id` (10 req/15min); plus a per-account login lockout (5 failed attempts = 15 min lock) independent of the per-IP limiter
 - **SOS safety alert** — logs the event, notifies the admin panel, and — if Twilio env vars + a safety-team phone number (set in-app under Admin → Settings) are configured — places an automated call and SMS to that number. **This never contacts real police directly** — a human on the safety team decides whether to call the Trinidad & Tobago Police Service. No formal TTPS dispatch integration exists; see `/terms.html` and `/privacy.html` for the exact wording shown to users.
 - **Admin panel → Settings tab** — editable safety/support contact numbers, staff/admin account management (create, promote, demote, cannot remove the last admin), and an audit log of sensitive admin actions
+- **New-signup notifications** — every new rider/driver registration notifies all active admins in the dashboard (🔔 bell icon, top right of the admin panel) and, if `GMAIL_USER`/`GMAIL_APP_PASSWORD` are set, by email
+- **Real pickup location** — the booking screen asks for the browser's GPS location and uses those exact coordinates for pickup, instead of a fixed placeholder. Falls back to address-based lookup only if location access is denied
+- **Destination geocoding** — typed destinations are resolved via a small hardcoded list of T&T neighborhoods first, then real geocoding (OpenStreetMap Nominatim, free, no API key) for anything else, so fares reflect actual distance instead of a random nearby guess
 
 ## Environment Variables
 
@@ -50,6 +53,8 @@ See `.env.example`. Notable ones:
 | `SHOW_DEMO_ACCOUNTS` | `true`/`false`. Controls the tap-to-fill demo accounts panel on the login screen. Defaults to visible outside production, hidden when `NODE_ENV=production` |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | Powers the automated SOS call/SMS. Omit any of the three and SOS falls back to logging + admin-panel notification only |
 | `PUBLIC_URL` | Your deployed URL (e.g. `https://pinktt.onrender.com`) — Twilio calls this back to fetch what to say during the SOS call |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Powers admin email notifications on new signups. Free Gmail App Password (needs 2-Step Verification on) — no paid email service needed |
+| `ADMIN_NOTIFICATION_EMAIL` | Who receives signup notification emails. Defaults to `Maillardelliot25@gmail.com` |
 
 **Payment processing is not yet integrated.** Stripe and PayPal don't operate in Trinidad & Tobago; the real options are WiPay, Powertranz, or Republic EPay. This needs a decision on which processor before it can be built.
 | `NODE_ENV` | Set to `production` on your host |
