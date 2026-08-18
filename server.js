@@ -212,6 +212,53 @@ function clampPointsRedemption(requestedPoints,availablePoints,fare){
 }
 function dist(p,d){const R=6371,dLat=(d[0]-p[0])*Math.PI/180,dLon=(d[1]-p[1])*Math.PI/180,a=Math.sin(dLat/2)**2+Math.cos(p[0]*Math.PI/180)*Math.cos(d[0]*Math.PI/180)*Math.sin(dLon/2)**2;return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*10)/10;}
 
+// Address suggestions as the rider types (Nominatim search, up to 6 candidates) -- so
+// pickup/destination aren't limited to the ~18 hardcoded neighborhood names or a single
+// best-guess match. Free, no API key; same host/policy as geocodeAddress above.
+async function suggestAddresses(query){
+  if(!query||query.trim().length<3)return[];
+  try{
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),4000);
+    const url=`https://nominatim.openstreetmap.org/search?format=json&limit=6&countrycodes=tt&q=${encodeURIComponent(query)}`;
+    const apiRes=await fetch(url,{headers:{'User-Agent':'PinkTT-Rideshare/1.0 (support@pink.tt)'},signal:controller.signal});
+    clearTimeout(timer);
+    if(!apiRes.ok)return[];
+    const results=await apiRes.json();
+    return results.filter(r=>isValidTTCoord(parseFloat(r.lat),parseFloat(r.lon)))
+      .map(r=>({label:r.display_name,lat:parseFloat(r.lat),lng:parseFloat(r.lon)}));
+  }catch(e){console.error('Address suggest error',e.message);return[];}
+}
+
+// Real driving route (actual roads, not a straight line) via OSRM's free public demo
+// server -- no API key. Returns road distance/duration plus the route geometry so the
+// same path can be drawn on the map for both rider and driver. Falls back to the
+// haversine straight-line distance (already used elsewhere) if OSRM is unreachable,
+// so a booking never fails outright over a routing-service hiccup.
+async function getRoute(pickup,destination){
+  try{
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),5000);
+    const url=`https://router.project-osrm.org/route/v1/driving/${pickup[1]},${pickup[0]};${destination[1]},${destination[0]}?overview=full&geometries=geojson`;
+    const apiRes=await fetch(url,{signal:controller.signal});
+    clearTimeout(timer);
+    if(!apiRes.ok)throw new Error('OSRM HTTP '+apiRes.status);
+    const data=await apiRes.json();
+    const route=data.routes?.[0];
+    if(!route)throw new Error('No route found');
+    return{
+      km:Math.round(route.distance/100)/10,
+      min:Math.round(route.duration/60),
+      geometry:route.geometry.coordinates.map(([lng,lat])=>[lat,lng]),
+      real:true
+    };
+  }catch(e){
+    console.warn('Route lookup failed, using straight-line estimate:',e.message);
+    const km=dist(pickup,destination);
+    return{km,min:Math.round(km*2.5+5),geometry:[pickup,destination],real:false};
+  }
+}
+
 async function buildDB(){
   const users=(await dbAll('SELECT id,email,first_name,last_name,phone,role,gender,is_verified,is_active,emergency_contact_name,emergency_contact_phone,wallet_balance,total_rides,pink_points,pink_points_lifetime,created_at FROM users')).map(u=>({...u,is_verified:!!u.is_verified,is_active:!!u.is_active,pink_points:u.pink_points||0,pink_points_lifetime:u.pink_points_lifetime||0,pink_points_tier:pinkPointsTier(u.pink_points_lifetime||0).name}));
   const driver_profiles=(await dbAll('SELECT id,user_id,license_number,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status,is_online,current_lat,current_lng,total_trips,total_earnings,balance,today_earnings,rating,rating_count,created_at FROM driver_profiles')).map(d=>({...d,is_online:!!d.is_online,approved_at:d.status==='approved'?d.created_at:null}));
@@ -344,12 +391,29 @@ app.get('/api/db',authMW,async(req,res)=>{
 });
 
 app.post('/api/fare',async(req,res)=>{
-  const{pickup,destination,pickup_lat,pickup_lng}=req.body;
+  const{pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng}=req.body;
   const p=isValidTTCoord(pickup_lat,pickup_lng)?[pickup_lat,pickup_lng]:(await resolveCoord(pickup)).coord;
-  const dResolved=await resolveCoord(destination);
+  const dResolved=isValidTTCoord(destination_lat,destination_lng)?{coord:[destination_lat,destination_lng],approx:false}:(await resolveCoord(destination));
   const d=dResolved.coord;
-  const km=dist(p,d),min=Math.round(km*2.5+5),fare=calcFare(km,min);
-  res.json({km,min,fare,pickup_lat:p[0],pickup_lng:p[1],dest_lat:d[0],dest_lng:d[1],destination_approx:dResolved.approx});
+  const route=await getRoute(p,d);
+  const fare=calcFare(route.km,route.min);
+  res.json({km:route.km,min:route.min,fare,pickup_lat:p[0],pickup_lng:p[1],dest_lat:d[0],dest_lng:d[1],destination_approx:dResolved.approx,route:route.geometry,routeIsReal:route.real});
+});
+
+// Address suggestions dropdown -- returns up to 6 candidate addresses as the rider types.
+app.get('/api/geocode-suggest',async(req,res)=>{
+  const results=await suggestAddresses(req.query.q||'');
+  res.json({results});
+});
+
+// Route geometry for an existing ride's pickup/destination -- used to (re)draw the map
+// (e.g. on page reload, or when a driver accepts and needs the same route the rider sees).
+app.get('/api/route',async(req,res)=>{
+  const{pickup_lat,pickup_lng,dest_lat,dest_lng}=req.query;
+  const p=[parseFloat(pickup_lat),parseFloat(pickup_lng)],d=[parseFloat(dest_lat),parseFloat(dest_lng)];
+  if(!isValidTTCoord(p[0],p[1])||!isValidTTCoord(d[0],d[1]))return res.status(400).json({error:'Invalid coordinates'});
+  const route=await getRoute(p,d);
+  res.json(route);
 });
 
 // ── ID verification (server-side, key never reaches the client) ──────────────
@@ -466,8 +530,9 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const ex=await dbGet("SELECT id FROM rides WHERE rider_id=? AND status NOT IN('completed','cancelled')",[userId]);
       if(ex)return res.json({ok:false,error:'You already have an active ride'});
       const p=isValidTTCoord(data.pickup_lat,data.pickup_lng)?[data.pickup_lat,data.pickup_lng]:(await resolveCoord(data.pickup_address)).coord;
-      const d=(await resolveCoord(data.destination_address)).coord;
-      const km=dist(p,d),min=Math.round(km*2.5+5),fullFare=calcFare(km,min);
+      const d=isValidTTCoord(data.destination_lat,data.destination_lng)?[data.destination_lat,data.destination_lng]:(await resolveCoord(data.destination_address)).coord;
+      const route=await getRoute(p,d);
+      const km=route.km,min=route.min,fullFare=calcFare(km,min);
       const rider=await dbGet('SELECT pink_points FROM users WHERE id=?',[userId]);
       const{points,discount}=clampPointsRedemption(data.points_to_redeem,rider?.pink_points||0,fullFare);
       const fare=Math.round((fullFare-discount)*100)/100;

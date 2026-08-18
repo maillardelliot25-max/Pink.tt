@@ -69,6 +69,11 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* Form */
 .inp{width:100%;border:1.5px solid #e5e7eb;border-radius:14px;padding:11px 14px;font-size:14px;font-family:inherit;background:#fff;transition:all .15s;outline:none}
 .inp:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(233,30,140,.08)}
+.addr-suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:50;max-height:220px;overflow-y:auto;display:none}
+.addr-suggest.show{display:block}
+.addr-suggest-item{padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid #f3f4f6}
+.addr-suggest-item:last-child{border-bottom:none}
+.addr-suggest-item:hover,.addr-suggest-item:active{background:var(--pp)}
 .lbl{display:block;font-size:11px;font-weight:700;color:#6b7280;margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
 .fg{margin-bottom:14px}
 /* Cards */
@@ -789,7 +794,7 @@ function showMenu(){
     {label:'🔔 Notifications',action:()=>{showNotifs()}},
     {label:'⎋ Sign Out',action:doLogout,red:true},
   ];
-  let html='<div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300" onclick="closeUserMenu()"></div><div style="position:fixed;top:54px;right:12px;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.15);z-index:301;min-width:210px;overflow:hidden" id="user-menu">';
+  let html='<div style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300" onclick="closeUserMenu()"></div><div style="position:fixed;top:54px;right:12px;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.25);z-index:301;min-width:210px;overflow:hidden" id="user-menu">';
   html+=`<div style="padding:12px 16px;border-bottom:1px solid #f0f0f0"><p style="font-weight:600;font-size:13px">${S.user.first_name} ${S.user.last_name}</p><p style="font-size:11px;color:#9ca3af">${S.user.email}</p></div>`;
   menu.forEach(m=>{html+=`<button onclick="closeUserMenu();(${m.action.toString()})()" style="width:100%;padding:12px 16px;border:none;cursor:pointer;text-align:left;font-size:13px;font-weight:500;background:#fff;color:${m.red?'#ef4444':'#374151'};hover:background:#f9fafb">${m.label}</button>`;});
   html+='</div>';
@@ -903,12 +908,14 @@ function renderRiderBook(){
       <h3 style="font-size:16px;margin-bottom:14px">Where to?</h3>
       <div style="position:relative;margin-bottom:10px">
         <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:9px;height:9px;background:var(--p);border-radius:50%;z-index:1"></div>
-        <input class="inp" id="ride-pickup" style="padding-left:28px" placeholder="Locating you…">
+        <input class="inp" id="ride-pickup" style="padding-left:28px" placeholder="Locating you…" autocomplete="off">
+        <div id="ride-pickup-suggest" class="addr-suggest"></div>
       </div>
       <div style="position:relative;margin-bottom:14px">
         <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:9px;height:9px;background:#111827;border-radius:50%;z-index:1"></div>
-        <input class="inp" id="ride-dest" style="padding-left:28px" placeholder="Where are you going?" list="dest-list" oninput="onDestChange(this.value)">
+        <input class="inp" id="ride-dest" style="padding-left:28px" placeholder="Where are you going?" list="dest-list" oninput="onDestChange(this.value)" autocomplete="off">
         <datalist id="dest-list">${LOCATIONS.map(l=>`<option value="${l}">`).join('')}</datalist>
+        <div id="ride-dest-suggest" class="addr-suggest"></div>
       </div>
       <div id="fare-preview" style="display:none;background:var(--pp);border-radius:14px;padding:11px 14px;margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -957,7 +964,12 @@ function showFarePreview(dest){
   const pickup=document.getElementById('ride-pickup')?.value||'Port of Spain';
   const destination=dest||document.getElementById('ride-dest')?.value||'';
   if(!destination)return;
-  fetch('/api/fare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pickup,destination,pickup_lat:S.myLat,pickup_lng:S.myLng})})
+  const pickupCoord=S._pickupSuggest,destCoord=S._destSuggest;
+  fetch('/api/fare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    pickup,destination,
+    pickup_lat:pickupCoord?.lat??S.myLat,pickup_lng:pickupCoord?.lng??S.myLng,
+    destination_lat:destCoord?.lat,destination_lng:destCoord?.lng
+  })})
     .then(r=>r.json()).then(d=>{
       S._km=d.km;S._min=d.min;S._fare=d.fare;S._pickupCoord=[d.pickup_lat,d.pickup_lng];S._destCoord=[d.dest_lat,d.dest_lng];
       const f=d.fare,prev=document.getElementById('fare-preview');if(!prev)return;
@@ -970,6 +982,7 @@ function showFarePreview(dest){
       document.getElementById('fare-min').textContent='~'+d.min+' min';
       // Update idle map with route
       updateIdleMap(d);
+      if(_MAP_IDLE&&d.route)_drawRoute(_MAP_IDLE,d.route);
     }).catch(()=>{
       const hsh=destination.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
       const km=Math.max(3,(hsh%35)+3),min=Math.ceil(km*2.5+5),f=calcFare(km,min);
@@ -1301,10 +1314,7 @@ function renderDriverActive(body){
   if(!r||!['accepted','arriving','in_progress'].includes(r.status)){body.innerHTML='<div class="empty"><div class="empty-i">🗺️</div><p>No active ride</p><p style="font-size:13px">Accept a request to start driving</p></div>';return;}
   const rider=DB.users.find(u=>u.id===r.rider_id)||{};
   body.innerHTML=`
-    <div class="mapbox" style="margin-bottom:12px">
-      <div class="map-pin">${r.status==='in_progress'?'🚗':'📍'}</div>
-      <p style="color:var(--p);font-size:13px;font-weight:600;position:relative">${r.status==='in_progress'?'Trip in Progress':'Navigate to Pickup'}</p>
-    </div>
+    <div id="driver-active-map" style="height:170px;border-radius:20px;overflow:hidden;border:1.5px solid var(--pb);margin-bottom:12px;background:#f0f0f0"></div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <span class="badge ${r.status==='accepted'?'byel':r.status==='arriving'?'badge' :'bgrn'}">${r.status==='accepted'?'⏳ Going to pickup':r.status==='arriving'?'🚗 Arriving':'🚗 In progress'}</span>
@@ -1325,6 +1335,30 @@ function renderDriverActive(body){
       </div>
     </div>
   `;
+  initDriverActiveMap(r);
+}
+// The driver's active-ride map -- shows the same pickup-to-destination route the rider
+// sees, so both sides are looking at the same path. There was previously no real map
+// here at all, just a decorative gradient box with an emoji pin.
+let _MAP_DRIVER_ACTIVE=null;
+function initDriverActiveMap(ride){
+  const el0=document.getElementById('driver-active-map');if(!el0)return;
+  _initLeaflet().then(()=>{
+    const el=document.getElementById('driver-active-map');if(!el)return;
+    if(_MAP_DRIVER_ACTIVE){try{_MAP_DRIVER_ACTIVE.remove();}catch{}}_MAP_DRIVER_ACTIVE=null;
+    const pLat=ride.pickup_lat,pLng=ride.pickup_lng,dLat=ride.destination_lat,dLng=ride.destination_lng;
+    _MAP_DRIVER_ACTIVE=L.map(el,{zoomControl:false,attributionControl:false}).setView([pLat,pLng],13);
+    _watchTiles(_MAP_DRIVER_ACTIVE,el);
+    _tileLayer(_MAP_DRIVER_ACTIVE);L.control.zoom({position:'bottomright'}).addTo(_MAP_DRIVER_ACTIVE);
+    L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_DRIVER_ACTIVE).bindPopup('📍 Pickup');
+    L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_DRIVER_ACTIVE).bindPopup('🏁 Destination');
+    _MAP_DRIVER_ACTIVE.fitBounds([[pLat,pLng],[dLat,dLng]],{padding:[20,20]});
+    setTimeout(()=>_MAP_DRIVER_ACTIVE&&_MAP_DRIVER_ACTIVE.invalidateSize(),300);
+    _fetchAndDrawRoute(()=>_MAP_DRIVER_ACTIVE,pLat,pLng,dLat,dLng);
+  }).catch(()=>{
+    const el=document.getElementById('driver-active-map');
+    if(el)_showMapError(el,()=>initDriverActiveMap(ride));
+  });
 }
 
 function startRide(){
@@ -1993,6 +2027,54 @@ function _locateRider(){
   );
 }
 
+// ── Address suggestions dropdown ──────────────────────────────────
+// Attaches live search-as-you-type suggestions to an input, backed by /api/geocode-suggest
+// (real address lookup, not just the ~18 hardcoded neighborhood names). Picking a
+// suggestion stores its exact coordinate via onPick so booking uses that coordinate
+// directly instead of re-guessing from the typed text.
+let _addrSuggestTimer=null;
+function _attachAddressSuggest(inputId,dropdownId,onPick){
+  const input=document.getElementById(inputId),dropdown=document.getElementById(dropdownId);
+  if(!input||!dropdown)return;
+  input.addEventListener('input',()=>{
+    onPick(null); // typing invalidates any previously picked coordinate
+    clearTimeout(_addrSuggestTimer);
+    const q=input.value.trim();
+    if(q.length<3){dropdown.classList.remove('show');return;}
+    _addrSuggestTimer=setTimeout(async()=>{
+      try{
+        const r=await fetch('/api/geocode-suggest?q='+encodeURIComponent(q));
+        const{results}=await r.json();
+        if(!results||!results.length){dropdown.classList.remove('show');return;}
+        dropdown.innerHTML=results.map((res,i)=>`<div class="addr-suggest-item" data-i="${i}">${res.label}</div>`).join('');
+        dropdown.classList.add('show');
+        dropdown.querySelectorAll('.addr-suggest-item').forEach(el=>{
+          el.onclick=()=>{
+            const res=results[+el.dataset.i];
+            input.value=res.label;
+            dropdown.classList.remove('show');
+            onPick({lat:res.lat,lng:res.lng});
+          };
+        });
+      }catch{dropdown.classList.remove('show');}
+    },350);
+  });
+  document.addEventListener('click',e=>{
+    if(e.target!==input&&!dropdown.contains(e.target))dropdown.classList.remove('show');
+  });
+}
+
+// Draws (or redraws) a route polyline on a Leaflet map from geometry returned by
+// /api/fare or /api/route -- an array of [lat,lng] points following actual roads
+// (falls back to a straight line between the two points if the routing service
+// was unreachable, per getRoute's server-side fallback).
+let _ROUTE_LINE=null;
+function _drawRoute(map,geometry){
+  if(!map||!geometry||!geometry.length)return;
+  if(_ROUTE_LINE){try{_ROUTE_LINE.remove();}catch{}}
+  _ROUTE_LINE=L.polyline(geometry,{color:'#E91E8C',weight:4,opacity:.85}).addTo(map);
+}
+
 function initIdleMap(){
   const el0=document.getElementById('idle-map');if(!el0)return;
   _initLeaflet().then(()=>{
@@ -2035,10 +2117,22 @@ function initTrackMap(pickup,destination,driverLat,driverLng){
     _MAP_TRACK.fitBounds([[pLat,pLng],[dLat,dLng]],{padding:[20,20]});
     _MAP_TRACK._pLat=pLat;_MAP_TRACK._pLng=pLng;_MAP_TRACK._dLat=dLat;_MAP_TRACK._dLng=dLng;
     setTimeout(()=>_MAP_TRACK&&_MAP_TRACK.invalidateSize(),300);
+    _fetchAndDrawRoute(()=>_MAP_TRACK,pLat,pLng,dLat,dLng);
   }).catch(()=>{
     const el=document.getElementById('track-map');
     if(el)_showMapError(el,()=>initTrackMap(pickup,destination,driverLat,driverLng));
   });
+}
+// Fetches the real driving route for a map and draws it once loaded. Takes a getter
+// (not the map instance directly) since the map may be torn down/rebuilt again before
+// this async fetch resolves.
+async function _fetchAndDrawRoute(getMap,pLat,pLng,dLat,dLng){
+  try{
+    const r=await fetch(`/api/route?pickup_lat=${pLat}&pickup_lng=${pLng}&dest_lat=${dLat}&dest_lng=${dLng}`);
+    const route=await r.json();
+    const map=getMap();
+    if(map&&route.geometry)_drawRoute(map,route.geometry);
+  }catch{}
 }
 // Map for the public "Share Trip" tracking page (loadTrack) -- a trusted contact opening
 // a shared link. loadTrack replaces its whole body.innerHTML (including #share-map) on
@@ -2058,6 +2152,7 @@ function initShareMap(ride){
     _SHARE_CAR_MARKER=L.marker([pLat+(Math.random()-.5)*.02,pLng+(Math.random()-.5)*.02],{icon:_carIcon()}).addTo(_MAP_SHARE);
     _MAP_SHARE.fitBounds([[pLat,pLng],[dLat,dLng]],{padding:[20,20]});
     setTimeout(()=>_MAP_SHARE&&_MAP_SHARE.invalidateSize(),300);
+    _fetchAndDrawRoute(()=>_MAP_SHARE,pLat,pLng,dLat,dLng);
   }).catch(()=>{
     const el=document.getElementById('share-map');
     if(el)_showMapError(el,()=>initShareMap(ride));
@@ -2267,7 +2362,13 @@ bookRide=async function(){
   if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Booking...';}
   const redeemChecked=document.getElementById('ride-redeem-points')?.checked;
   const pointsToRedeem=redeemChecked?(S.user?.pink_points||0):0;
-  const res=await _mutate('book_ride',{pickup_address:pickup,destination_address:dest,pickup_lat:S.myLat,pickup_lng:S.myLng,points_to_redeem:pointsToRedeem});
+  const pickupCoord=S._pickupSuggest,destCoord=S._destSuggest;
+  const res=await _mutate('book_ride',{
+    pickup_address:pickup,destination_address:dest,
+    pickup_lat:pickupCoord?.lat??S.myLat,pickup_lng:pickupCoord?.lng??S.myLng,
+    destination_lat:destCoord?.lat,destination_lng:destCoord?.lng,
+    points_to_redeem:pointsToRedeem
+  });
   if(res.ok){
     toast('🌸 Ride requested! Finding your driver...','ok');
     await _pttLoadDB();
@@ -2514,6 +2615,8 @@ renderRiderBook=function(){
   if(!S.rideStatus||S.rideStatus==='completed'){
     setTimeout(()=>initIdleMap(),150);
     _locateRider();
+    _attachAddressSuggest('ride-pickup','ride-pickup-suggest',c=>S._pickupSuggest=c);
+    _attachAddressSuggest('ride-dest','ride-dest-suggest',c=>S._destSuggest=c);
   } else {
     // Init/refresh tracking map
     if(S.activeRide){
