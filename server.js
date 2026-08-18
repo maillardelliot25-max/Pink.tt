@@ -23,6 +23,24 @@ async function sendAdminEmail(subject,text){
   }catch(e){console.error('Admin email error',e.message);return{sent:false,reason:'send_error'};}
 }
 
+// Admin SMS via TextBelt's free tier — no signup, no card, no key needed (uses the
+// shared "textbelt" key). Real limitation: capped at 1 free SMS/day, shared across
+// EVERY free-tier TextBelt user worldwide, so it's best-effort, not guaranteed —
+// email above is the reliable channel. Set TEXTBELT_KEY (a paid key) later to remove
+// that cap if this becomes a real bottleneck.
+const ADMIN_PHONE=process.env.ADMIN_NOTIFICATION_PHONE||'+18683092601';
+async function sendAdminSMS(text){
+  try{
+    const r=await fetch('https://textbelt.com/text',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({phone:ADMIN_PHONE,message:text.slice(0,300),key:process.env.TEXTBELT_KEY||'textbelt'})
+    });
+    const data=await r.json();
+    if(!data.success)console.warn('Admin SMS not sent (likely the free-tier daily cap):',data.error);
+    return{sent:!!data.success};
+  }catch(e){console.error('Admin SMS error',e.message);return{sent:false};}
+}
+
 // ── Database abstraction: Postgres (Supabase/any) > Turso cloud > local SQLite ─
 let dbGet,dbAll,dbRun,dbInit;
 const SCHEMA_SQL=[
@@ -267,6 +285,7 @@ async function notifyAdminsOfSignup(user){
     `New Pink.TT ${user.role} signup — ${user.first_name} ${user.last_name}`,
     `A new ${user.role} just registered on Pink.TT.\n\nName: ${user.first_name} ${user.last_name}\nEmail: ${user.email}\nPhone: ${user.phone||'—'}\n\nReview in the admin dashboard${process.env.PUBLIC_URL?': '+process.env.PUBLIC_URL:''}.`
   );
+  sendAdminSMS(msg);
 }
 
 app.post('/api/register',authLimiter,async(req,res)=>{
@@ -491,9 +510,14 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const id=uuidv4();
       await dbRun('INSERT INTO sos_events(id,user_id,ride_id,lat,lng,message)VALUES(?,?,?,?,?,?)',[id,userId,data.ride_id||null,data.lat||10.6549,data.lng||-61.5019,data.message||'SOS Alert']);
       const u=await dbGet('SELECT first_name,last_name,phone,emergency_contact_name FROM users WHERE id=?',[userId]);
-      const admin=await dbGet("SELECT id FROM users WHERE role='admin' LIMIT 1");
+      const admins=await dbAll("SELECT id FROM users WHERE role='admin' AND is_active=1");
       const msg=`🚨 SOS from ${u.first_name} ${u.last_name} (${u.phone}) — GPS: ${data.lat}, ${data.lng}`;
-      if(admin)await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),admin.id,'sos',msg]);
+      for(const a of admins){
+        await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),a.id,'sos',msg]);
+      }
+      const mapLink=`https://www.google.com/maps?q=${data.lat},${data.lng}`;
+      sendAdminEmail(`🚨 Pink.TT SOS — ${u.first_name} ${u.last_name}`,`${msg}\n\nLive location: ${mapLink}\n\nReview immediately in the admin dashboard.`);
+      sendAdminSMS(`${msg} — ${mapLink}`);
       const alertResult=await triggerSafetyAlert(msg);
       broadcastAll({type:'sos_alert',user:`${u.first_name} ${u.last_name}`,phone:u.phone,ec:u.emergency_contact_name,lat:data.lat,lng:data.lng,message:msg,safetyTeamAlerted:alertResult.sent});
       broadcastDBUpdate();
