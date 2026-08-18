@@ -46,7 +46,7 @@ See `.env.example`. Notable ones:
 | `JWT_SECRET` | Signs auth tokens — **set a long random value in production**, otherwise an insecure default is used (with a startup warning) |
 | `ANTHROPIC_API_KEY` | Primary provider for `/api/verify-id`. Requires billing set up on console.anthropic.com — no free tier for API usage |
 | `GEMINI_API_KEY` | Fallback provider for `/api/verify-id`, used if Anthropic is unset or fails. Genuinely free, no credit card required — get one at aistudio.google.com |
-| `GEMINI_MODEL` | Optional, defaults to `gemini-2.0-flash` |
+| `GEMINI_MODEL` | Optional, defaults to `gemini-3.6-flash` |
 | `SHOW_DEMO_ACCOUNTS` | `true`/`false`. Controls the tap-to-fill demo accounts panel on the login screen. Defaults to visible outside production, hidden when `NODE_ENV=production` |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | Powers the automated SOS call/SMS. Omit any of the three and SOS falls back to logging + admin-panel notification only |
 | `PUBLIC_URL` | Your deployed URL (e.g. `https://pinktt.onrender.com`) — Twilio calls this back to fetch what to say during the SOS call |

@@ -229,7 +229,7 @@ async function classifyWithAnthropic(mediaType,base64Data){
 }
 
 async function classifyWithGemini(mediaType,base64Data){
-  const model=process.env.GEMINI_MODEL||'gemini-2.0-flash';
+  const model=process.env.GEMINI_MODEL||'gemini-3.6-flash';
   try{
     const apiRes=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{
       method:'POST',
