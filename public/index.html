@@ -113,12 +113,15 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    toned way down (low opacity + a heavy white wash) so it reads as an ambient texture
    behind the form rather than competing with it, plus the form itself sits on a
    frosted glass panel so the video blurs softly behind the actual words/inputs. */
-#pg-login,#pg-register{position:relative}
+#pg-login,#pg-register{position:relative;background:linear-gradient(165deg,var(--pl),var(--p) 55%,var(--pd))}
 #pg-login .topbar,#pg-login .scroll,#pg-register .topbar,#pg-register .scroll{position:relative;z-index:1}
-.auth-video-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.62}
-.auth-video-wash{position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,rgba(255,255,255,.4) 0%,rgba(255,255,255,.78) 55%,#fff 88%);pointer-events:none}
+#pg-login .topbar,#pg-register .topbar{background:transparent;border-bottom-color:rgba(255,255,255,.25)}
+#pg-login .topbar .logo-name,#pg-register .topbar .logo-name{color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.2)}
+#pg-login .topbar button,#pg-register .topbar button{color:#fff!important}
+.auth-video-bg{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.85}
+.auth-video-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,47,168,.35),rgba(122,18,99,.5));pointer-events:none}
 .auth-wrap{max-width:440px;margin:0 auto;width:100%}
-.glass-card{background:rgba(255,255,255,.68);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.6);border-radius:20px;padding:22px 20px;box-shadow:0 8px 30px rgba(122,18,99,.1)}
+.glass-card{background:rgba(255,255,255,.82);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.7);border-radius:20px;padding:22px 20px;box-shadow:0 12px 36px rgba(90,8,65,.35)}
 @media (prefers-reduced-motion:reduce){#install-banner{animation:none}#install-banner .ib-bg{display:none}}
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid #f0f0f0;flex-shrink:0}
