@@ -172,7 +172,17 @@ async function resolveCoord(address){
   if(geo)return{coord:geo,approx:false};
   return{coord:[10.6549+(Math.random()-.5)*.02,-61.5019+(Math.random()-.5)*.02],approx:true};
 }
-function calcFare(km,min){const h=new Date().getHours(),raw=18+km*3.5+min*1.5,s=(h>=22||h<5)?1.25:((h>=6&&h<9)||(h>=16&&h<19))?1.20:1;return Math.round(raw*s*100)/100;}
+// Matches TTRS's publicly reported "Regular" tier rates (Dec 2022 fare increase --
+// the most recent public numbers found; TTRS may have adjusted since, worth
+// re-confirming against their current in-app rates): $28 minimum, $1.75/km up to
+// 20km then $3.00/km beyond, $1.10/min flat regardless of distance. No surge/peak
+// multiplier -- TTRS's public rate sheet doesn't document one, so none is applied
+// here rather than guessing at an amount.
+function calcFare(km,min){
+  const perKm=km<=20?km*1.75:20*1.75+(km-20)*3.00;
+  const raw=perKm+min*1.10;
+  return Math.round(Math.max(28,raw)*100)/100;
+}
 
 // ── Bullet Pink Points loyalty program ─────────────────────────────────────────
 // Points are earned on what the rider ACTUALLY pays (after any points discount),
@@ -339,8 +349,7 @@ app.post('/api/fare',async(req,res)=>{
   const dResolved=await resolveCoord(destination);
   const d=dResolved.coord;
   const km=dist(p,d),min=Math.round(km*2.5+5),fare=calcFare(km,min);
-  const h=new Date().getHours(),s=(h>=22||h<5)?'night':((h>=6&&h<9)||(h>=16&&h<19))?'peak':'standard';
-  res.json({km,min,fare,pickup_lat:p[0],pickup_lng:p[1],dest_lat:d[0],dest_lng:d[1],surge:s,destination_approx:dResolved.approx});
+  res.json({km,min,fare,pickup_lat:p[0],pickup_lng:p[1],dest_lat:d[0],dest_lng:d[1],destination_approx:dResolved.approx});
 });
 
 // ── ID verification (server-side, key never reaches the client) ──────────────

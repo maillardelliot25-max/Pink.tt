@@ -965,7 +965,7 @@ function showFarePreview(dest){
       const redeemChecked=document.getElementById('ride-redeem-points')?.checked;
       const pointsDiscount=redeemChecked?Math.min((S.user?.pink_points||0)/20,f*0.5):0;
       const final=(S.promoResult?f-S.promoResult.discount_amount:f)-pointsDiscount;
-      document.getElementById('fare-amt').innerHTML=fmtFare(final)+(d.surge!=='standard'?` <span style="font-size:10px;color:#9ca3af">${d.surge==='night'?'🌙 Night':'⚡ Peak'}</span>`:'');
+      document.getElementById('fare-amt').innerHTML=fmtFare(final);
       document.getElementById('fare-km').textContent=d.km.toFixed(1)+' km';
       document.getElementById('fare-min').textContent='~'+d.min+' min';
       // Update idle map with route
