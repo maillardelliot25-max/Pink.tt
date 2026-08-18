@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Pink.TT — Safe Rides for Women</title>
 <meta name="description" content="Pink.TT connects women riders with verified women drivers across Trinidad & Tobago. Women-only, police-linked SOS, live GPS tracking.">
 <meta name="theme-color" content="#E91E8C">
@@ -68,7 +68,9 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .bsm{padding:7px 14px;font-size:12px;border-radius:9px}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
 /* Form */
-.inp{width:100%;border:1.5px solid #e5e7eb;border-radius:11px;padding:11px 14px;font-size:14px;font-family:inherit;background:#fff;transition:all .15s;outline:none}
+/* font-size must be >=16px -- iOS Safari auto-zooms the whole page on focus for any
+   input smaller than that, which then has to be manually zoomed back out. */
+.inp{width:100%;border:1.5px solid #e5e7eb;border-radius:11px;padding:11px 14px;font-size:16px;font-family:inherit;background:#fff;transition:all .15s;outline:none}
 .inp:focus{border-color:var(--p);box-shadow:0 0 0 3.5px rgba(233,30,140,.1)}
 .addr-suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid rgba(17,17,17,.06);border-radius:12px;box-shadow:0 1px 2px rgba(17,17,17,.04),0 16px 32px -10px rgba(17,17,17,.22);z-index:50;max-height:220px;overflow-y:auto;display:none}
 .addr-suggest.show{display:block}
@@ -597,7 +599,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div style="width:40px"></div>
   </div>
   <div style="padding:10px 14px;flex-shrink:0">
-    <input class="inp" id="biz-search" placeholder="Search spas, salons, studios..." oninput="filterBiz(this.value)" style="font-size:13px">
+    <input class="inp" id="biz-search" placeholder="Search spas, salons, studios..." oninput="filterBiz(this.value)" style="font-size:16px">
     <div style="display:flex;gap:8px;overflow-x:auto;padding:10px 0;white-space:nowrap">
       <span class="cat-chip on" onclick="filterCat('')">All</span>
       <span class="cat-chip" onclick="filterCat('nail_salon')">💅 Nail Salons</span>
@@ -988,7 +990,7 @@ function renderRiderBook(){
         <span>🌸 ${S.user.pink_points} Bullet Pink Points (${S.user.pink_points_tier||'Bronze'}) — redeem for up to ${fmtFare(Math.min(S.user.pink_points/20,999))} off</span>
       </label>`:''}
       <div id="promo-row" style="display:none;flex;gap:8px;margin-bottom:10px">
-        <input class="inp" id="promo-inp" style="flex:1;font-size:13px;padding:9px 12px" placeholder="Promo code (WELCOME25)">
+        <input class="inp" id="promo-inp" style="flex:1;font-size:16px;padding:9px 12px" placeholder="Promo code (WELCOME25)">
         <button class="btn bs bsm" onclick="applyPromo()">Apply</button>
       </div>
       <button class="btn bp bw" id="book-btn" onclick="bookRide()" style="font-size:15px;padding:13px">🌸 Book Ride</button>
@@ -1220,8 +1222,8 @@ function renderRiderPay(body){
     <div class="card" style="margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="font-size:18px">🎁</span><h3 style="font-size:15px">Promo Codes</h3></div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <input class="inp" id="pay-promo" style="flex:1;font-size:13px;padding:9px 12px" placeholder="Enter promo code">
-        <input class="inp" id="pay-amt" type="number" style="width:90px;font-size:13px;padding:9px 10px" placeholder="Fare $">
+        <input class="inp" id="pay-promo" style="flex:1;font-size:16px;padding:9px 12px" placeholder="Enter promo code">
+        <input class="inp" id="pay-amt" type="number" style="width:90px;font-size:16px;padding:9px 10px" placeholder="Fare $">
         <button class="btn bp bsm" onclick="checkPromo()">Check</button>
       </div>
       <div id="promo-result" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:12px;margin-bottom:10px"></div>
@@ -1607,7 +1609,7 @@ function renderDrvList(dps,status){
 }
 
 function renderAdminUsers(body){
-  body.innerHTML=`<div style="display:flex;gap:8px;margin-bottom:12px"><input class="inp" id="usr-search" placeholder="Search..." style="flex:1;font-size:13px;padding:9px 12px" oninput="renderUsrList(this.value)"><button class="btn bp bsm" onclick="renderUsrList(document.getElementById('usr-search').value)">Search</button></div><div id="usr-list"></div>`;
+  body.innerHTML=`<div style="display:flex;gap:8px;margin-bottom:12px"><input class="inp" id="usr-search" placeholder="Search..." style="flex:1;font-size:16px;padding:9px 12px" oninput="renderUsrList(this.value)"><button class="btn bp bsm" onclick="renderUsrList(document.getElementById('usr-search').value)">Search</button></div><div id="usr-list"></div>`;
   renderUsrList('');
 }
 function renderUsrList(q){
@@ -1834,8 +1836,9 @@ async function loadAuditLog(){
   const box=document.getElementById('audit-log-box');if(!box)return;
   box.innerHTML='<p style="font-size:12px;color:#9ca3af">Loading…</p>';
   try{
-    const r=await fetch('/api/audit-log',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
-    const data=await r.json();
+    const attempt=await _fetchWithRetry('/api/audit-log',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    if(!attempt.ok){box.innerHTML='<p style="font-size:12px;color:var(--r)">Could not load — check your connection and tap Refresh.</p>';return;}
+    const data=attempt.json;
     if(!data.log?.length){box.innerHTML='<p style="font-size:12px;color:#9ca3af">No admin actions recorded yet.</p>';return;}
     box.innerHTML=data.log.map(l=>`<div style="padding:7px 0;border-top:1px solid #f9fafb;font-size:12px">
       <strong>${l.action}</strong> ${l.target_type?('· '+l.target_type):''} ${l.details?('— '+l.details):''}
@@ -2146,8 +2149,9 @@ function _attachAddressSuggest(inputId,dropdownId,onPick){
     if(q.length<3){dropdown.classList.remove('show');return;}
     _addrSuggestTimer=setTimeout(async()=>{
       try{
-        const r=await fetch('/api/geocode-suggest?q='+encodeURIComponent(q));
-        const{results}=await r.json();
+        const attempt=await _fetchWithRetry('/api/geocode-suggest?q='+encodeURIComponent(q));
+        if(!attempt.ok){dropdown.classList.remove('show');return;}
+        const{results}=attempt.json;
         if(!results||!results.length){dropdown.classList.remove('show');return;}
         dropdown.innerHTML=results.map((res,i)=>`<div class="addr-suggest-item" data-i="${i}">${res.label}${res.precise===false?' <span style="color:var(--y);font-weight:700;font-size:11px">⚠ approximate area</span>':''}</div>`).join('');
         dropdown.classList.add('show');
@@ -2231,8 +2235,9 @@ function initTrackMap(pickup,destination,driverLat,driverLng){
 // this async fetch resolves.
 async function _fetchAndDrawRoute(getMap,pLat,pLng,dLat,dLng,pMarker,dMarker){
   try{
-    const r=await fetch(`/api/route?pickup_lat=${pLat}&pickup_lng=${pLng}&dest_lat=${dLat}&dest_lng=${dLng}`);
-    const route=await r.json();
+    const attempt=await _fetchWithRetry(`/api/route?pickup_lat=${pLat}&pickup_lng=${pLng}&dest_lat=${dLat}&dest_lng=${dLng}`);
+    if(!attempt.ok)return;
+    const route=attempt.json;
     const map=getMap();
     if(map&&route.geometry){
       _drawRoute(map,route.geometry);
@@ -2326,9 +2331,11 @@ function _rerender(){
 async function _pttLoadDB(){
   if(!_PTT_TOKEN)return;
   try{
-    const r=await fetch('/api/db',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    const attempt=await _fetchWithRetry('/api/db',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    if(!attempt.ok)return; // stays quiet -- this runs constantly, a toast per failure would be noise
+    const r=attempt.response;
     if(r.status===401){_PTT_TOKEN=null;localStorage.removeItem('ptt_token');go('land');return;}
-    const{db:serverDB,user}=await r.json();
+    const{db:serverDB,user}=attempt.json;
     Object.keys(serverDB).forEach(k=>{if(DB[k]!==undefined)DB[k]=serverDB[k];});
     if(user&&!S.user){S.user=user;save();}
     _updateNotifDots();
@@ -2386,9 +2393,10 @@ doLogin=async function(){
   const btn=document.getElementById('l-btn');
   if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Signing in...';}
   try{
-    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
-    const data=await r.json();
-    if(!r.ok||!data.ok){toast(data.error||'Login failed','err');if(btn){btn.disabled=false;btn.textContent='Sign In';}return;}
+    const attempt=await _fetchWithRetry('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+    if(!attempt.ok){toast('Network error — check your connection and try again','err');if(btn){btn.disabled=false;btn.textContent='Sign In';}return;}
+    const data=attempt.json;
+    if(!attempt.response.ok||!data.ok){toast(data.error||'Login failed','err');if(btn){btn.disabled=false;btn.textContent='Sign In';}return;}
     _PTT_TOKEN=data.token;localStorage.setItem('ptt_token',data.token);
     await _pttLoadDB();
     const user=DB.users.find(u=>u.id===data.user_id);
@@ -2415,9 +2423,10 @@ doRegister=async function(){
   const btn=document.getElementById('r-btn');
   if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Creating...';}
   try{
-    const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({first_name:first,last_name:last,email,password:pass,phone,role:S.regRole,emergency_contact_name:ecName,emergency_contact_phone:ecPhone})});
-    const data=await r.json();
-    if(!r.ok||!data.ok){toast(data.error||'Registration failed','err');if(btn){btn.disabled=false;btn.textContent='Create Account 🌸';}return;}
+    const attempt=await _fetchWithRetry('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({first_name:first,last_name:last,email,password:pass,phone,role:S.regRole,emergency_contact_name:ecName,emergency_contact_phone:ecPhone})});
+    if(!attempt.ok){toast('Network error — check your connection and try again','err');if(btn){btn.disabled=false;btn.textContent='Create Account 🌸';}return;}
+    const data=attempt.json;
+    if(!attempt.response.ok||!data.ok){toast(data.error||'Registration failed','err');if(btn){btn.disabled=false;btn.textContent='Create Account 🌸';}return;}
     _PTT_TOKEN=data.token;localStorage.setItem('ptt_token',data.token);
     await _pttLoadDB();
     const user=DB.users.find(u=>u.id===data.user_id);
@@ -2647,9 +2656,10 @@ async function suspendDriver(userId){
 }
 async function viewLicensePhoto(userId){
   try{
-    const r=await fetch('/api/driver-license-photo/'+userId,{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
-    const data=await r.json();
+    const attempt=await _fetchWithRetry('/api/driver-license-photo/'+userId,{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
     const box=document.getElementById('license-photo-box');
+    if(!attempt.ok){box.innerHTML='<p style="text-align:center;color:var(--r);font-size:13px;padding:30px 0">Could not load — check your connection and try again.</p>';openModal('license-modal');return;}
+    const data=attempt.json;
     box.innerHTML=data.license_photo?`<img src="${data.license_photo}" style="width:100%;border-radius:14px;display:block">`:`<p style="text-align:center;color:#9ca3af;font-size:13px;padding:30px 0">No licence photo on file for this driver.</p>`;
     openModal('license-modal');
   }catch(e){toast('Could not load licence photo','err');}
@@ -2722,7 +2732,7 @@ doLogout=function(){
 // ── Demo accounts panel visibility (server-controlled via SHOW_DEMO_ACCOUNTS) ──
 async function _loadConfig(){
   let show=true;
-  try{const r=await fetch('/api/config');const data=await r.json();show=!!data.showDemoAccounts;}catch{}
+  try{const attempt=await _fetchWithRetry('/api/config');if(attempt.ok)show=!!attempt.json.showDemoAccounts;}catch{}
   const box=document.querySelector('.demo-box');
   if(box)box.style.display=show?'':'none';
 }
@@ -2824,7 +2834,7 @@ function showInstallBanner(kind){
   const bg=`<video class="ib-bg" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4" type="video/mp4"><source src="/media/install-banner-bg.webm" type="video/webm"></video>`;
   const icon=`<div class="ib-icon"><img src="/icons/icon-192.png" alt="Pink.TT"></div>`;
   el.innerHTML=bg+(kind==='ios'
-    ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap Share <b>⬆️</b>, then "Add to Home Screen"</span></div><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`
+    ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap ⬆️ Share, then "Add to Home Screen"</span></div><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`
     :`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`);
   document.body.appendChild(el);
 }
