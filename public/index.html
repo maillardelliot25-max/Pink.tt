@@ -280,7 +280,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
       </div>
     </div>
     <div class="hero">
-      <div class="hero-chip">🛡️ Women-Only · TTPS Police Linked · Live GPS</div>
+      <div class="hero-chip">🛡️ Women-Only · Safety Team Alerts · Live GPS</div>
       <h1>Safe Rides for Women,<br><em>By Women</em></h1>
       <p>Pink.TT connects women riders with verified women drivers across T&T. Your safety is our priority — every single ride.</p>
       <div style="display:flex;flex-direction:column;gap:10px">
@@ -288,10 +288,10 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
         <button class="btn bs bw" onclick="goRole('driver')">🚙 Become a Driver</button>
       </div>
     </div>
-    <div style="background:#fff3f3;padding:9px 16px;text-align:center;font-size:11px;font-weight:600;color:#991b1b;border-top:1px solid #fecaca;border-bottom:1px solid #fecaca">🚔 SOS alerts TTPS Police · Emergency Contact · Safety Team — simultaneously</div>
+    <div style="background:#fff3f3;padding:9px 16px;text-align:center;font-size:11px;font-weight:600;color:#991b1b;border-top:1px solid #fecaca;border-bottom:1px solid #fecaca">🆘 SOS instantly alerts our Safety Team & your Emergency Contact</div>
     <div class="stats-row">
       <div class="stat"><div class="stat-v">100%</div><div class="stat-l">Women Only</div></div>
-      <div class="stat"><div class="stat-v">🚔</div><div class="stat-l">Police Linked</div></div>
+      <div class="stat"><div class="stat-v">🆘</div><div class="stat-l">Safety Team</div></div>
       <div class="stat"><div class="stat-v">$25</div><div class="stat-l">From (TTD)</div></div>
     </div>
     <div style="padding:24px 18px">
@@ -300,7 +300,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
       <div class="feat-grid">
         <div class="feat"><div class="feat-ico">🆘</div><h4>SOS Emergency</h4><p>One-tap alert to safety team & emergency contacts instantly</p></div>
         <div class="feat"><div class="feat-ico">📍</div><h4>Live Tracking</h4><p>Share real-time trip link with loved ones from pickup to drop-off</p></div>
-        <div class="feat"><div class="feat-ico">✅</div><h4>Verified Drivers</h4><p>Background-checked, approved women drivers only</p></div>
+        <div class="feat"><div class="feat-ico">✅</div><h4>Verified Drivers</h4><p>Admin-reviewed, licence-verified women drivers only</p></div>
         <div class="feat"><div class="feat-ico">⭐</div><h4>Rating System</h4><p>Rate every ride, report incidents instantly & safely</p></div>
         <div class="feat"><div class="feat-ico">💅</div><h4>Discover</h4><p>Women-owned spas, salons & wellness businesses near you</p></div>
         <div class="feat"><div class="feat-ico">🎁</div><h4>Promotions</h4><p>Exclusive promo codes & discounts for Pink.TT riders</p></div>
@@ -313,7 +313,8 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     </div>
     <div class="footer-bar">
       <div class="logo" style="justify-content:center;margin-bottom:6px"><div class="logo-dot" style="width:22px;height:22px;font-size:10px">P</div><span class="logo-name" style="color:#fff">Pink.TT</span></div>
-      © 2024 Pink.TT · Women-only rideshare · Trinidad & Tobago<br>Safety · Trust · Reliability
+      © 2026 Pink.TT · Women-only rideshare · Trinidad & Tobago<br>Safety · Trust · Reliability<br>
+      <a href="/terms.html" style="color:#9ca3af;text-decoration:underline">Terms of Service</a> · <a href="/privacy.html" style="color:#9ca3af;text-decoration:underline">Privacy Policy</a>
     </div>
   </div>
 </div>
@@ -377,7 +378,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
       <div class="fg"><label class="lbl">Contact name</label><input class="inp" id="r-ec-name" placeholder="Mom / Sister / Friend"></div>
       <div class="fg" style="margin-bottom:0"><label class="lbl">Contact phone</label><input class="inp" id="r-ec-phone" placeholder="+1 868 xxx xxxx"></div>
     </div>
-    <p style="text-align:center;font-size:11px;color:#9ca3af;margin-bottom:12px">By signing up, you confirm you identify as a woman.<br>Pink.TT is a women-only platform.</p>
+    <p style="text-align:center;font-size:11px;color:#9ca3af;margin-bottom:12px">By signing up, you confirm you identify as a woman and agree to our <a href="/terms.html" target="_blank" style="color:var(--p)">Terms</a> and <a href="/privacy.html" target="_blank" style="color:var(--p)">Privacy Policy</a>.<br>Pink.TT is a women-only platform.</p>
     <button class="btn bp bw" id="r-btn" onclick="doRegister()">Create Account 🌸</button>
     <p style="text-align:center;margin-top:16px;font-size:13px;color:#9ca3af">Already have an account? <a onclick="go('login')" style="color:var(--p);font-weight:600;cursor:pointer">Sign in</a></p>
   </div>
@@ -508,6 +509,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div class="tab" id="at-safety" onclick="aTab('safety')" style="min-width:70px">🛡️ Safety</div>
     <div class="tab" id="at-biz" onclick="aTab('biz')" style="min-width:70px">💅 Biz</div>
     <div class="tab" id="at-promo" onclick="aTab('promo')" style="min-width:70px">🎁 Promos</div>
+    <div class="tab" id="at-admin" onclick="aTab('admin')" style="min-width:70px">⚙️ Admin</div>
   </div>
   <div class="scroll" id="admin-body" style="padding:14px">
     <div class="loading"><div class="spin spinp" style="width:32px;height:32px"></div></div>
@@ -602,7 +604,7 @@ const fmtFare = n => 'TTD $' + parseFloat(n).toFixed(2);
 const fmtDate = d => new Date(d).toLocaleString('en-TT');
 
 // ─── IN-MEMORY DATABASE ─────────────────────────────────────────
-const DB = { users:[], driver_profiles:[], rides:[], sos_events:[], trip_shares:[], reports:[], payments:[], businesses:[], business_services:[], business_discounts:[], promotions:[], notifications:[] };
+const DB = { users:[], driver_profiles:[], rides:[], sos_events:[], trip_shares:[], reports:[], payments:[], businesses:[], business_services:[], business_discounts:[], promotions:[], notifications:[], settings:{} };
 
 // ─── SEED DATA ──────────────────────────────────────────────────
 const ADMIN_ID=uid(),RIDER1_ID=uid(),RIDER2_ID=uid(),DRIVER1_ID=uid(),DRIVER2_ID=uid(),DP1_ID=uid(),DP2_ID=uid();
@@ -1349,7 +1351,7 @@ function submitApp(){
 function loadAdmin(){aTab(S.aTab);}
 function aTab(t){
   S.aTab=t;
-  ['ov','drv','usr','rides','safety','biz','promo'].forEach(x=>{const el=document.getElementById('at-'+x);if(el)el.classList.toggle('on',x===t);});
+  ['ov','drv','usr','rides','safety','biz','promo','admin'].forEach(x=>{const el=document.getElementById('at-'+x);if(el)el.classList.toggle('on',x===t);});
   const body=document.getElementById('admin-body');
   if(t==='ov')renderAdminOverview(body);
   else if(t==='drv')renderAdminDrivers(body);
@@ -1357,7 +1359,8 @@ function aTab(t){
   else if(t==='rides')renderAdminRides(body);
   else if(t==='safety')renderAdminSafety(body);
   else if(t==='biz')renderAdminBiz(body);
-  else renderAdminPromos(body);
+  else if(t==='promo')renderAdminPromos(body);
+  else renderAdminSettings(body);
 }
 
 function renderAdminOverview(body){
@@ -1461,12 +1464,24 @@ function renderUsrList(q){
     return `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
       <div><p style="font-weight:600;font-size:13px">${u.first_name} ${u.last_name} <span class="badge ${rc}">${u.role}</span></p><p style="font-size:11px;color:#9ca3af">${u.email}</p><p style="font-size:10px;color:#d1d5db">${fmtDate(u.created_at)}</p></div>
       <div style="text-align:right"><span class="badge ${bc}" style="display:block;margin-bottom:5px">${u.is_active?'Active':'Suspended'}</span>
-      ${u.role!=='admin'?`<button class="btn bsm" style="background:${u.is_active?'#fee2e2':'#dcfce7'};color:${u.is_active?'var(--r)':'var(--g)'}" onclick="toggleUsr('${u.id}',${!u.is_active})">${u.is_active?'Suspend':'Activate'}</button>`:''}
+      ${u.role!=='admin'?`<button class="btn bsm" style="background:${u.is_active?'#fee2e2':'#dcfce7'};color:${u.is_active?'var(--r)':'var(--g)'}" onclick="_realToggleUsr('${u.id}',${!u.is_active})">${u.is_active?'Suspend':'Activate'}</button>`:''}
+      ${u.role!=='admin'?`<button class="btn bsm" style="background:var(--pp);color:var(--p);margin-top:5px" onclick="promoteToAdmin('${u.id}')">Make Admin</button>`:''}
       </div>
     </div>`;
   }).join('');
 }
 function toggleUsr(id,active){const u=DB.users.find(x=>x.id===id);if(!u)return;u.is_active=active;toast(active?'User activated':'User suspended',active?'ok':'err');renderUsrList('');}
+async function _realToggleUsr(id,active){
+  const res=await _mutate('toggle_user_active',{user_id:id,active});
+  if(res.ok){toast(active?'User activated':'User suspended',active?'ok':'err');await _pttLoadDB();renderUsrList(document.getElementById('usr-search')?.value||'');}
+  else toast(res.error||'Action failed','err');
+}
+async function promoteToAdmin(id){
+  if(!confirm('Give this account full admin access?'))return;
+  const res=await _mutate('update_user_role',{user_id:id,role:'admin'});
+  if(res.ok){toast('User promoted to admin','ok');await _pttLoadDB();renderUsrList(document.getElementById('usr-search')?.value||'');}
+  else toast(res.error||'Could not update role','err');
+}
 
 function renderAdminRides(body){
   const rides=DB.rides.slice().sort((a,b)=>new Date(b.requested_at)-new Date(a.requested_at));
@@ -1578,6 +1593,89 @@ function renderAdminPromos(body){
   `;
 }
 function togglePromo(id){const p=DB.promotions.find(x=>x.id===id);if(!p)return;p.is_active=!p.is_active;toast(p.is_active?'Promo activated':'Promo deactivated');renderAdminPromos(document.getElementById('admin-body'));}
+
+// ─── ADMIN SETTINGS / STAFF / SECURITY ──────────────────────────
+function renderAdminSettings(body){
+  const s=DB.settings||{};
+  const staff=DB.users.filter(u=>u.role==='admin');
+  body.innerHTML=`
+    <div class="card" style="margin-bottom:14px">
+      <h4 style="font-size:14px;margin-bottom:4px">🛡️ Safety &amp; Support Contacts</h4>
+      <p style="font-size:11px;color:#9ca3af;margin-bottom:12px">Shown to riders/drivers and used for automated SOS alerts. ${s.safety_team_phone?'':'<strong style=\'color:var(--r)\'>No safety team phone set — SOS will not place a real call/SMS until you add one.</strong>'}</p>
+      <div class="fg"><label class="lbl">Safety team phone (for automated SOS call/SMS)</label><input class="inp" id="set-safety-phone" placeholder="+1 868 xxx xxxx" value="${s.safety_team_phone||''}"></div>
+      <div class="fg"><label class="lbl">Support email</label><input class="inp" id="set-support-email" placeholder="support@pink.tt" value="${s.support_email||''}"></div>
+      <div class="fg" style="margin-bottom:0"><label class="lbl">Support phone</label><input class="inp" id="set-support-phone" placeholder="+1 868 xxx xxxx" value="${s.support_phone||''}"></div>
+      <p style="font-size:10px;color:#9ca3af;margin-top:10px;line-height:1.5">${s.ttps_integration_note||''}</p>
+      <button class="btn bp bw" style="margin-top:12px" onclick="saveAdminSettings()">Save Contacts</button>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <h4 style="font-size:14px;margin-bottom:12px">👑 Staff &amp; Admin Accounts (${staff.length})</h4>
+      ${staff.map(u=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #f9fafb">
+        <div><p style="font-weight:600;font-size:13px">${u.first_name} ${u.last_name}${u.id===S.user.id?' (you)':''}</p><p style="font-size:11px;color:#9ca3af">${u.email}</p></div>
+        ${u.id!==S.user.id?`<button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="demoteAdmin('${u.id}')">Remove Admin</button>`:''}
+      </div>`).join('')}
+      <div style="background:#f9fafb;border-radius:14px;padding:14px;margin-top:12px">
+        <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Add Staff / Admin</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <input class="inp" id="staff-first" placeholder="First name">
+          <input class="inp" id="staff-last" placeholder="Last name">
+        </div>
+        <div style="height:10px"></div>
+        <input class="inp" id="staff-email" type="email" placeholder="staff@pink.tt" style="margin-bottom:10px">
+        <input class="inp" id="staff-pass" type="password" placeholder="Min. 8 characters" style="margin-bottom:10px">
+        <button class="btn bs bw" onclick="createStaffAccount()">+ Create Staff Account</button>
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="font-size:14px">📜 Audit Log</h4>
+        <button class="btn bs bsm" onclick="loadAuditLog()">Refresh</button>
+      </div>
+      <div id="audit-log-box"><p style="font-size:12px;color:#9ca3af">Tap Refresh to load recent admin actions.</p></div>
+    </div>
+  `;
+}
+async function saveAdminSettings(){
+  const data={
+    safety_team_phone:document.getElementById('set-safety-phone').value.trim(),
+    support_email:document.getElementById('set-support-email').value.trim(),
+    support_phone:document.getElementById('set-support-phone').value.trim()
+  };
+  const res=await _mutate('update_settings',data);
+  if(res.ok){toast('Settings saved','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
+  else toast(res.error||'Save failed','err');
+}
+async function createStaffAccount(){
+  const data={
+    first_name:document.getElementById('staff-first').value.trim(),
+    last_name:document.getElementById('staff-last').value.trim(),
+    email:document.getElementById('staff-email').value.trim().toLowerCase(),
+    password:document.getElementById('staff-pass').value
+  };
+  if(!data.first_name||!data.last_name||!data.email||!data.password){toast('All fields required','err');return;}
+  const res=await _mutate('create_staff',data);
+  if(res.ok){toast('Staff account created','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
+  else toast(res.error||'Could not create staff account','err');
+}
+async function demoteAdmin(userId){
+  if(!confirm('Remove admin access for this account? They will become a regular rider.'))return;
+  const res=await _mutate('update_user_role',{user_id:userId,role:'rider'});
+  if(res.ok){toast('Admin access removed','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
+  else toast(res.error||'Could not update role','err');
+}
+async function loadAuditLog(){
+  const box=document.getElementById('audit-log-box');if(!box)return;
+  box.innerHTML='<p style="font-size:12px;color:#9ca3af">Loading…</p>';
+  try{
+    const r=await fetch('/api/audit-log',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    const data=await r.json();
+    if(!data.log?.length){box.innerHTML='<p style="font-size:12px;color:#9ca3af">No admin actions recorded yet.</p>';return;}
+    box.innerHTML=data.log.map(l=>`<div style="padding:7px 0;border-top:1px solid #f9fafb;font-size:12px">
+      <strong>${l.action}</strong> ${l.target_type?('· '+l.target_type):''} ${l.details?('— '+l.details):''}
+      <div style="font-size:10px;color:#9ca3af">${l.admin_email} · ${fmtDate(l.created_at)}</div>
+    </div>`).join('');
+  }catch(e){box.innerHTML='<p style="font-size:12px;color:var(--r)">Could not load audit log</p>';}
+}
 
 // ─── DISCOVER MARKETPLACE ───────────────────────────────────────
 function renderDiscover(){
@@ -1726,7 +1824,7 @@ function loadTrack(token){
     '<div style="background:var(--pp);border-radius:14px;padding:14px;display:flex;gap:10px;align-items:flex-start">' +
     '<span style="font-size:22px;flex-shrink:0">🛡️</span>' +
     '<div><p style="font-weight:700;font-size:13px;color:var(--p)">Verified Safe Ride</p>' +
-    '<p style="font-size:12px;color:#9d174d;margin-top:3px;line-height:1.5">This ride is by a verified Pink.TT driver — women-only, background-checked, community-rated.</p></div>' +
+    '<p style="font-size:12px;color:#9d174d;margin-top:3px;line-height:1.5">This ride is by a verified Pink.TT driver — women-only, admin-reviewed, community-rated.</p></div>' +
     '</div>' +
     '<p style="text-align:center;font-size:10px;color:#d1d5db;margin-top:12px">Shared by ' + (share.contact_name||'a Pink.TT user') + ' · Expires ' + new Date(share.expires_at).toLocaleString() + '</p>' +
     '<div style="height:20px"></div>';
@@ -2122,9 +2220,14 @@ sendSOS=async function(){
   const res=await _mutate('sos',{ride_id:S.activeRide?.id||null,lat:10.6549,lng:-61.5019,message:'Emergency SOS from '+S.user.first_name+' '+S.user.last_name});
   closeModal('sos-modal');
   if(res.ok){
-    toast('🚔 TTPS POLICE NOTIFIED — Emergency dispatch to your GPS!','err');
-    setTimeout(()=>toast('🛡️ Pink.TT Safety Team responding','err'),900);
-    if(S.user.emergency_contact_name)setTimeout(()=>toast('📱 '+S.user.emergency_contact_name+' called & SMS sent','ok'),1800);
+    if(res.safetyTeamAlerted){
+      toast('🛡️ Pink.TT Safety Team called & texted — they will contact police if needed','err');
+    }else{
+      toast('🚨 SOS logged — Pink.TT Safety Team notified via dashboard','err');
+    }
+    toast('📍 Your location has been recorded with this alert','ok');
+  }else{
+    toast(res.error||'SOS failed to send — please call for help directly if you are in danger','err');
   }
 };
 

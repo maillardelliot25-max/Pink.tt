@@ -4,6 +4,8 @@ const PORT=process.env.PORT||3000;
 const JWT_SECRET=process.env.JWT_SECRET||'pinktt_2025_secure';
 if(!process.env.JWT_SECRET)console.warn('⚠️  JWT_SECRET not set — using an insecure default. Set JWT_SECRET in production.');
 if(!process.env.ANTHROPIC_API_KEY)console.warn('⚠️  ANTHROPIC_API_KEY not set — ID verification will run in DEMO MODE (auto-approves).');
+const TWILIO_READY=!!(process.env.TWILIO_ACCOUNT_SID&&process.env.TWILIO_AUTH_TOKEN&&process.env.TWILIO_FROM_NUMBER);
+if(!TWILIO_READY)console.warn('⚠️  Twilio not configured (TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER) — SOS will log to the database and notify the admin panel only, no real call/SMS will be sent.');
 const SHOW_DEMO_ACCOUNTS=process.env.SHOW_DEMO_ACCOUNTS==='true'||(process.env.NODE_ENV!=='production'&&process.env.SHOW_DEMO_ACCOUNTS!=='false');
 
 // ── Database abstraction: Postgres (Supabase/any) > Turso cloud > local SQLite ─
@@ -14,8 +16,19 @@ const SCHEMA_SQL=[
   `CREATE TABLE IF NOT EXISTS rides(id TEXT PRIMARY KEY,rider_id TEXT,driver_id TEXT,status TEXT DEFAULT'requested',pickup_address TEXT,pickup_lat REAL,pickup_lng REAL,destination_address TEXT,destination_lat REAL,destination_lng REAL,estimated_fare REAL,final_fare REAL,distance_km REAL,duration_minutes INTEGER,rider_rating INTEGER,requested_at TEXT DEFAULT(datetime('now')),accepted_at TEXT,started_at TEXT,completed_at TEXT,cancelled_at TEXT,created_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS payments(id TEXT PRIMARY KEY,ride_id TEXT,rider_id TEXT,driver_id TEXT,amount REAL,platform_fee REAL,driver_earning REAL,status TEXT DEFAULT'pending',method TEXT DEFAULT'cash',created_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS sos_events(id TEXT PRIMARY KEY,user_id TEXT,ride_id TEXT,status TEXT DEFAULT'active',lat REAL,lng REAL,message TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`,
-  `CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,user_id TEXT,type TEXT DEFAULT'info',message TEXT,is_read INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`
+  `CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,user_id TEXT,type TEXT DEFAULT'info',message TEXT,is_read INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`,
+  `CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT DEFAULT'',updated_at TEXT DEFAULT(datetime('now')))`,
+  `CREATE TABLE IF NOT EXISTS audit_log(id TEXT PRIMARY KEY,admin_id TEXT,admin_email TEXT,action TEXT,target_type TEXT DEFAULT'',target_id TEXT DEFAULT'',details TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`
 ];
+// Public-safe settings keys: readable by any authenticated user via buildDB() (e.g.
+// so a rider can see the real safety contact number). Anything more sensitive than
+// a contact number/note should not go through this table.
+const DEFAULT_SETTINGS={
+  safety_team_phone:'',
+  support_email:'support@pink.tt',
+  support_phone:'',
+  ttps_integration_note:'No formal dispatch integration with TTPS exists yet. SOS alerts the Pink.TT safety team directly; a human decides whether to contact police.'
+};
 // Additive migrations for DBs created before a column existed — safe to fail if already applied.
 const MIGRATIONS_SQL=[
   `ALTER TABLE driver_profiles ADD COLUMN license_photo TEXT DEFAULT ''`
@@ -88,7 +101,41 @@ async function buildDB(){
   const notifications=await dbAll('SELECT * FROM notifications');
   const promotions=[{id:'p1',code:'WELCOME25',title:'Welcome Discount',description:'25% off your first ride',type:'percentage',value:25,is_active:true,valid_until:'2026-12-31T00:00:00Z'},{id:'p2',code:'PINK10',title:'Pink Loyalty',description:'TTD $10 off any ride over $50',type:'fixed',value:10,is_active:true,valid_until:'2026-12-31T00:00:00Z'},{id:'p3',code:'SAFE20',title:'Safety Bonus',description:'20% off for referring a friend',type:'percentage',value:20,is_active:true,valid_until:'2026-12-31T00:00:00Z'}];
   const businesses=[{id:'b1',name:'Luxe Nail Lounge',category:'nail_salon',description:'Premium nail care & nail art',address:'Long Circular Road, St. James, POS',phone:'+1 868 222 1001',rating:4.9,rating_count:89,is_featured:true,discount:'Pink.TT Rider Special — 15% OFF',discount_code:'PINK15',lat:10.665,lng:-61.521},{id:'b2',name:'Serenity Spa & Wellness',category:'spa',description:'Full-service day spa & wellness',address:'Ariapita Avenue, Woodbrook, POS',phone:'+1 868 222 1003',rating:4.9,rating_count:223,is_featured:true,discount:'Weekday Special — 10% OFF',discount_code:'WEEKDAY10',lat:10.652,lng:-61.514},{id:'b3',name:'TT Skincare Clinic',category:'skincare',description:'Medical skincare & facial treatments',address:'Trincity Mall, Trincity',phone:'+1 868 222 1008',rating:4.9,rating_count:205,is_featured:true,discount:'New Client Package — 25% OFF',discount_code:'NEWCLIENT25',lat:10.604,lng:-61.350},{id:'b4',name:'The Curl Bar T&T',category:'hair',description:'Natural hair & protective styles',address:'Maraval Road, POS',phone:'+1 868 222 1002',rating:4.8,rating_count:134,is_featured:true,discount:'New Client Welcome — 20% OFF',discount_code:'NEWCURL20',lat:10.672,lng:-61.522}];
-  return{users,driver_profiles,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[]};
+  const settingsRows=await dbAll('SELECT key,value FROM settings');
+  const settings={...DEFAULT_SETTINGS};
+  settingsRows.forEach(r=>{settings[r.key]=r.value;});
+  return{users,driver_profiles,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings};
+}
+
+async function setSetting(key,value){
+  const ex=await dbGet('SELECT key FROM settings WHERE key=?',[key]);
+  if(ex)await dbRun("UPDATE settings SET value=?,updated_at=datetime('now') WHERE key=?",[value,key]);
+  else await dbRun('INSERT INTO settings(key,value)VALUES(?,?)',[key,value]);
+}
+
+async function logAudit(admin,action,targetType,targetId,details){
+  await dbRun('INSERT INTO audit_log(id,admin_id,admin_email,action,target_type,target_id,details)VALUES(?,?,?,?,?,?,?)',[uuidv4(),admin.id,admin.email,action,targetType||'',targetId||'',details||'']);
+}
+
+function escapeXml(s){return String(s).replace(/[<>&'"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));}
+
+// Automated safety-team call + SMS via Twilio. Never contacts real police/emergency
+// services directly -- that requires a real TTPS integration this app doesn't have.
+// A human on the Pink.TT safety team receives this and decides whether to call police.
+async function triggerSafetyAlert(message){
+  if(!TWILIO_READY)return{sent:false,reason:'twilio_not_configured'};
+  const safetyPhone=await dbGet('SELECT value FROM settings WHERE key=?',['safety_team_phone']);
+  const phone=safetyPhone?.value;
+  if(!phone)return{sent:false,reason:'no_safety_phone_configured'};
+  try{
+    const auth=Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+    const base='https://api.twilio.com/2010-04-01/Accounts/'+process.env.TWILIO_ACCOUNT_SID;
+    const twimlUrl=(process.env.PUBLIC_URL||'').replace(/\/$/,'')+'/api/twiml-sos?msg='+encodeURIComponent(message.slice(0,300));
+    const callRes=await fetch(base+'/Calls.json',{method:'POST',headers:{Authorization:'Basic '+auth,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({To:phone,From:process.env.TWILIO_FROM_NUMBER,Url:twimlUrl})});
+    const smsRes=await fetch(base+'/Messages.json',{method:'POST',headers:{Authorization:'Basic '+auth,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({To:phone,From:process.env.TWILIO_FROM_NUMBER,Body:message})});
+    if(!callRes.ok&&!smsRes.ok){console.error('Twilio SOS alert failed: both call and SMS rejected');return{sent:false,reason:'twilio_rejected'};}
+    return{sent:true};
+  }catch(e){console.error('Twilio SOS alert error',e.message);return{sent:false,reason:'twilio_error'};}
 }
 
 // ── Express ───────────────────────────────────────────────────────────────────
@@ -117,11 +164,26 @@ app.post('/api/register',authLimiter,async(req,res)=>{
   res.json({ok:true,token,user_id:id});
 });
 
+// Per-account lockout (independent of the per-IP rate limiter above) — stops
+// distributed brute-force against one specific account from many IPs.
+const loginAttempts=new Map(); // email -> {count, lockedUntil}
+const LOGIN_LOCKOUT_THRESHOLD=5,LOGIN_LOCKOUT_MS=15*60*1000;
 app.post('/api/login',authLimiter,async(req,res)=>{
   const{email,password}=req.body;
   if(!email||!password)return res.status(400).json({error:'Email and password required'});
-  const user=await dbGet('SELECT * FROM users WHERE email=?',[email.toLowerCase()]);
-  if(!user||!bcrypt.compareSync(password,user.password_hash))return res.status(401).json({error:'Invalid email or password'});
+  const key=email.toLowerCase();
+  const attempt=loginAttempts.get(key);
+  if(attempt?.lockedUntil&&attempt.lockedUntil>Date.now()){
+    return res.status(429).json({error:`Too many failed attempts. Try again in ${Math.ceil((attempt.lockedUntil-Date.now())/60000)} minute(s).`});
+  }
+  const user=await dbGet('SELECT * FROM users WHERE email=?',[key]);
+  if(!user||!bcrypt.compareSync(password,user.password_hash)){
+    const next={count:(attempt?.count||0)+1,lockedUntil:null};
+    if(next.count>=LOGIN_LOCKOUT_THRESHOLD)next.lockedUntil=Date.now()+LOGIN_LOCKOUT_MS;
+    loginAttempts.set(key,next);
+    return res.status(401).json({error:'Invalid email or password'});
+  }
+  loginAttempts.delete(key);
   if(!user.is_active)return res.status(403).json({error:'Account suspended. Contact support@pink.tt'});
   const token=jwt.sign({id:user.id,role:user.role,email:user.email},JWT_SECRET,{expiresIn:'30d'});
   res.json({ok:true,token,user_id:user.id});
@@ -198,6 +260,21 @@ app.get('/api/driver-license-photo/:userId',authMW,async(req,res)=>{
   res.json({license_photo:dp?.license_photo||''});
 });
 
+// Admin-only: audit log of sensitive admin actions (kept out of the general /api/db broadcast — no reason for every client to receive it).
+app.get('/api/audit-log',authMW,async(req,res)=>{
+  if(req.jwt.role!=='admin')return res.status(403).json({error:'Admin only'});
+  const rows=await dbAll('SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 200');
+  res.json({log:rows});
+});
+
+// Twilio fetches this URL when the safety-team call connects, to know what to say.
+// Public by necessity (Twilio can't send our JWT), but the message is capped/short-lived
+// SOS text only -- nothing sensitive enough to justify auth here.
+app.get('/api/twiml-sos',(req,res)=>{
+  const msg=escapeXml((req.query.msg||'Pink T T emergency alert. Please check the admin dashboard immediately.').toString().slice(0,300));
+  res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Joanna">${msg}</Say><Pause length="1"/><Say voice="Polly.Joanna">Repeating. ${msg}</Say></Response>`);
+});
+
 app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
   const{type,data}=req.body,userId=req.jwt.id;
   try{
@@ -253,7 +330,10 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const admin=await dbGet("SELECT id FROM users WHERE role='admin' LIMIT 1");
       const msg=`🚨 SOS from ${u.first_name} ${u.last_name} (${u.phone}) — GPS: ${data.lat}, ${data.lng}`;
       if(admin)await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),admin.id,'sos',msg]);
-      broadcastAll({type:'sos_alert',user:`${u.first_name} ${u.last_name}`,phone:u.phone,ec:u.emergency_contact_name,lat:data.lat,lng:data.lng,message:msg});
+      const alertResult=await triggerSafetyAlert(msg);
+      broadcastAll({type:'sos_alert',user:`${u.first_name} ${u.last_name}`,phone:u.phone,ec:u.emergency_contact_name,lat:data.lat,lng:data.lng,message:msg,safetyTeamAlerted:alertResult.sent});
+      broadcastDBUpdate();
+      return res.json({ok:true,db:await buildDB(),safetyTeamAlerted:alertResult.sent});
     }else if(type==='approve_driver'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       await dbRun("UPDATE driver_profiles SET status='approved' WHERE user_id=?",[data.user_id]);
@@ -265,6 +345,39 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
     }else if(type==='suspend_driver'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       await dbRun("UPDATE driver_profiles SET status='suspended',is_online=0 WHERE user_id=?",[data.user_id]);
+    }else if(type==='toggle_user_active'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      if(data.user_id===req.jwt.id)return res.json({ok:false,error:"You can't suspend your own account"});
+      await dbRun('UPDATE users SET is_active=? WHERE id=?',[data.active?1:0,data.user_id]);
+      await logAudit(req.jwt,data.active?'activate_user':'suspend_user','user',data.user_id,'');
+    }else if(type==='update_user_role'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      if(!['rider','driver','admin'].includes(data.role))return res.json({ok:false,error:'Invalid role'});
+      if(data.user_id===req.jwt.id&&data.role!=='admin')return res.json({ok:false,error:"You can't remove your own admin role"});
+      const target=await dbGet('SELECT role FROM users WHERE id=?',[data.user_id]);
+      if(!target)return res.json({ok:false,error:'User not found'});
+      if(target.role==='admin'&&data.role!=='admin'){
+        const adminCount=await dbGet("SELECT COUNT(*) as n FROM users WHERE role='admin' AND is_active=1");
+        if(Number(adminCount?.n)<=1)return res.json({ok:false,error:'Cannot remove the last remaining admin'});
+      }
+      await dbRun('UPDATE users SET role=? WHERE id=?',[data.role,data.user_id]);
+      await logAudit(req.jwt,'update_user_role','user',data.user_id,`${target.role} -> ${data.role}`);
+    }else if(type==='create_staff'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const{first_name,last_name,email,password}=data;
+      if(!first_name||!last_name||!email||!password||password.length<8)return res.json({ok:false,error:'First/last name, email, and an 8+ character password are required'});
+      if(await dbGet('SELECT id FROM users WHERE email=?',[email.toLowerCase()]))return res.json({ok:false,error:'Email already registered'});
+      const staffId=uuidv4();
+      await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,role,is_active,is_verified)VALUES(?,?,?,?,?,?,1,1)',[staffId,email.toLowerCase(),bcrypt.hashSync(password,10),first_name,last_name,'admin']);
+      await logAudit(req.jwt,'create_staff','user',staffId,email.toLowerCase());
+    }else if(type==='update_settings'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const allowedKeys=Object.keys(DEFAULT_SETTINGS);
+      for(const k of Object.keys(data||{})){
+        if(!allowedKeys.includes(k))continue;
+        await setSetting(k,String(data[k]??''));
+      }
+      await logAudit(req.jwt,'update_settings','settings','',Object.keys(data||{}).filter(k=>allowedKeys.includes(k)).join(','));
     }else if(type==='rate_ride'){
       await dbRun('UPDATE rides SET rider_rating=? WHERE id=?',[data.score,data.ride_id]);
       const ride=await dbGet('SELECT driver_id FROM rides WHERE id=?',[data.ride_id]);
@@ -316,6 +429,9 @@ wss.on('connection',ws=>{
   if(!(await dbGet("SELECT id FROM users WHERE role='admin' LIMIT 1"))){
     await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,role,is_active,is_verified)VALUES(?,?,?,?,?,?,1,1)',[uuidv4(),'admin@pink.tt',bcrypt.hashSync('Admin@PinkTT2024',10),'Admin','Pink.TT','admin']);
     console.log('✅ Admin seeded: admin@pink.tt / Admin@PinkTT2024');
+  }
+  for(const[k,v]of Object.entries(DEFAULT_SETTINGS)){
+    if(!(await dbGet('SELECT key FROM settings WHERE key=?',[k])))await dbRun('INSERT INTO settings(key,value)VALUES(?,?)',[k,v]);
   }
   if(SHOW_DEMO_ACCOUNTS&&!(await dbGet('SELECT id FROM users WHERE email=?',['sarah@demo.pink.tt']))){
     const riderId=uuidv4(),drv1Id=uuidv4(),drv2Id=uuidv4();
