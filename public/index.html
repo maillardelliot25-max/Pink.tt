@@ -1097,11 +1097,12 @@ function submitReport(){
 // Rating
 function openRateModal(){S.rideToRate=S.activeRide?.id;openModal('rate-modal');}
 function setRating(n){S.rating=n;document.querySelectorAll('.star').forEach((s,i)=>s.classList.toggle('on',i<n));}
-function submitRate(){
+async function submitRate(){
   if(!S.rating){toast('Please select a rating','err');return;}
-  const ride=DB.rides.find(r=>r.id===S.rideToRate);
-  if(ride){ride.rider_rating=S.rating;ride.driver_review=document.getElementById('rate-review').value;}
-  if(ride?.driver_id){const dp=DB.driver_profiles.find(d=>d.user_id===ride.driver_id);if(dp){dp.rating=(dp.rating*dp.rating_count+S.rating)/(dp.rating_count+1);dp.rating_count++;}}
+  const rideId=S.rideToRate,score=S.rating,review=document.getElementById('rate-review').value;
+  const res=await _mutate('rate_ride',{ride_id:rideId,score,review});
+  if(!res.ok){toast(res.error||'Could not submit rating','err');return;}
+  await _pttLoadDB();
   toast('Rating submitted! Thanks 🌸','ok');
   closeModal('rate-modal');S.rating=0;S.rideToRate=null;
   document.querySelectorAll('.star').forEach(s=>s.classList.remove('on'));

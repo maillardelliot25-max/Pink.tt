@@ -70,7 +70,8 @@ const MIGRATIONS_SQL=[
   `ALTER TABLE rides ADD COLUMN points_redeemed INTEGER DEFAULT 0`,
   `ALTER TABLE rides ADD COLUMN points_discount REAL DEFAULT 0`,
   `ALTER TABLE rides ADD COLUMN points_earned INTEGER DEFAULT 0`,
-  `ALTER TABLE driver_profiles ADD COLUMN license_expiry TEXT DEFAULT ''`
+  `ALTER TABLE driver_profiles ADD COLUMN license_expiry TEXT DEFAULT ''`,
+  `ALTER TABLE rides ADD COLUMN driver_review TEXT DEFAULT ''`
 ];
 // Postgres-flavored schema: same tables, but datetime('now') and COLLATE NOCASE
 // aren't valid Postgres syntax. Email case-insensitivity is handled at the app
@@ -84,7 +85,8 @@ const MIGRATIONS_SQL_PG=[
   `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_redeemed INTEGER DEFAULT 0`,
   `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_discount REAL DEFAULT 0`,
   `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_earned INTEGER DEFAULT 0`,
-  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS license_expiry TEXT DEFAULT ''`
+  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS license_expiry TEXT DEFAULT ''`,
+  `ALTER TABLE rides ADD COLUMN IF NOT EXISTS driver_review TEXT DEFAULT ''`
 ];
 // Both SCHEMA_SQL and the app's query strings use SQLite syntax (`?` placeholders,
 // datetime('now')); translate to Postgres syntax (`$1,$2,...`, now()) at the call
@@ -661,7 +663,7 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       await dbRun('UPDATE driver_profiles SET total_trips=0,total_earnings=0,today_earnings=0,balance=0');
       await logAudit(req.jwt,'reset_test_data','platform','','Cleared all ride/payment history and reset earnings/points counters');
     }else if(type==='rate_ride'){
-      await dbRun('UPDATE rides SET rider_rating=? WHERE id=?',[data.score,data.ride_id]);
+      await dbRun('UPDATE rides SET rider_rating=?,driver_review=? WHERE id=?',[data.score,data.review||'',data.ride_id]);
       const ride=await dbGet('SELECT driver_id FROM rides WHERE id=?',[data.ride_id]);
       if(ride?.driver_id){const dp=await dbGet('SELECT rating,rating_count FROM driver_profiles WHERE user_id=?',[ride.driver_id]);if(dp)await dbRun('UPDATE driver_profiles SET rating=?,rating_count=rating_count+1 WHERE user_id=?',[(dp.rating*dp.rating_count+data.score)/(dp.rating_count+1),ride.driver_id]);}
     }else if(type==='cashout'){
