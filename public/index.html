@@ -91,15 +91,15 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .toast.err{border-color:var(--r)}
 .toast.ok{border-color:var(--g)}
 @keyframes tIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
-/* Install banner -- a continuously-animated psychedelic pink topo/camo backdrop,
-   like Chrome's classic top infobar but a lot more alive. */
-#install-banner{position:fixed;left:0;right:0;top:0;z-index:180;overflow:hidden;color:#fff;background:linear-gradient(120deg,#ff2fa8,#c4006f 30%,#7a1263 55%,#ff6bb5 80%,#ff2fa8);background-size:400% 400%;box-shadow:0 4px 18px rgba(196,0,111,.4);padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;display:flex;align-items:center;gap:10px;animation:tInTop .25s ease,ibFlow 9s ease infinite}
+/* Install banner -- a continuously-playing animated video backdrop, like Chrome's
+   classic top infobar but a lot more alive. */
+#install-banner{position:fixed;left:0;right:0;top:0;z-index:180;overflow:hidden;color:#fff;background:#7a1263;box-shadow:0 4px 18px rgba(196,0,111,.4);padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;display:flex;align-items:center;gap:10px;animation:tInTop .25s ease}
 @keyframes tInTop{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:none}}
-@keyframes ibFlow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
-#install-banner::before{content:'';position:absolute;inset:-45%;background-image:repeating-radial-gradient(circle at 20% 30%,transparent 0 10px,rgba(255,255,255,.12) 11px 12px,transparent 13px 24px),repeating-radial-gradient(circle at 75% 65%,transparent 0 16px,rgba(255,255,255,.09) 17px 18px,transparent 19px 34px),repeating-radial-gradient(circle at 45% 90%,transparent 0 8px,rgba(255,255,255,.14) 9px 10px,transparent 11px 22px);animation:ibTopo 18s linear infinite;pointer-events:none}
-@keyframes ibTopo{from{transform:translate(0,0) rotate(0deg)}to{transform:translate(-7%,-9%) rotate(8deg)}}
+#install-banner .ib-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.8}
+#install-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(100deg,rgba(122,10,80,.78),rgba(90,8,65,.68));pointer-events:none}
 #install-banner>*{position:relative;z-index:1}
-#install-banner .ib-icon{width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.4);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+#install-banner .ib-icon{width:30px;height:30px;border-radius:8px;background:#fff;border:1px solid rgba(255,255,255,.6);box-shadow:0 2px 8px rgba(0,0,0,.25);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:3px}
+#install-banner .ib-icon img{width:100%;height:100%;object-fit:contain}
 #install-banner .ib-text{flex:1;min-width:0}
 #install-banner .ib-text b{font-size:12.5px;display:block;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.25)}
 #install-banner .ib-text span{font-size:10.5px;color:rgba(255,255,255,.88)}
@@ -108,7 +108,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 #install-banner .btn.bp.bsm:hover{background:#fff;filter:none;color:var(--pd);transform:none}
 #install-banner .ib-close{background:none;border:none;color:rgba(255,255,255,.85);font-size:16px;padding:4px 6px;cursor:pointer;line-height:1}
 #install-banner .ib-close:hover{color:#fff}
-@media (prefers-reduced-motion:reduce){#install-banner,#install-banner::before{animation:none}}
+@media (prefers-reduced-motion:reduce){#install-banner{animation:none}#install-banner .ib-bg{display:none}}
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid #f0f0f0;flex-shrink:0}
 .tab{flex:1;padding:11px 6px;text-align:center;font-size:12px;font-weight:700;color:#9ca3af;cursor:pointer;border-bottom:2.5px solid transparent;transition:all .15s;white-space:nowrap}
@@ -2033,12 +2033,27 @@ function _meIcon(){return L.divIcon({html:'<div style="background:#3b82f6;width:
 // coordinates for the pickup point, only falling back to the fake address lookup if
 // location access is denied or unavailable.
 let _ME_MARKER=null;
+// _locateRider() used to fire on every single render of the Book Ride screen (tab
+// switches, live WebSocket updates while sitting on that tab, etc.), which re-asked the
+// browser for location every time -- on Android that can re-surface the permission
+// dialog on each call instead of asking once. This now asks at most once per app
+// session: once we have a location, or the user has denied/dismissed the request, we
+// never call getCurrentPosition again until the page is reloaded.
+let _locateAsked=false;
 function _locateRider(){
   const input=document.getElementById('ride-pickup');
+  if(_locateAsked||typeof S.myLat==='number'){
+    if(_MAP_IDLE&&typeof S.myLat==='number'&&!_ME_MARKER){
+      _MAP_IDLE.setView([S.myLat,S.myLng],15);
+      _ME_MARKER=L.marker([S.myLat,S.myLng],{icon:_meIcon()}).addTo(_MAP_IDLE).bindPopup('📍 You are here');
+    }
+    return;
+  }
   if(!navigator.geolocation){
     if(input&&!input.value)input.placeholder='Enter pickup location';
     return;
   }
+  _locateAsked=true;
   navigator.geolocation.getCurrentPosition(
     pos=>{
       S.myLat=pos.coords.latitude;S.myLng=pos.coords.longitude;
@@ -2697,9 +2712,11 @@ function showInstallBanner(kind){
   if(existing){existing.dataset.kind=kind;return;}
   const el=document.createElement('div');
   el.id='install-banner';el.dataset.kind=kind;
-  el.innerHTML=kind==='ios'
-    ?`<div class="ib-icon">📲</div><div class="ib-text"><b>Install Pink.TT</b><span>Tap Share <b>⬆️</b>, then "Add to Home Screen"</span></div><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`
-    :`<div class="ib-icon">📲</div><div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`;
+  const bg=`<video class="ib-bg" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4" type="video/mp4"><source src="/media/install-banner-bg.webm" type="video/webm"></video>`;
+  const icon=`<div class="ib-icon"><img src="/icons/icon-192.png" alt="Pink.TT"></div>`;
+  el.innerHTML=bg+(kind==='ios'
+    ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap Share <b>⬆️</b>, then "Add to Home Screen"</span></div><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`
+    :`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`);
   document.body.appendChild(el);
 }
 function dismissInstallBanner(){sessionStorage.setItem('ptt_install_dismissed','1');document.getElementById('install-banner')?.remove();}
