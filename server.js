@@ -309,6 +309,17 @@ async function triggerSafetyAlert(message){
 
 // ── Express ───────────────────────────────────────────────────────────────────
 const app=express();
+// Once the custom domain is live, set CANONICAL_HOST (e.g. "pinktt.com") as a Render env
+// var -- every request to the old onrender.com URL (or any other host) then 301-redirects
+// to it, so there's a single canonical URL and no split traffic/SEO. No env var = no-op,
+// so this does nothing until the domain is actually ready.
+const CANONICAL_HOST=process.env.CANONICAL_HOST||'';
+if(CANONICAL_HOST){
+  app.use((req,res,next)=>{
+    if(req.hostname===CANONICAL_HOST)return next();
+    res.redirect(301,`https://${CANONICAL_HOST}${req.originalUrl}`);
+  });
+}
 app.use(express.json({limit:'5mb'}));
 // index.html and sw.js must always be revalidated -- a stale cached copy of either on a
 // real device would keep serving old app code indefinitely after a fix ships. Everything
