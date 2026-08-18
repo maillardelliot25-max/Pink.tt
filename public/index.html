@@ -43,7 +43,14 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    gray bars on either side on any tablet/wide-screen/desktop browser. Now fills the
    full viewport everywhere; a soft width cap only kicks in on genuinely huge desktop
    monitors so text doesn't stretch into unreadably long lines. */
-#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;max-width:1600px;margin:0 auto;background:#fff;position:relative;overflow:hidden}
+.app-bg-video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.5}
+.app-bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,47,168,.18),rgba(122,18,99,.28));pointer-events:none}
+@media (prefers-reduced-motion:reduce){.app-bg-video{display:none}}
+/* Translucent + blurred rather than solid #fff so the app-bg-video shows through as an
+   ambient wash on every page -- individual .card elements underneath stay fully opaque
+   #fff, so nothing about their own readability changes; only the empty space around
+   them (page backgrounds, gaps, empty states) picks up the video/color. */
+#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;max-width:1600px;margin:0 auto;background:rgba(255,255,255,.9);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);position:relative;z-index:1;overflow:hidden}
 .page{display:none;flex-direction:column;height:100%;overflow:hidden}
 .page.active{display:flex}
 .scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
@@ -228,6 +235,14 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 </style>
 </head>
 <body>
+<!-- Same rotating wallpaper video as the landing/login/register pages, but sitting
+     behind the entire app shell (fixed, full viewport) so every screen shares the same
+     backdrop. #shell's background is translucent + blurred so it reads as an ambient
+     wash everywhere; pages that already have their own dedicated, more vivid video
+     treatment (landing hero, login, register) simply sit visually on top of this one,
+     covering it, so there's no double-video conflict there. -->
+<video class="app-bg-video" id="app-bg-video" autoplay loop muted playsinline></video>
+<div class="app-bg-wash"></div>
 <div id="toasts"></div>
 
 <!-- SOS Modal -->
@@ -2897,7 +2912,7 @@ function _pickWallpaper(){
   // Same picked wallpaper feeds every backdrop video on the page (landing hero,
   // login, register, ...) so it's consistent across the whole pre-login flow rather
   // than a different random clip per screen.
-  ['hero-bg-video','login-bg-video','register-bg-video'].forEach(id=>{
+  ['app-bg-video','hero-bg-video','login-bg-video','register-bg-video'].forEach(id=>{
     const v=document.getElementById(id);
     if(!v)return;
     v.innerHTML=`<source src="/media/${name}.mp4" type="video/mp4"><source src="/media/${name}.webm" type="video/webm">`;
