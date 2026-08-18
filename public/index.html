@@ -2534,7 +2534,13 @@ submitApp=async function(){
 // ── Override sendSOS ──────────────────────────────────────────────
 const _origSOS=sendSOS;
 sendSOS=async function(){
-  const res=await _mutate('sos',{ride_id:S.activeRide?.id||null,lat:10.6549,lng:-61.5019,message:'Emergency SOS from '+S.user.first_name+' '+S.user.last_name});
+  // Was hardcoded to a fixed Port of Spain coordinate regardless of where the rider
+  // actually was -- a real accuracy problem for a safety feature. Uses the device's
+  // live GPS fix when available (same one the booking map already has), falling back
+  // to the ride's pickup point, and only to the city-center default as a last resort.
+  const lat=(typeof S.myLat==='number'?S.myLat:null)??S.activeRide?.pickup_lat??10.6549;
+  const lng=(typeof S.myLng==='number'?S.myLng:null)??S.activeRide?.pickup_lng??-61.5019;
+  const res=await _mutate('sos',{ride_id:S.activeRide?.id||null,lat,lng,message:'Emergency SOS from '+S.user.first_name+' '+S.user.last_name});
   closeModal('sos-modal');
   if(res.ok){
     if(res.safetyTeamAlerted){
