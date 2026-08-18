@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Pink.TT — Safe Rides for Women</title>
 <meta name="description" content="Pink.TT connects women riders with verified women drivers across Trinidad & Tobago. Women-only, police-linked SOS, live GPS tracking.">
 <meta name="theme-color" content="#E91E8C">
@@ -43,7 +43,14 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    gray bars on either side on any tablet/wide-screen/desktop browser. Now fills the
    full viewport everywhere; a soft width cap only kicks in on genuinely huge desktop
    monitors so text doesn't stretch into unreadably long lines. */
-#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;max-width:1600px;margin:0 auto;background:#fff;position:relative;overflow:hidden}
+.app-bg-video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.65}
+.app-bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,47,168,.35),rgba(122,18,99,.5));pointer-events:none}
+@media (prefers-reduced-motion:reduce){.app-bg-video{display:none}}
+/* Translucent + blurred rather than solid #fff so the app-bg-video shows through as an
+   ambient wash on every page -- individual .card elements underneath stay fully opaque
+   #fff, so nothing about their own readability changes; only the empty space around
+   them (page backgrounds, gaps, empty states) picks up the video/color. */
+#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;max-width:1600px;margin:0 auto;background:rgba(255,255,255,.32);position:relative;z-index:1;overflow:hidden}
 .page{display:none;flex-direction:column;height:100%;overflow:hidden}
 .page.active{display:flex}
 .scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
@@ -68,7 +75,9 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .bsm{padding:7px 14px;font-size:12px;border-radius:9px}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
 /* Form */
-.inp{width:100%;border:1.5px solid #e5e7eb;border-radius:11px;padding:11px 14px;font-size:14px;font-family:inherit;background:#fff;transition:all .15s;outline:none}
+/* font-size must be >=16px -- iOS Safari auto-zooms the whole page on focus for any
+   input smaller than that, which then has to be manually zoomed back out. */
+.inp{width:100%;border:1.5px solid #e5e7eb;border-radius:11px;padding:11px 14px;font-size:16px;font-family:inherit;background:#fff;transition:all .15s;outline:none}
 .inp:focus{border-color:var(--p);box-shadow:0 0 0 3.5px rgba(233,30,140,.1)}
 .addr-suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid rgba(17,17,17,.06);border-radius:12px;box-shadow:0 1px 2px rgba(17,17,17,.04),0 16px 32px -10px rgba(17,17,17,.22);z-index:50;max-height:220px;overflow-y:auto;display:none}
 .addr-suggest.show{display:block}
@@ -109,6 +118,19 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 #install-banner .btn.bp.bsm:hover{background:#fff;filter:none;color:var(--pd);transform:none}
 #install-banner .ib-close{background:none;border:none;color:rgba(255,255,255,.85);font-size:16px;padding:4px 6px;cursor:pointer;line-height:1}
 #install-banner .ib-close:hover{color:#fff}
+/* Auth pages (login/register) -- same rotating wallpaper as the landing hero, but
+   toned way down (low opacity + a heavy white wash) so it reads as an ambient texture
+   behind the form rather than competing with it, plus the form itself sits on a
+   frosted glass panel so the video blurs softly behind the actual words/inputs. */
+#pg-login,#pg-register{position:relative;background:linear-gradient(165deg,var(--pl),var(--p) 55%,var(--pd))}
+#pg-login .topbar,#pg-login .scroll,#pg-register .topbar,#pg-register .scroll{position:relative;z-index:1}
+#pg-login .topbar,#pg-register .topbar{background:transparent;border-bottom-color:rgba(255,255,255,.25)}
+#pg-login .topbar .logo-name,#pg-register .topbar .logo-name{color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.2)}
+#pg-login .topbar button,#pg-register .topbar button{color:#fff!important}
+.auth-video-bg{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.85}
+.auth-video-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,47,168,.35),rgba(122,18,99,.5));pointer-events:none}
+.auth-wrap{max-width:440px;margin:0 auto;width:100%}
+.glass-card{background:rgba(255,255,255,.82);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.7);border-radius:20px;padding:22px 20px;box-shadow:0 12px 36px rgba(90,8,65,.35)}
 @media (prefers-reduced-motion:reduce){#install-banner{animation:none}#install-banner .ib-bg{display:none}}
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid #f0f0f0;flex-shrink:0}
@@ -138,6 +160,14 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .overlay.show{display:flex}
 .sheet{background:#fff;border-radius:20px 20px 0 0;padding:26px 22px 30px;width:100%;max-height:90vh;overflow-y:auto;animation:shU .28s cubic-bezier(.2,.9,.25,1);box-shadow:0 -1px 0 rgba(17,17,17,.05),0 -20px 50px -10px rgba(17,17,17,.25)}
 @keyframes shU{from{transform:translateY(100%)}to{transform:none}}
+/* Fullscreen map pin picker */
+.map-picker{position:fixed;inset:0;z-index:400;background:#fff;display:none;flex-direction:column}
+.map-picker.show{display:flex}
+.map-picker-top{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #f0f0f0;flex-shrink:0}
+.map-picker-x{width:32px;height:32px;border-radius:50%;border:none;background:#f3f4f6;font-size:16px;cursor:pointer;color:#374151}
+#map-picker-map{flex:1;position:relative;background:#f0f0f0}
+.map-picker-pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);font-size:38px;pointer-events:none;z-index:10;filter:drop-shadow(0 4px 6px rgba(0,0,0,.35))}
+.map-picker-bottom{padding:14px 16px 20px;border-top:1px solid #f0f0f0;flex-shrink:0}
 /* Stars */
 .stars{display:flex;gap:5px;justify-content:center}
 .star{font-size:30px;cursor:pointer;color:#e5e7eb;transition:color .1s}
@@ -213,6 +243,14 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 </style>
 </head>
 <body>
+<!-- Same rotating wallpaper video as the landing/login/register pages, but sitting
+     behind the entire app shell (fixed, full viewport) so every screen shares the same
+     backdrop. #shell's background is translucent + blurred so it reads as an ambient
+     wash everywhere; pages that already have their own dedicated, more vivid video
+     treatment (landing hero, login, register) simply sit visually on top of this one,
+     covering it, so there's no double-video conflict there. -->
+<video class="app-bg-video" id="app-bg-video" autoplay loop muted playsinline></video>
+<div class="app-bg-wash"></div>
 <div id="toasts"></div>
 
 <!-- SOS Modal -->
@@ -307,6 +345,21 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
   </div>
 </div>
 
+<!-- Fullscreen Map Pin Picker -->
+<div class="map-picker" id="map-picker">
+  <div class="map-picker-top">
+    <button class="map-picker-x" onclick="closeMapPicker()">✕</button>
+    <span id="map-picker-title" style="font-weight:700;font-size:14px">Set pickup location</span>
+    <div style="width:32px"></div>
+  </div>
+  <div id="map-picker-map"></div>
+  <div class="map-picker-pin">📍</div>
+  <div class="map-picker-bottom">
+    <p id="map-picker-addr" style="font-size:12px;color:#6b7280;margin-bottom:10px;min-height:34px;line-height:1.5">Move the map to place the pin…</p>
+    <button class="btn bp bw" id="map-picker-confirm" onclick="confirmMapPicker()">Confirm This Location</button>
+  </div>
+</div>
+
 <!-- Driver Licence Photo Modal (Admin) -->
 <div class="overlay" id="license-modal">
   <div class="sheet">
@@ -371,12 +424,15 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 
 <!-- ══ LOGIN ══ -->
 <div class="page" id="pg-login">
+  <video class="auth-video-bg" id="login-bg-video" autoplay loop muted playsinline></video>
+  <div class="auth-video-wash"></div>
   <div class="topbar">
     <button onclick="go('land')" style="background:none;border:none;cursor:pointer;font-size:20px;color:#9ca3af">←</button>
     <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
     <div style="width:40px"></div>
   </div>
   <div class="scroll" style="padding:20px 18px">
+   <div class="auth-wrap glass-card">
     <div style="text-align:center;margin-bottom:24px;padding-top:8px">
       <h1 style="font-size:24px">Welcome back</h1>
       <p style="color:#9ca3af;font-size:13px;margin-top:4px">Sign in to your Pink.TT account</p>
@@ -399,17 +455,21 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
         <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('priya@demo.pink.tt','Driver@2024')">Pending</button>
       </div>
     </div>
+   </div>
   </div>
 </div>
 
 <!-- ══ REGISTER ══ -->
 <div class="page" id="pg-register">
+  <video class="auth-video-bg" id="register-bg-video" autoplay loop muted playsinline></video>
+  <div class="auth-video-wash"></div>
   <div class="topbar">
     <button onclick="go('land')" style="background:none;border:none;cursor:pointer;font-size:20px;color:#9ca3af">←</button>
     <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
     <div style="width:40px"></div>
   </div>
   <div class="scroll" style="padding:20px 18px">
+   <div class="auth-wrap glass-card">
     <div style="text-align:center;margin-bottom:20px"><h1 style="font-size:24px">Create Account</h1><p style="color:#9ca3af;font-size:13px;margin-top:4px">Join Pink.TT — safe rides for women</p></div>
     <div class="role-sw">
       <div class="role-o on" id="ro-rider" onclick="setRole('rider')">🚗 Rider</div>
@@ -431,6 +491,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <p style="text-align:center;font-size:11px;color:#9ca3af;margin-bottom:12px">By signing up, you confirm you identify as a woman and agree to our <a href="/terms.html" target="_blank" style="color:var(--p)">Terms</a> and <a href="/privacy.html" target="_blank" style="color:var(--p)">Privacy Policy</a>.<br>Pink.TT is a women-only platform.</p>
     <button class="btn bp bw" id="r-btn" onclick="doRegister()">Create Account 🌸</button>
     <p style="text-align:center;margin-top:16px;font-size:13px;color:#9ca3af">Already have an account? <a onclick="go('login')" style="color:var(--p);font-weight:600;cursor:pointer">Sign in</a></p>
+   </div>
   </div>
 </div>
 
@@ -479,6 +540,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
   <div class="topbar">
     <div class="logo"><div class="logo-dot">P</div><div><span class="logo-name" style="font-size:15px">Pink.TT</span><span style="font-size:10px;color:#9ca3af;display:block;font-family:sans-serif;margin-top:-2px">Driver Portal</span></div></div>
     <div style="display:flex;align-items:center;gap:7px">
+      <button class="sosbtn" onclick="openModal('sos-modal')">SOS</button>
       <div id="tog" class="tog" onclick="toggleOnline()"></div>
       <span id="tog-lbl" style="font-size:11px;color:#9ca3af;font-weight:600">Offline</span>
       <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">⎋</button>
@@ -576,7 +638,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div style="width:40px"></div>
   </div>
   <div style="padding:10px 14px;flex-shrink:0">
-    <input class="inp" id="biz-search" placeholder="Search spas, salons, studios..." oninput="filterBiz(this.value)" style="font-size:13px">
+    <input class="inp" id="biz-search" placeholder="Search spas, salons, studios..." oninput="filterBiz(this.value)" style="font-size:16px">
     <div style="display:flex;gap:8px;overflow-x:auto;padding:10px 0;white-space:nowrap">
       <span class="cat-chip on" onclick="filterCat('')">All</span>
       <span class="cat-chip" onclick="filterCat('nail_salon')">💅 Nail Salons</span>
@@ -910,6 +972,7 @@ function renderRiderBook(){
               ${S.promoResult?`<span style="color:var(--g);font-weight:700">-${fmtFare(S.promoResult.discount_amount)}</span>`:''}
             </div>
           </div>` : ''}
+        ${S.rideStatus==='searching'?`<button class="btn bs bw" id="reping-btn" style="margin-bottom:8px" onclick="repingDrivers()">🔔 Notify Drivers Again</button>`:''}
         ${['searching','accepted','arriving'].includes(S.rideStatus)?`<button class="btn bsm bw" style="background:#fff5f5;color:var(--r);border:1.5px solid #fecaca" onclick="riderCancel()">Cancel Ride</button>`:''}
         ${S.rideStatus==='completed'?`<button class="btn bp bw" onclick="openRateModal()">⭐ Rate Your Ride</button>`:''}
       </div>
@@ -931,17 +994,22 @@ function renderRiderBook(){
   }
 
   body.innerHTML=`
-    <div id="idle-map" style="height:170px;border-radius:20px;overflow:hidden;border:1.5px solid var(--pb);margin-bottom:14px;background:#f0f0f0"></div>
+    <div style="position:relative;margin-bottom:14px">
+      <div id="idle-map" style="height:170px;border-radius:20px;overflow:hidden;border:1.5px solid var(--pb);background:#f0f0f0;cursor:pointer" onclick="openMapPicker('pickup')"></div>
+      <div style="position:absolute;right:9px;bottom:9px;background:rgba(17,17,17,.72);color:#fff;font-size:10px;font-weight:600;padding:5px 10px;border-radius:20px;pointer-events:none;display:flex;align-items:center;gap:4px">📍 Tap to pin exact location</div>
+    </div>
     <div class="card">
       <h3 style="font-size:16px;margin-bottom:14px">Where to?</h3>
       <div style="position:relative;margin-bottom:10px">
         <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:9px;height:9px;background:var(--p);border-radius:50%;z-index:1"></div>
-        <input class="inp" id="ride-pickup" style="padding-left:28px" placeholder="Locating you…" autocomplete="off">
+        <input class="inp" id="ride-pickup" style="padding-left:28px;padding-right:38px" placeholder="Locating you…" autocomplete="off">
+        <button type="button" title="Pin on map" onclick="openMapPicker('pickup')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:none;background:transparent;font-size:15px;cursor:pointer">📍</button>
         <div id="ride-pickup-suggest" class="addr-suggest"></div>
       </div>
       <div style="position:relative;margin-bottom:14px">
         <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:9px;height:9px;background:#111827;border-radius:50%;z-index:1"></div>
-        <input class="inp" id="ride-dest" style="padding-left:28px" placeholder="Where are you going?" list="dest-list" oninput="onDestChange(this.value)" autocomplete="off">
+        <input class="inp" id="ride-dest" style="padding-left:28px;padding-right:38px" placeholder="Where are you going?" list="dest-list" oninput="onDestChange(this.value)" autocomplete="off">
+        <button type="button" title="Pin on map" onclick="openMapPicker('dest')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:none;background:transparent;font-size:15px;cursor:pointer">📍</button>
         <datalist id="dest-list">${LOCATIONS.map(l=>`<option value="${l}">`).join('')}</datalist>
         <div id="ride-dest-suggest" class="addr-suggest"></div>
       </div>
@@ -953,14 +1021,34 @@ function renderRiderBook(){
           <div style="text-align:right;font-size:11px;color:#9ca3af"><div id="fare-km">—</div><div id="fare-min">—</div></div>
         </div>
       </div>
-      ${S.user?.pink_points>0?`
-      <label style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--pb);border-radius:14px;padding:11px 14px;margin-bottom:14px;cursor:pointer;font-size:12px">
-        <input type="checkbox" id="ride-redeem-points" onchange="showFarePreview(document.getElementById('ride-dest').value)">
-        <span>🌸 ${S.user.pink_points} Bullet Pink Points (${S.user.pink_points_tier||'Bronze'}) — redeem for up to ${fmtFare(Math.min(S.user.pink_points/20,999))} off</span>
-      </label>`:''}
-      <div id="promo-row" style="display:none;flex;gap:8px;margin-bottom:10px">
-        <input class="inp" id="promo-inp" style="flex:1;font-size:13px;padding:9px 12px" placeholder="Promo code (WELCOME25)">
-        <button class="btn bs bsm" onclick="applyPromo()">Apply</button>
+      <div id="approx-warning" style="display:none;background:#fff8e1;border:1.5px solid #f5d576;border-radius:14px;padding:12px 14px;margin-bottom:14px">
+        <p style="font-size:12px;font-weight:700;color:#7c5800">⚠️ Location may not be exact</p>
+        <p style="font-size:11px;color:#8a6d00;margin-top:3px;line-height:1.5">We couldn't confirm an exact match for this address — the pin shown may only be the general area. Check the map above before booking.</p>
+        <label style="display:flex;align-items:center;gap:7px;margin-top:9px;cursor:pointer;font-size:12px;color:#7c5800;font-weight:600">
+          <input type="checkbox" id="approx-confirm" onchange="document.getElementById('book-btn').disabled=!this.checked">
+          I've checked the map — this location is correct
+        </label>
+      </div>
+      <div style="background:linear-gradient(135deg,var(--pp),#fff);border:1.5px solid var(--pb);border-radius:16px;padding:14px 16px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:9px">
+            <div style="width:34px;height:34px;flex-shrink:0;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 2px 6px rgba(233,30,140,.18)">🌸</div>
+            <div>
+              <p style="font-size:13px;font-weight:700;color:#111827">${S.user?.pink_points||0} Pink Points</p>
+              <p style="font-size:10px;color:#c2185b;font-weight:700;text-transform:uppercase;letter-spacing:.4px">${S.user?.pink_points_tier||'Bronze'} Tier</p>
+            </div>
+          </div>
+          ${S.user?.pink_points>0?`<label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--p);cursor:pointer;white-space:nowrap">
+            <input type="checkbox" id="ride-redeem-points" onchange="showFarePreview(document.getElementById('ride-dest').value)">
+            Redeem
+          </label>`:''}
+        </div>
+        <p style="font-size:11px;color:${S.user?.pink_points>0?'#6b7280':'#9ca3af'};margin-top:8px">${S.user?.pink_points>0?`Save up to ${fmtFare(Math.min(S.user.pink_points/20,999))} on this ride`:'Earn points on every ride — redeem them for fare discounts'}</p>
+        <div style="border-top:1px solid rgba(233,30,140,.15);margin:12px 0 10px"></div>
+        <div id="promo-row" style="display:flex;gap:8px">
+          <input class="inp" id="promo-inp" style="flex:1;font-size:16px;padding:9px 12px;background:#fff" placeholder="Promo code (WELCOME25)">
+          <button class="btn bs bsm" onclick="applyPromo()">Apply</button>
+        </div>
       </div>
       <button class="btn bp bw" id="book-btn" onclick="bookRide()" style="font-size:15px;padding:13px">🌸 Book Ride</button>
     </div>
@@ -971,13 +1059,13 @@ function renderRiderBook(){
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:0">
-      <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="go('discover');renderDiscover()">
-        <div style="width:40px;height:40px;background:var(--pp);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px">💅</div>
-        <div><p style="font-size:13px;font-weight:600">Discover</p><p style="font-size:11px;color:#9ca3af">Women's services</p></div>
+      <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer;min-width:0" onclick="go('discover');renderDiscover()">
+        <div style="width:40px;height:40px;flex-shrink:0;background:var(--pp);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px">💅</div>
+        <div style="min-width:0"><p style="font-size:13px;font-weight:600">Discover</p><p style="font-size:11px;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Women's services</p></div>
       </div>
-      <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="rTab('pay')">
-        <div style="width:40px;height:40px;background:#dcfce7;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px">💳</div>
-        <div><p style="font-size:13px;font-weight:600">Payments</p><p style="font-size:11px;color:#9ca3af">Promos & history</p></div>
+      <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer;min-width:0" onclick="rTab('pay')">
+        <div style="width:40px;height:40px;flex-shrink:0;background:#dcfce7;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px">💳</div>
+        <div style="min-width:0"><p style="font-size:13px;font-weight:600">Payments</p><p style="font-size:11px;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Promos & history</p></div>
       </div>
     </div>
   `;
@@ -988,39 +1076,57 @@ function onDestChange(v){
   clearTimeout(destTimer);destTimer=setTimeout(()=>{if(v.length>2){showFarePreview(v);const pr=document.getElementById('promo-row');if(pr)pr.style.display='flex';}},500);
 }
 function setDest(d){const inp=document.getElementById('ride-dest');if(inp){inp.value=d;showFarePreview(d);document.getElementById('promo-row').style.display='flex';}}
-function showFarePreview(dest){
+async function showFarePreview(dest){
   const pickup=document.getElementById('ride-pickup')?.value||'Port of Spain';
   const destination=dest||document.getElementById('ride-dest')?.value||'';
   if(!destination)return;
   const pickupCoord=S._pickupSuggest,destCoord=S._destSuggest;
-  fetch('/api/fare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+  const attempt=await _fetchWithRetry('/api/fare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
     pickup,destination,
-    pickup_lat:pickupCoord?.lat??S.myLat,pickup_lng:pickupCoord?.lng??S.myLng,
-    destination_lat:destCoord?.lat,destination_lng:destCoord?.lng
-  })})
-    .then(r=>r.json()).then(d=>{
-      S._km=d.km;S._min=d.min;S._fare=d.fare;S._pickupCoord=[d.pickup_lat,d.pickup_lng];S._destCoord=[d.dest_lat,d.dest_lng];
-      const f=d.fare,prev=document.getElementById('fare-preview');if(!prev)return;
-      prev.style.display='block';
-      const redeemChecked=document.getElementById('ride-redeem-points')?.checked;
-      const pointsDiscount=redeemChecked?Math.min((S.user?.pink_points||0)/20,f*0.5):0;
-      const final=(S.promoResult?f-S.promoResult.discount_amount:f)-pointsDiscount;
-      document.getElementById('fare-amt').innerHTML=fmtFare(final);
-      document.getElementById('fare-km').textContent=d.km.toFixed(1)+' km';
-      document.getElementById('fare-min').textContent='~'+d.min+' min';
-      // Update idle map with route
-      updateIdleMap(d);
-      if(_MAP_IDLE&&d.route)_drawRoute(_MAP_IDLE,d.route);
-    }).catch(()=>{
-      const hsh=destination.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
-      const km=Math.max(3,(hsh%35)+3),min=Math.ceil(km*2.5+5),f=calcFare(km,min);
-      S._km=km;S._min=min;S._fare=f;
-      const prev=document.getElementById('fare-preview');if(!prev)return;
-      prev.style.display='block';
-      document.getElementById('fare-amt').textContent=S.promoResult?fmtFare(f-S.promoResult.discount_amount):fmtFare(f);
-      document.getElementById('fare-km').textContent=km.toFixed(1)+' km';
-      document.getElementById('fare-min').textContent='~'+min+' min';
-    });
+    pickup_lat:pickupCoord?.lat??S.myLat,pickup_lng:pickupCoord?.lng??S.myLng,pickup_precise:pickupCoord?.precise,
+    destination_lat:destCoord?.lat,destination_lng:destCoord?.lng,destination_precise:destCoord?.precise
+  })});
+  if(attempt.ok){
+    const d=attempt.json;
+    S._km=d.km;S._min=d.min;S._fare=d.fare;S._pickupCoord=[d.pickup_lat,d.pickup_lng];S._destCoord=[d.dest_lat,d.dest_lng];
+    const f=d.fare,prev=document.getElementById('fare-preview');if(!prev)return;
+    prev.style.display='block';
+    const redeemChecked=document.getElementById('ride-redeem-points')?.checked;
+    const pointsDiscount=redeemChecked?Math.min((S.user?.pink_points||0)/20,f*0.5):0;
+    const final=(S.promoResult?f-S.promoResult.discount_amount:f)-pointsDiscount;
+    document.getElementById('fare-amt').innerHTML=fmtFare(final);
+    document.getElementById('fare-km').textContent=d.km.toFixed(1)+' km';
+    document.getElementById('fare-min').textContent='~'+d.min+' min';
+    // A safety-critical check: never silently trust an imprecise geocode match --
+    // require the rider to explicitly confirm the pin before Book Ride is enabled.
+    const warn=document.getElementById('approx-warning'),bookBtn=document.getElementById('book-btn');
+    const isApprox=!!(d.pickup_approx||d.destination_approx);
+    if(warn)warn.style.display=isApprox?'block':'none';
+    const confirmBox=document.getElementById('approx-confirm');
+    if(confirmBox)confirmBox.checked=false;
+    if(bookBtn)bookBtn.disabled=isApprox;
+    // Update idle map with route
+    updateIdleMap(d);
+    if(_MAP_IDLE&&d.route)_drawRoute(_MAP_IDLE,d.route);
+  }else{
+    // The fare API was genuinely unreachable even after retrying -- this is a
+    // fabricated placeholder estimate with no real geocoding behind it at all, so
+    // it's never safe to let a booking through on this alone. Same hard block as an
+    // imprecise-but-resolved address: warn and require explicit confirmation.
+    const hsh=destination.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+    const km=Math.max(3,(hsh%35)+3),min=Math.ceil(km*2.5+5),f=calcFare(km,min);
+    S._km=km;S._min=min;S._fare=f;
+    const prev=document.getElementById('fare-preview');if(!prev)return;
+    prev.style.display='block';
+    document.getElementById('fare-amt').textContent=S.promoResult?fmtFare(f-S.promoResult.discount_amount):fmtFare(f);
+    document.getElementById('fare-km').textContent=km.toFixed(1)+' km';
+    document.getElementById('fare-min').textContent='~'+min+' min';
+    const warn=document.getElementById('approx-warning'),bookBtn=document.getElementById('book-btn');
+    if(warn)warn.style.display='block';
+    const confirmBox=document.getElementById('approx-confirm');
+    if(confirmBox)confirmBox.checked=false;
+    if(bookBtn)bookBtn.disabled=true;
+  }
 }
 function applyPromo(){
   const code=document.getElementById('promo-inp')?.value?.trim()?.toUpperCase();
@@ -1088,6 +1194,28 @@ function riderCancel(){
 }
 
 function resetRide(){S.activeRide=null;S.rideStatus=null;S.driverInfo=null;S.promoResult=null;renderRiderBook();}
+
+// Manual "notify drivers again" for a rider stuck waiting -- the server also re-pings
+// automatically on a timer, but letting the rider trigger it on demand (with a cooldown
+// so it can't be spammed into a de-facto flood) gives them something active to do
+// instead of just staring at "Finding your driver...".
+let _repingCooldownUntil=0;
+async function repingDrivers(){
+  if(!S.activeRide)return;
+  const btn=document.getElementById('reping-btn');
+  if(Date.now()<_repingCooldownUntil)return;
+  if(btn){btn.disabled=true;btn.textContent='🔔 Notifying...';}
+  const res=await _mutate('reping_ride',{ride_id:S.activeRide.id});
+  if(res.ok)toast('📣 Nearby drivers notified again','ok');
+  _repingCooldownUntil=Date.now()+20000;
+  let secs=20;
+  const tick=()=>{
+    if(!btn)return;
+    if(secs<=0){btn.disabled=false;btn.textContent='🔔 Notify Drivers Again';return;}
+    btn.textContent=`🔔 Notify Drivers Again (${secs}s)`;secs--;setTimeout(tick,1000);
+  };
+  tick();
+}
 
 // Share trip
 function genShare(){
@@ -1173,8 +1301,8 @@ function renderRiderPay(body){
     <div class="card" style="margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="font-size:18px">🎁</span><h3 style="font-size:15px">Promo Codes</h3></div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <input class="inp" id="pay-promo" style="flex:1;font-size:13px;padding:9px 12px" placeholder="Enter promo code">
-        <input class="inp" id="pay-amt" type="number" style="width:90px;font-size:13px;padding:9px 10px" placeholder="Fare $">
+        <input class="inp" id="pay-promo" style="flex:1;font-size:16px;padding:9px 12px" placeholder="Enter promo code">
+        <input class="inp" id="pay-amt" type="number" style="width:90px;font-size:16px;padding:9px 10px" placeholder="Fare $">
         <button class="btn bp bsm" onclick="checkPromo()">Check</button>
       </div>
       <div id="promo-result" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:12px;margin-bottom:10px"></div>
@@ -1231,6 +1359,14 @@ function loadDriver(){
   }
   banner.style.display='none';tabs.style.display='flex';
   S.isOnline=S.dp.is_online;updateToggle();
+  // A driver who was already online (server-side) before reloading/reopening the app
+  // used to never get their request-polling or location-tracking restarted -- only the
+  // manual toggle click did that, so a fresh page load left them "online" but silently
+  // frozen on stale data until they toggled off and back on.
+  if(S.isOnline){
+    if(!_ridePollTimer)_startRidePoll();
+    _startDriverLocationTracking();
+  }
   const wkRides=DB.rides.filter(r=>r.driver_id===S.user.id&&r.status==='completed'&&new Date(r.completed_at)>new Date(Date.now()-7*86400000));
   const wkNet=wkRides.reduce((s,r)=>s+(r.final_fare||0)*.8,0);
   summary.style.display='block';
@@ -1298,13 +1434,28 @@ function dTab(t){
   else renderDriverEarnings(body);
 }
 
+// Requests used to show every unclaimed ride platform-wide to every online driver,
+// with a "km away" figure that was pure fake (1.5 + random()*4) -- a driver at one end
+// of Trinidad could see, and accept, a ride actually at the other end, and the distance
+// shown had nothing to do with reality. Now uses the driver's real tracked location
+// (see _startDriverLocationTracking) to compute the actual distance and caps what's
+// shown to a sensible dispatch radius -- generous enough that a driver in a quieter
+// area still sees requests, but not the whole country.
+const DRIVER_MAX_RADIUS_KM=34;
 function renderDriverRequests(body){
   if(!S.isOnline){body.innerHTML=`<div class="empty"><div class="empty-i">💤</div><p style="font-weight:600;margin-bottom:8px">You're Offline</p><p style="font-size:13px;margin-bottom:20px">Toggle online to receive ride requests</p><button class="btn bp" onclick="toggleOnline()">Go Online</button></div>`;return;}
-  const pending=DB.rides.filter(r=>r.status==='requested'&&r.driver_id===null);
-  if(!pending.length){body.innerHTML=`<div class="empty"><div class="empty-i">🎯</div><p style="font-weight:600;margin-bottom:8px">Waiting for requests</p><p style="font-size:13px">New ride requests appear here</p><div style="display:flex;justify-content:center;gap:5px;margin-top:20px">${[0,1,2].map(i=>`<div style="width:7px;height:7px;background:var(--p);border-radius:50%;animation:sosp 1s ${i*.3}s infinite"></div>`).join('')}</div></div>`;return;}
+  const haveLoc=typeof S.myLat==='number'&&typeof S.myLng==='number';
+  let pending=DB.rides.filter(r=>r.status==='requested'&&r.driver_id===null)
+    .map(r=>({...r,_km:haveLoc&&isFinite(r.pickup_lat)&&isFinite(r.pickup_lng)?haversine(S.myLat,S.myLng,r.pickup_lat,r.pickup_lng):null}));
+  // Only filter/sort by distance once we actually have a location fix -- showing
+  // everything unfiltered is safer than showing nothing while GPS is still warming up.
+  if(haveLoc){
+    pending=pending.filter(r=>r._km===null||r._km<=DRIVER_MAX_RADIUS_KM).sort((a,b)=>(a._km??999)-(b._km??999));
+  }
+  if(!pending.length){body.innerHTML=`<div class="empty"><div class="empty-i">🎯</div><p style="font-weight:600;margin-bottom:8px">Waiting for requests</p><p style="font-size:13px">${haveLoc?'No requests within '+DRIVER_MAX_RADIUS_KM+'km right now':'New ride requests appear here'}</p><div style="display:flex;justify-content:center;gap:5px;margin-top:20px">${[0,1,2].map(i=>`<div style="width:7px;height:7px;background:var(--p);border-radius:50%;animation:sosp 1s ${i*.3}s infinite"></div>`).join('')}</div></div>`;return;}
   body.innerHTML=pending.map(r=>{
     const rider=DB.users.find(u=>u.id===r.rider_id)||{};
-    const dist=(1.5+Math.random()*4).toFixed(1);
+    const distLabel=r._km!==null?r._km.toFixed(1)+' km away':'distance unknown';
     return `<div class="req-card slide-up" data-ride="${r.id}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <span class="badge bpink">New Request</span>
@@ -1315,7 +1466,7 @@ function renderDriverRequests(body){
         <div style="display:flex;gap:8px"><div style="width:22px;height:22px;background:#f3f4f6;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0"><div style="width:7px;height:7px;background:#111827;border-radius:50%"></div></div><div><p style="font-size:10px;color:#9ca3af">Destination</p><p style="font-size:13px;font-weight:500">${r.destination_address}</p></div></div>
       </div>
       <div style="display:flex;gap:12px;font-size:11px;color:#9ca3af;margin-bottom:12px">
-        <span>📍 ${dist} km away</span><span>🛣️ ${r.distance_km.toFixed(1)} km</span><span>⏱️ ~${r.duration_minutes} min</span>
+        <span>📍 ${distLabel}</span><span>🛣️ ${r.distance_km.toFixed(1)} km</span><span>⏱️ ~${r.duration_minutes} min</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <button class="btn bs bsm" onclick="declineRide('${r.id}')">✕ Decline</button>
@@ -1560,7 +1711,7 @@ function renderDrvList(dps,status){
 }
 
 function renderAdminUsers(body){
-  body.innerHTML=`<div style="display:flex;gap:8px;margin-bottom:12px"><input class="inp" id="usr-search" placeholder="Search..." style="flex:1;font-size:13px;padding:9px 12px" oninput="renderUsrList(this.value)"><button class="btn bp bsm" onclick="renderUsrList(document.getElementById('usr-search').value)">Search</button></div><div id="usr-list"></div>`;
+  body.innerHTML=`<div style="display:flex;gap:8px;margin-bottom:12px"><input class="inp" id="usr-search" placeholder="Search..." style="flex:1;font-size:16px;padding:9px 12px" oninput="renderUsrList(this.value)"><button class="btn bp bsm" onclick="renderUsrList(document.getElementById('usr-search').value)">Search</button></div><div id="usr-list"></div>`;
   renderUsrList('');
 }
 function renderUsrList(q){
@@ -1637,7 +1788,12 @@ function renderAdminSafety(body){
     </div>`;}).join('')}`:''}
   `;
 }
-function resolveSOS(id){const s=DB.sos_events.find(x=>x.id===id);if(!s)return;s.status='resolved';toast('SOS resolved ✓','ok');renderAdminSafety(document.getElementById('admin-body'));}
+// Used to only mutate local state -- an admin's "Resolve" click never reached the
+// server at all, so the alert silently reverted back to "active" on the next refresh.
+async function resolveSOS(id){
+  const res=await _mutate('resolve_sos',{sos_id:id});
+  if(res.ok){toast('SOS resolved ✓','ok');await _pttLoadDB();renderAdminSafety(document.getElementById('admin-body'));}
+}
 
 function renderAdminBiz(body){
   body.innerHTML=`
@@ -1663,19 +1819,30 @@ function renderAdminBiz(body){
           <button class="btn bsm" style="background:${b.is_featured?'#fef9c3':'#f3f4f6'};color:${b.is_featured?'#854d0e':'#6b7280'}" onclick="toggleFeat('${b.id}')">${b.is_featured?'★ Featured':'☆ Feature'}</button>
           <button class="btn bsm" style="background:${b.is_active?'#fee2e2':'#dcfce7'};color:${b.is_active?'var(--r)':'var(--g)'}" onclick="toggleBizActive('${b.id}')">${b.is_active?'Deactivate':'Activate'}</button>
           <button class="btn bsm" style="background:#dbeafe;color:var(--b)" onclick="openBizDetail('${b.id}')">View</button>
+          <button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="deleteBiz('${b.id}','${b.name.replace(/'/g,"\\'")}')">🗑️ Remove</button>
         </div>
       </div>`;
     }).join('')}
   `;
 }
-function toggleFeat(id){const b=DB.businesses.find(x=>x.id===id);if(!b)return;b.is_featured=!b.is_featured;toast(b.is_featured?'Featured! ⭐':'Removed from featured');renderAdminBiz(document.getElementById('admin-body'));}
-function toggleBizActive(id){const b=DB.businesses.find(x=>x.id===id);if(!b)return;b.is_active=!b.is_active;toast(b.is_active?'Activated':'Deactivated');renderAdminBiz(document.getElementById('admin-body'));}
-function saveBiz(){
+// These three, and saveBiz below, used to only mutate local DB.businesses state --
+// nothing was backed by a real table at all, so "adding" a business (or featuring/
+// deactivating/removing one) never actually persisted anywhere.
+async function toggleFeat(id){const res=await _mutate('admin_toggle_biz_featured',{business_id:id});if(res.ok){await _pttLoadDB();renderAdminBiz(document.getElementById('admin-body'));}}
+async function toggleBizActive(id){const res=await _mutate('admin_toggle_biz_active',{business_id:id});if(res.ok){await _pttLoadDB();renderAdminBiz(document.getElementById('admin-body'));}}
+async function deleteBiz(id,name){
+  if(!confirm(`Remove "${name}" from the marketplace? This can't be undone.`))return;
+  const res=await _mutate('admin_delete_business',{business_id:id});
+  if(res.ok){toast('Business removed','ok');await _pttLoadDB();renderAdminBiz(document.getElementById('admin-body'));}
+}
+async function saveBiz(){
   const name=document.getElementById('biz-name').value.trim();const cat=document.getElementById('biz-cat').value;const addr=document.getElementById('biz-addr').value.trim();const phone=document.getElementById('biz-phone').value.trim();const desc=document.getElementById('biz-desc').value.trim();
   if(!name||!addr){toast('Name and address required','err');return;}
-  DB.businesses.push({id:uid(),name,category:cat,description:desc,short_description:desc,address:addr,phone:phone||null,rating:5.0,rating_count:0,is_featured:false,is_active:true,is_verified:true,created_at:ts()});
+  const res=await _mutate('admin_add_business',{name,category:cat,description:desc,address:addr,phone});
+  if(!res.ok)return;
   toast('Business added! 🌸','ok');closeModal('biz-modal');
   ['biz-name','biz-addr','biz-phone','biz-desc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  await _pttLoadDB();
   renderAdminBiz(document.getElementById('admin-body'));
 }
 
@@ -1750,8 +1917,11 @@ function renderAdminSettings(body){
 }
 async function resetTestData(){
   if(!confirm('This permanently deletes ALL rides and payments on the platform and resets earnings/points to zero. This cannot be undone. Continue?'))return;
-  if(!confirm('Are you absolutely sure? Type OK to confirm this cannot be reversed.'))return;
-  const res=await _mutate('admin_reset_test_data',{});
+  // A JS confirm() dialog alone is too easy to click through by habit -- re-entering
+  // the admin's actual password is the real safeguard here, verified server-side.
+  const password=prompt('Enter your admin password to confirm this irreversible action:');
+  if(!password)return;
+  const res=await _mutate('admin_reset_test_data',{password});
   if(res.ok){toast('Test data cleared','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
   else toast(res.error||'Could not reset data','err');
 }
@@ -1787,8 +1957,9 @@ async function loadAuditLog(){
   const box=document.getElementById('audit-log-box');if(!box)return;
   box.innerHTML='<p style="font-size:12px;color:#9ca3af">Loading…</p>';
   try{
-    const r=await fetch('/api/audit-log',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
-    const data=await r.json();
+    const attempt=await _fetchWithRetry('/api/audit-log',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    if(!attempt.ok){box.innerHTML='<p style="font-size:12px;color:var(--r)">Could not load — check your connection and tap Refresh.</p>';return;}
+    const data=attempt.json;
     if(!data.log?.length){box.innerHTML='<p style="font-size:12px;color:#9ca3af">No admin actions recorded yet.</p>';return;}
     box.innerHTML=data.log.map(l=>`<div style="padding:7px 0;border-top:1px solid #f9fafb;font-size:12px">
       <strong>${l.action}</strong> ${l.target_type?('· '+l.target_type):''} ${l.details?('— '+l.details):''}
@@ -2099,17 +2270,18 @@ function _attachAddressSuggest(inputId,dropdownId,onPick){
     if(q.length<3){dropdown.classList.remove('show');return;}
     _addrSuggestTimer=setTimeout(async()=>{
       try{
-        const r=await fetch('/api/geocode-suggest?q='+encodeURIComponent(q));
-        const{results}=await r.json();
+        const attempt=await _fetchWithRetry('/api/geocode-suggest?q='+encodeURIComponent(q));
+        if(!attempt.ok){dropdown.classList.remove('show');return;}
+        const{results}=attempt.json;
         if(!results||!results.length){dropdown.classList.remove('show');return;}
-        dropdown.innerHTML=results.map((res,i)=>`<div class="addr-suggest-item" data-i="${i}">${res.label}</div>`).join('');
+        dropdown.innerHTML=results.map((res,i)=>`<div class="addr-suggest-item" data-i="${i}">${res.label}${res.precise===false?' <span style="color:var(--y);font-weight:700;font-size:11px">⚠ approximate area</span>':''}</div>`).join('');
         dropdown.classList.add('show');
         dropdown.querySelectorAll('.addr-suggest-item').forEach(el=>{
           el.onclick=()=>{
             const res=results[+el.dataset.i];
             input.value=res.label;
             dropdown.classList.remove('show');
-            onPick({lat:res.lat,lng:res.lng});
+            onPick({lat:res.lat,lng:res.lng,precise:res.precise});
           };
         });
       }catch{dropdown.classList.remove('show');}
@@ -2154,6 +2326,66 @@ function updateIdleMap(d){
   _D_MARKER=L.marker([d.dest_lat,d.dest_lng],{icon:_greenIcon()}).addTo(_MAP_IDLE).bindPopup('🏁 Destination');
   _MAP_IDLE.fitBounds([[d.pickup_lat,d.pickup_lng],[d.dest_lat,d.dest_lng]],{padding:[30,30]});
 }
+
+// Fullscreen map-pin picker -- lets the rider drop an exact pickup/destination pin by
+// panning the map under a fixed center pin (the same mental model as Uber/Lyft), rather
+// than being limited to whatever Nominatim's address search happens to match. The pin
+// coordinate is always what's reverse-geocoded and confirmed, never a typed guess.
+let _MAP_PICKER=null,_mapPickerTarget='pickup',_mapPickerCoord=null,_mapPickerAddrTimer=null;
+function openMapPicker(target){
+  _mapPickerTarget=target;
+  _mapPickerCoord=null;
+  document.getElementById('map-picker-title').textContent=target==='dest'?'Set destination':'Set pickup location';
+  document.getElementById('map-picker-addr').textContent='Move the map to place the pin…';
+  document.getElementById('map-picker').classList.add('show');
+  const startCoord=target==='dest'
+    ?(S._destSuggest?[S._destSuggest.lat,S._destSuggest.lng]:null)
+    :(S._pickupSuggest?[S._pickupSuggest.lat,S._pickupSuggest.lng]:(typeof S.myLat==='number'?[S.myLat,S.myLng]:null));
+  _initLeaflet().then(()=>{
+    const el=document.getElementById('map-picker-map');if(!el)return;
+    if(_MAP_PICKER){try{_MAP_PICKER.remove();}catch{}}_MAP_PICKER=null;
+    _MAP_PICKER=L.map(el,{zoomControl:false,attributionControl:false}).setView(startCoord||[10.6549,-61.5019],startCoord?16:12);
+    _watchTiles(_MAP_PICKER,el);
+    _tileLayer(_MAP_PICKER);L.control.zoom({position:'bottomright'}).addTo(_MAP_PICKER);
+    _MAP_PICKER.on('moveend',_onMapPickerMove);
+    setTimeout(()=>{_MAP_PICKER&&_MAP_PICKER.invalidateSize();_onMapPickerMove();},250);
+  }).catch(()=>{
+    const el=document.getElementById('map-picker-map');
+    if(el)_showMapError(el,()=>openMapPicker(target));
+  });
+}
+function _onMapPickerMove(){
+  if(!_MAP_PICKER)return;
+  const c=_MAP_PICKER.getCenter();
+  _mapPickerCoord={lat:c.lat,lng:c.lng};
+  const addrEl=document.getElementById('map-picker-addr');
+  if(addrEl)addrEl.textContent='Locating address…';
+  clearTimeout(_mapPickerAddrTimer);
+  _mapPickerAddrTimer=setTimeout(async()=>{
+    const attempt=await _fetchWithRetry(`/api/reverse-geocode?lat=${c.lat}&lng=${c.lng}`);
+    if(!addrEl||!_mapPickerCoord||_mapPickerCoord.lat!==c.lat||_mapPickerCoord.lng!==c.lng)return; // map moved again meanwhile
+    addrEl.textContent=(attempt.ok&&attempt.json.label)?attempt.json.label:`${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`;
+  },400);
+}
+function closeMapPicker(){
+  document.getElementById('map-picker').classList.remove('show');
+}
+function confirmMapPicker(){
+  if(!_mapPickerCoord)return;
+  const addr=document.getElementById('map-picker-addr').textContent;
+  const coord={lat:_mapPickerCoord.lat,lng:_mapPickerCoord.lng,precise:true};
+  if(_mapPickerTarget==='dest'){
+    S._destSuggest=coord;
+    const inp=document.getElementById('ride-dest');if(inp)inp.value=addr;
+    document.getElementById('promo-row').style.display='flex';
+  }else{
+    S._pickupSuggest=coord;
+    const inp=document.getElementById('ride-pickup');if(inp)inp.value=addr;
+  }
+  closeMapPicker();
+  const dest=document.getElementById('ride-dest')?.value;
+  if(dest)showFarePreview(dest);
+}
 function initTrackMap(pickup,destination,driverLat,driverLng){
   const el0=document.getElementById('track-map');if(!el0)return;
   _initLeaflet().then(()=>{
@@ -2184,8 +2416,9 @@ function initTrackMap(pickup,destination,driverLat,driverLng){
 // this async fetch resolves.
 async function _fetchAndDrawRoute(getMap,pLat,pLng,dLat,dLng,pMarker,dMarker){
   try{
-    const r=await fetch(`/api/route?pickup_lat=${pLat}&pickup_lng=${pLng}&dest_lat=${dLat}&dest_lng=${dLng}`);
-    const route=await r.json();
+    const attempt=await _fetchWithRetry(`/api/route?pickup_lat=${pLat}&pickup_lng=${pLng}&dest_lat=${dLat}&dest_lng=${dLng}`);
+    if(!attempt.ok)return;
+    const route=attempt.json;
     const map=getMap();
     if(map&&route.geometry){
       _drawRoute(map,route.geometry);
@@ -2263,6 +2496,15 @@ function _handleWS(msg){
     toast('✅ Your driver account is approved! Go online to start.','ok');_pttLoadDB();
   }else if(msg.type==='driver_location'){
     if(_CAR_MARKER)moveCarToward(msg.lat,msg.lng);
+  }else if(msg.type==='ride_ping'){
+    // A rider's request just got (re-)pinged to this driver -- either brand new, a
+    // manual "notify again" from the rider, or the server's own re-ping sweep for a
+    // ride that's sat unaccepted for a while. Surface it as a real alert, and refresh
+    // the list immediately rather than waiting for the next 3s poll tick.
+    if(S.user?.role==='driver'&&S.isOnline){
+      toast('🔔 New ride request nearby!','ok');
+      if(S.dTab==='reqs')renderDriverRequests(document.getElementById('driver-body'));
+    }
   }else if(msg.type==='sos_alert'){
     if(S.user?.role==='admin'){toast('🚨 SOS from '+msg.user+' — '+msg.phone,'err');_rerender();}
   }
@@ -2279,25 +2521,46 @@ function _rerender(){
 async function _pttLoadDB(){
   if(!_PTT_TOKEN)return;
   try{
-    const r=await fetch('/api/db',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    const attempt=await _fetchWithRetry('/api/db',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    if(!attempt.ok)return; // stays quiet -- this runs constantly, a toast per failure would be noise
+    const r=attempt.response;
     if(r.status===401){_PTT_TOKEN=null;localStorage.removeItem('ptt_token');go('land');return;}
-    const{db:serverDB,user}=await r.json();
+    const{db:serverDB,user}=attempt.json;
     Object.keys(serverDB).forEach(k=>{if(DB[k]!==undefined)DB[k]=serverDB[k];});
     if(user&&!S.user){S.user=user;save();}
     _updateNotifDots();
   }catch(e){console.log('DB load error',e);}
 }
 
+// Every API call used to make exactly one attempt -- a Render free-tier cold-start
+// wake-up or a single dropped mobile packet showed a scary "Network error" on the very
+// first failure, even when the server was reachable a moment later (same underlying gap
+// as the service worker's page-load retry added earlier, just missing here for actual
+// API calls). Retries twice with a short backoff before actually giving up.
+async function _fetchWithRetry(url,options){
+  const attempts=3,delays=[600,1400];
+  let lastErr;
+  for(let i=0;i<attempts;i++){
+    try{
+      const r=await fetch(url,options);
+      return{ok:true,response:r,json:await r.json()};
+    }catch(e){
+      lastErr=e;
+      if(i<attempts-1)await new Promise(res=>setTimeout(res,delays[i]));
+    }
+  }
+  return{ok:false,error:lastErr};
+}
+
 // ── Server mutation ──────────────────────────────────────────────
 async function _mutate(type,data){
   if(!_PTT_TOKEN){toast('Please log in','err');return{ok:false};}
-  try{
-    const r=await fetch('/api/mutation',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_PTT_TOKEN},body:JSON.stringify({type,data})});
-    const res=await r.json();
-    if(!res.ok&&res.error)toast(res.error,'err');
-    if(res.ok&&res.db)Object.keys(res.db).forEach(k=>{if(DB[k]!==undefined)DB[k]=res.db[k];});
-    return res;
-  }catch(e){toast('Connection error — check your network','err');return{ok:false,error:e.message};}
+  const attempt=await _fetchWithRetry('/api/mutation',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_PTT_TOKEN},body:JSON.stringify({type,data})});
+  if(!attempt.ok){toast('Connection error — check your network and try again','err');return{ok:false,error:attempt.error?.message};}
+  const res=attempt.json;
+  if(!res.ok&&res.error)toast(res.error,'err');
+  if(res.ok&&res.db)Object.keys(res.db).forEach(k=>{if(DB[k]!==undefined)DB[k]=res.db[k];});
+  return res;
 }
 
 // ── Override save/load to use server ────────────────────────────
@@ -2320,9 +2583,10 @@ doLogin=async function(){
   const btn=document.getElementById('l-btn');
   if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Signing in...';}
   try{
-    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
-    const data=await r.json();
-    if(!r.ok||!data.ok){toast(data.error||'Login failed','err');if(btn){btn.disabled=false;btn.textContent='Sign In';}return;}
+    const attempt=await _fetchWithRetry('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+    if(!attempt.ok){toast('Network error — check your connection and try again','err');if(btn){btn.disabled=false;btn.textContent='Sign In';}return;}
+    const data=attempt.json;
+    if(!attempt.response.ok||!data.ok){toast(data.error||'Login failed','err');if(btn){btn.disabled=false;btn.textContent='Sign In';}return;}
     _PTT_TOKEN=data.token;localStorage.setItem('ptt_token',data.token);
     await _pttLoadDB();
     const user=DB.users.find(u=>u.id===data.user_id);
@@ -2349,9 +2613,10 @@ doRegister=async function(){
   const btn=document.getElementById('r-btn');
   if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Creating...';}
   try{
-    const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({first_name:first,last_name:last,email,password:pass,phone,role:S.regRole,emergency_contact_name:ecName,emergency_contact_phone:ecPhone})});
-    const data=await r.json();
-    if(!r.ok||!data.ok){toast(data.error||'Registration failed','err');if(btn){btn.disabled=false;btn.textContent='Create Account 🌸';}return;}
+    const attempt=await _fetchWithRetry('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({first_name:first,last_name:last,email,password:pass,phone,role:S.regRole,emergency_contact_name:ecName,emergency_contact_phone:ecPhone})});
+    if(!attempt.ok){toast('Network error — check your connection and try again','err');if(btn){btn.disabled=false;btn.textContent='Create Account 🌸';}return;}
+    const data=attempt.json;
+    if(!attempt.response.ok||!data.ok){toast(data.error||'Registration failed','err');if(btn){btn.disabled=false;btn.textContent='Create Account 🌸';}return;}
     _PTT_TOKEN=data.token;localStorage.setItem('ptt_token',data.token);
     await _pttLoadDB();
     const user=DB.users.find(u=>u.id===data.user_id);
@@ -2402,8 +2667,9 @@ async function submitIdVerify(){
   if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Verifying...';}
   try{
     const dataUrl=await _fileToCompressedDataURL(f,640,0.82);
-    const r=await fetch('/api/verify-id',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_PTT_TOKEN},body:JSON.stringify({image:dataUrl})});
-    const data=await r.json();
+    const attempt=await _fetchWithRetry('/api/verify-id',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_PTT_TOKEN},body:JSON.stringify({image:dataUrl})});
+    if(!attempt.ok){toast('Network error — check your connection and try again','err');if(btn){btn.disabled=false;btn.textContent='Verify My Identity 🌸';}return;}
+    const data=attempt.json;
     if(data.ok&&data.verified){
       toast(data.demo?'Verified (demo mode) 🌸':'Identity verified! 🌸','ok');
       await _pttLoadDB();
@@ -2491,9 +2757,34 @@ function _startRidePoll(){
     }else if(role==='driver'){
       const dp=DB.driver_profiles.find(d=>d.user_id===S.user.id);
       if(dp)S.dp=dp;
-      renderRiderBook&&renderRiderBook();
+      if(S.dTab==='reqs')renderDriverRequests(document.getElementById('driver-body'));
     }
   },3000);
+}
+
+// ── Driver live location tracking ─────────────────────────────────
+// While online, a driver's position needs to be both current on their own device
+// (to compute real "km away" for the request list) and reported to the server
+// (current_lat/current_lng) so a future dispatch pass or another rider's tracking view
+// can rely on it too. watchPosition keeps S.myLat/S.myLng fresh; the mutation send is
+// throttled since GPS callbacks can fire far more often than the value meaningfully
+// changes or the server needs to know.
+let _driverWatchId=null,_driverLocLastSent=0;
+function _startDriverLocationTracking(){
+  if(_driverWatchId!==null||!navigator.geolocation)return;
+  _driverWatchId=navigator.geolocation.watchPosition(
+    pos=>{
+      S.myLat=pos.coords.latitude;S.myLng=pos.coords.longitude;
+      if(S.dTab==='reqs')renderDriverRequests(document.getElementById('driver-body'));
+      const now=Date.now();
+      if(now-_driverLocLastSent>15000){_driverLocLastSent=now;_mutate('driver_location',{lat:S.myLat,lng:S.myLng});}
+    },
+    err=>console.warn('Driver geolocation unavailable:',err.message),
+    {enableHighAccuracy:true,maximumAge:20000,timeout:15000}
+  );
+}
+function _stopDriverLocationTracking(){
+  if(_driverWatchId!==null){navigator.geolocation.clearWatch(_driverWatchId);_driverWatchId=null;}
 }
 
 // ── Override toggleOnline ─────────────────────────────────────────
@@ -2507,8 +2798,8 @@ toggleOnline=async function(){
     S.isOnline=!!S.dp?.is_online;
     updateToggle&&updateToggle();
     toast(S.isOnline?'You\'re online! Ready for rides 🌸':'You\'re offline',S.isOnline?'ok':'');
-    if(S.isOnline)_startRidePoll();
-    else{clearInterval(_ridePollTimer);_ridePollTimer=null;}
+    if(S.isOnline){_startRidePoll();_startDriverLocationTracking();}
+    else{clearInterval(_ridePollTimer);_ridePollTimer=null;_stopDriverLocationTracking();}
     loadDriver&&loadDriver();
   }
 };
@@ -2545,11 +2836,15 @@ const _origSOS=sendSOS;
 sendSOS=async function(){
   // Was hardcoded to a fixed Port of Spain coordinate regardless of where the rider
   // actually was -- a real accuracy problem for a safety feature. Uses the device's
-  // live GPS fix when available (same one the booking map already has), falling back
-  // to the ride's pickup point, and only to the city-center default as a last resort.
-  const lat=(typeof S.myLat==='number'?S.myLat:null)??S.activeRide?.pickup_lat??10.6549;
-  const lng=(typeof S.myLng==='number'?S.myLng:null)??S.activeRide?.pickup_lng??-61.5019;
-  const res=await _mutate('sos',{ride_id:S.activeRide?.id||null,lat,lng,message:'Emergency SOS from '+S.user.first_name+' '+S.user.last_name});
+  // live GPS fix when available (same one the booking/driver-tracking map already
+  // has), falling back to the active ride's pickup point, and only to the city-center
+  // default as a last resort. SOS is available to drivers too (see the driver topbar
+  // button) -- S.activeRide is rider-only state, S.currentDriverRide is the driver
+  // equivalent, so both are checked here rather than just one.
+  const activeRide=S.activeRide||S.currentDriverRide;
+  const lat=(typeof S.myLat==='number'?S.myLat:null)??activeRide?.pickup_lat??10.6549;
+  const lng=(typeof S.myLng==='number'?S.myLng:null)??activeRide?.pickup_lng??-61.5019;
+  const res=await _mutate('sos',{ride_id:activeRide?.id||null,lat,lng,message:'Emergency SOS from '+S.user.first_name+' '+S.user.last_name});
   closeModal('sos-modal');
   if(res.ok){
     if(res.safetyTeamAlerted){
@@ -2580,9 +2875,10 @@ async function suspendDriver(userId){
 }
 async function viewLicensePhoto(userId){
   try{
-    const r=await fetch('/api/driver-license-photo/'+userId,{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
-    const data=await r.json();
+    const attempt=await _fetchWithRetry('/api/driver-license-photo/'+userId,{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
     const box=document.getElementById('license-photo-box');
+    if(!attempt.ok){box.innerHTML='<p style="text-align:center;color:var(--r);font-size:13px;padding:30px 0">Could not load — check your connection and try again.</p>';openModal('license-modal');return;}
+    const data=attempt.json;
     box.innerHTML=data.license_photo?`<img src="${data.license_photo}" style="width:100%;border-radius:14px;display:block">`:`<p style="text-align:center;color:#9ca3af;font-size:13px;padding:30px 0">No licence photo on file for this driver.</p>`;
     openModal('license-modal');
   }catch(e){toast('Could not load licence photo','err');}
@@ -2646,6 +2942,7 @@ const _origLogout=doLogout;
 doLogout=function(){
   localStorage.removeItem('ptt_token');_PTT_TOKEN=null;
   clearInterval(_ridePollTimer);_ridePollTimer=null;
+  _stopDriverLocationTracking();
   try{if(_PTT_WS)_PTT_WS.close();}catch{}
   if(_MAP_IDLE){try{_MAP_IDLE.remove();}catch{}}_MAP_IDLE=null;
   if(_MAP_TRACK){try{_MAP_TRACK.remove();}catch{}}_MAP_TRACK=null;
@@ -2655,7 +2952,7 @@ doLogout=function(){
 // ── Demo accounts panel visibility (server-controlled via SHOW_DEMO_ACCOUNTS) ──
 async function _loadConfig(){
   let show=true;
-  try{const r=await fetch('/api/config');const data=await r.json();show=!!data.showDemoAccounts;}catch{}
+  try{const attempt=await _fetchWithRetry('/api/config');if(attempt.ok)show=!!attempt.json.showDemoAccounts;}catch{}
   const box=document.querySelector('.demo-box');
   if(box)box.style.display=show?'':'none';
 }
@@ -2726,10 +3023,15 @@ function _pickWallpaper(){
     name=WALLPAPER_POOL[Math.floor(Math.random()*WALLPAPER_POOL.length)];
     sessionStorage.setItem('ptt_wallpaper',name);
   }
-  const v=document.getElementById('hero-bg-video');
-  if(!v)return;
-  v.innerHTML=`<source src="/media/${name}.mp4" type="video/mp4"><source src="/media/${name}.webm" type="video/webm">`;
-  v.load();
+  // Same picked wallpaper feeds every backdrop video on the page (landing hero,
+  // login, register, ...) so it's consistent across the whole pre-login flow rather
+  // than a different random clip per screen.
+  ['app-bg-video','hero-bg-video','login-bg-video','register-bg-video'].forEach(id=>{
+    const v=document.getElementById(id);
+    if(!v)return;
+    v.innerHTML=`<source src="/media/${name}.mp4" type="video/mp4"><source src="/media/${name}.webm" type="video/webm">`;
+    v.load();
+  });
 }
 _pickWallpaper();
 
@@ -2752,7 +3054,7 @@ function showInstallBanner(kind){
   const bg=`<video class="ib-bg" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4" type="video/mp4"><source src="/media/install-banner-bg.webm" type="video/webm"></video>`;
   const icon=`<div class="ib-icon"><img src="/icons/icon-192.png" alt="Pink.TT"></div>`;
   el.innerHTML=bg+(kind==='ios'
-    ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap Share <b>⬆️</b>, then "Add to Home Screen"</span></div><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`
+    ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap ⬆️ Share, then "Add to Home Screen"</span></div><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`
     :`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`);
   document.body.appendChild(el);
 }

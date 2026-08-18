@@ -51,7 +51,8 @@ const SCHEMA_SQL=[
   `CREATE TABLE IF NOT EXISTS sos_events(id TEXT PRIMARY KEY,user_id TEXT,ride_id TEXT,status TEXT DEFAULT'active',lat REAL,lng REAL,message TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,user_id TEXT,type TEXT DEFAULT'info',message TEXT,is_read INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT DEFAULT'',updated_at TEXT DEFAULT(datetime('now')))`,
-  `CREATE TABLE IF NOT EXISTS audit_log(id TEXT PRIMARY KEY,admin_id TEXT,admin_email TEXT,action TEXT,target_type TEXT DEFAULT'',target_id TEXT DEFAULT'',details TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`
+  `CREATE TABLE IF NOT EXISTS audit_log(id TEXT PRIMARY KEY,admin_id TEXT,admin_email TEXT,action TEXT,target_type TEXT DEFAULT'',target_id TEXT DEFAULT'',details TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`,
+  `CREATE TABLE IF NOT EXISTS businesses(id TEXT PRIMARY KEY,name TEXT NOT NULL,category TEXT DEFAULT'',description TEXT DEFAULT'',address TEXT DEFAULT'',phone TEXT DEFAULT'',rating REAL DEFAULT 5.0,rating_count INTEGER DEFAULT 0,is_featured INTEGER DEFAULT 0,is_active INTEGER DEFAULT 1,discount TEXT DEFAULT'',discount_code TEXT DEFAULT'',lat REAL DEFAULT 0,lng REAL DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`
 ];
 // Public-safe settings keys: readable by any authenticated user via buildDB() (e.g.
 // so a rider can see the real safety contact number). Anything more sensitive than
@@ -140,6 +141,23 @@ function getCoord(a){for(const k in COORDS){if(a&&a.toLowerCase().includes(k.toL
 // browser geolocation glitch or a spoofed value) rather than trusting client input blindly.
 function isValidTTCoord(lat,lng){return typeof lat==='number'&&typeof lng==='number'&&lat>=9.5&&lat<=11.5&&lng>=-62&&lng<=-60;}
 
+// A Nominatim result can confidently return a real place -- just not the specific
+// street/address that was actually queried, only the broad suburb/town/region it falls
+// in. Silently treating that as an exact match risks sending a driver to the wrong
+// place. Flags anything typed as a broad administrative area, or whose bounding box
+// spans more than ~1.2km, as imprecise so callers can warn instead of trusting it blindly.
+const IMPRECISE_NOMINATIM_TYPES=new Set(['suburb','city','town','village','state','county','region','municipality','administrative','state_district','country','island']);
+function _isPreciseNominatimResult(r){
+  if(IMPRECISE_NOMINATIM_TYPES.has(r.type))return false;
+  const bb=r.boundingbox;
+  if(bb&&bb.length===4){
+    const s=parseFloat(bb[0]),n=parseFloat(bb[1]),w=parseFloat(bb[2]),e=parseFloat(bb[3]);
+    const kmLat=(n-s)*111,kmLng=(e-w)*111*Math.cos((s+n)/2*Math.PI/180);
+    if(Math.sqrt(kmLat*kmLat+kmLng*kmLng)>1.2)return false;
+  }
+  return true;
+}
+
 // Real geocoding (free, no API key) via OpenStreetMap's Nominatim, for typed addresses
 // that don't match one of the ~18 hardcoded neighborhood names in COORDS -- without
 // this, an address like "81 Sunset Drive" fell back to a random point that could land
@@ -163,17 +181,25 @@ async function geocodeAddress(address){
     if(!results.length){_geocodeCache.set(key,null);return null;}
     const coord=[parseFloat(results[0].lat),parseFloat(results[0].lon)];
     if(!isValidTTCoord(coord[0],coord[1])){_geocodeCache.set(key,null);return null;}
-    _geocodeCache.set(key,coord);
-    return coord;
+    const result={coord,precise:_isPreciseNominatimResult(results[0])};
+    _geocodeCache.set(key,result);
+    return result;
   }catch(e){console.error('Geocoding error',e.message);_geocodeCache.set(key,null);return null;}
 }
-// Resolves an address to a coordinate: known neighborhood name (instant) -> real
-// geocoding (Nominatim) -> last-resort nearby-jitter placeholder, flagged as approximate
-// so callers/UI can be honest about it rather than presenting it as an exact match.
+// Resolves an address to a coordinate: real geocoding (Nominatim) first -- since it
+// actually looks at the specific address typed -- falling back to a known neighborhood
+// centroid only if geocoding fails outright, and finally a last-resort nearby-jitter
+// placeholder. Used to check the ~18 hardcoded neighborhood names FIRST via a naive
+// substring match, which meant any address merely containing a neighborhood name
+// anywhere in the string (e.g. "Victory Street, Tunapuna-Piarco" matching "Tunapuna")
+// got silently redirected to that neighborhood's generic center point instead of the
+// actual address -- exactly backwards, since the specific geocoded result is more
+// trustworthy than a crude text match. approx is true whenever the result isn't a
+// confident, precise match, so callers/UI can warn rather than presenting it as exact.
 async function resolveCoord(address){
-  for(const k in COORDS){if(address&&address.toLowerCase().includes(k.toLowerCase()))return{coord:COORDS[k],approx:false};}
   const geo=await geocodeAddress(address);
-  if(geo)return{coord:geo,approx:false};
+  if(geo)return{coord:geo.coord,approx:!geo.precise};
+  for(const k in COORDS){if(address&&address.toLowerCase().includes(k.toLowerCase()))return{coord:COORDS[k],approx:true};}
   return{coord:[10.6549+(Math.random()-.5)*.02,-61.5019+(Math.random()-.5)*.02],approx:true};
 }
 // Matches TTRS's publicly reported "Regular" tier rates (Dec 2022 fare increase --
@@ -216,6 +242,26 @@ function clampPointsRedemption(requestedPoints,availablePoints,fare){
 }
 function dist(p,d){const R=6371,dLat=(d[0]-p[0])*Math.PI/180,dLon=(d[1]-p[1])*Math.PI/180,a=Math.sin(dLat/2)**2+Math.cos(p[0]*Math.PI/180)*Math.cos(d[0]*Math.PI/180)*Math.sin(dLon/2)**2;return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*10)/10;}
 
+// Same dispatch radius the driver app filters its own request list to -- kept in sync
+// so a driver is never actively pinged for a ride they wouldn't even see in their list.
+const DRIVER_MAX_RADIUS_KM=34;
+// Pings every online, approved driver within range of a ride's pickup point -- called
+// once immediately on booking, again whenever the rider explicitly re-pings, and on a
+// recurring timer for any ride that's gone unaccepted for a while (see setInterval
+// below). A plain broadcastDBUpdate() alone reaches every connected client but gives a
+// driver no reason to actually notice/look; this sends a distinct, targeted message so
+// the client can surface a real alert instead of a silent background refresh.
+async function pingDriversForRide(ride){
+  if(!ride||!isValidTTCoord(ride.pickup_lat,ride.pickup_lng))return;
+  const drivers=await dbAll("SELECT user_id,current_lat,current_lng FROM driver_profiles WHERE status='approved' AND is_online=1");
+  for(const d of drivers){
+    if(!isValidTTCoord(d.current_lat,d.current_lng))continue;
+    if(dist([ride.pickup_lat,ride.pickup_lng],[d.current_lat,d.current_lng])<=DRIVER_MAX_RADIUS_KM){
+      broadcastTo(d.user_id,{type:'ride_ping',ride_id:ride.id});
+    }
+  }
+}
+
 // Address suggestions as the rider types (Nominatim search, up to 6 candidates) -- so
 // pickup/destination aren't limited to the ~18 hardcoded neighborhood names or a single
 // best-guess match. Free, no API key; same host/policy as geocodeAddress above.
@@ -230,8 +276,24 @@ async function suggestAddresses(query){
     if(!apiRes.ok)return[];
     const results=await apiRes.json();
     return results.filter(r=>isValidTTCoord(parseFloat(r.lat),parseFloat(r.lon)))
-      .map(r=>({label:r.display_name,lat:parseFloat(r.lat),lng:parseFloat(r.lon)}));
+      .map(r=>({label:r.display_name,lat:parseFloat(r.lat),lng:parseFloat(r.lon),precise:_isPreciseNominatimResult(r)}));
   }catch(e){console.error('Address suggest error',e.message);return[];}
+}
+
+// Reverse geocoding (coordinate -> human address) for the map-pin picker -- a rider
+// drops a pin by moving the map itself, and needs to see what street that actually
+// corresponds to before confirming it as their pickup/destination.
+async function reverseGeocode(lat,lng){
+  try{
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),4000);
+    const url=`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`;
+    const apiRes=await fetch(url,{headers:{'User-Agent':'PinkTT-Rideshare/1.0 (support@pink.tt)'},signal:controller.signal});
+    clearTimeout(timer);
+    if(!apiRes.ok)return null;
+    const result=await apiRes.json();
+    return result.display_name||null;
+  }catch(e){console.error('Reverse geocode error',e.message);return null;}
 }
 
 // Real driving route (actual roads, not a straight line) via OSRM's free public demo
@@ -271,7 +333,11 @@ async function buildDB(){
   const sos_events=await dbAll('SELECT * FROM sos_events');
   const notifications=await dbAll('SELECT * FROM notifications');
   const promotions=[{id:'p1',code:'WELCOME25',title:'Welcome Discount',description:'25% off your first ride',type:'percentage',value:25,is_active:true,valid_until:'2026-12-31T00:00:00Z'},{id:'p2',code:'PINK10',title:'Pink Loyalty',description:'TTD $10 off any ride over $50',type:'fixed',value:10,is_active:true,valid_until:'2026-12-31T00:00:00Z'},{id:'p3',code:'SAFE20',title:'Safety Bonus',description:'20% off for referring a friend',type:'percentage',value:20,is_active:true,valid_until:'2026-12-31T00:00:00Z'}];
-  const businesses=[{id:'b1',name:'Luxe Nail Lounge',category:'nail_salon',description:'Premium nail care & nail art',address:'Long Circular Road, St. James, POS',phone:'+1 868 222 1001',rating:4.9,rating_count:89,is_featured:true,is_active:true,discount:'Pink.TT Rider Special — 15% OFF',discount_code:'PINK15',lat:10.665,lng:-61.521},{id:'b2',name:'Serenity Spa & Wellness',category:'spa',description:'Full-service day spa & wellness',address:'Ariapita Avenue, Woodbrook, POS',phone:'+1 868 222 1003',rating:4.9,rating_count:223,is_featured:true,is_active:true,discount:'Weekday Special — 10% OFF',discount_code:'WEEKDAY10',lat:10.652,lng:-61.514},{id:'b3',name:'TT Skincare Clinic',category:'skincare',description:'Medical skincare & facial treatments',address:'Trincity Mall, Trincity',phone:'+1 868 222 1008',rating:4.9,rating_count:205,is_featured:true,is_active:true,discount:'New Client Package — 25% OFF',discount_code:'NEWCLIENT25',lat:10.604,lng:-61.350},{id:'b4',name:'The Curl Bar T&T',category:'hair',description:'Natural hair & protective styles',address:'Maraval Road, POS',phone:'+1 868 222 1002',rating:4.8,rating_count:134,is_featured:true,is_active:true,discount:'New Client Welcome — 20% OFF',discount_code:'NEWCURL20',lat:10.672,lng:-61.522}];
+  // Used to be a hardcoded array of businesses (Luxe Nail Lounge, Serenity Spa, etc.)
+  // that Elliot never actually added -- placeholder demo data presented as if real, with
+  // no way to add/remove anything since it wasn't backed by a table at all. Now a real
+  // table, starts empty, managed entirely from Admin > Biz.
+  const businesses=(await dbAll('SELECT * FROM businesses')).map(b=>({...b,is_featured:!!b.is_featured,is_active:!!b.is_active}));
   const settingsRows=await dbAll('SELECT key,value FROM settings');
   const settings={...DEFAULT_SETTINGS};
   settingsRows.forEach(r=>{settings[r.key]=r.value;});
@@ -406,19 +472,33 @@ app.get('/api/db',authMW,async(req,res)=>{
 });
 
 app.post('/api/fare',async(req,res)=>{
-  const{pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng}=req.body;
-  const p=isValidTTCoord(pickup_lat,pickup_lng)?[pickup_lat,pickup_lng]:(await resolveCoord(pickup)).coord;
-  const dResolved=isValidTTCoord(destination_lat,destination_lng)?{coord:[destination_lat,destination_lng],approx:false}:(await resolveCoord(destination));
+  const{pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng,pickup_precise,destination_precise}=req.body;
+  // pickup_precise/destination_precise come from the address-suggest dropdown (which now
+  // flags each suggestion's own precision) when the rider picked a suggestion rather than
+  // typing free text -- a valid lat/lng alone doesn't mean it was actually a precise
+  // match, just that a coordinate exists. Only an explicit false counts as imprecise;
+  // undefined (e.g. a real GPS fix) is trusted as precise.
+  const pResolved=isValidTTCoord(pickup_lat,pickup_lng)?{coord:[pickup_lat,pickup_lng],approx:pickup_precise===false}:(await resolveCoord(pickup));
+  const p=pResolved.coord;
+  const dResolved=isValidTTCoord(destination_lat,destination_lng)?{coord:[destination_lat,destination_lng],approx:destination_precise===false}:(await resolveCoord(destination));
   const d=dResolved.coord;
   const route=await getRoute(p,d);
   const fare=calcFare(route.km,route.min);
-  res.json({km:route.km,min:route.min,fare,pickup_lat:p[0],pickup_lng:p[1],dest_lat:d[0],dest_lng:d[1],destination_approx:dResolved.approx,route:route.geometry,routeIsReal:route.real});
+  res.json({km:route.km,min:route.min,fare,pickup_lat:p[0],pickup_lng:p[1],dest_lat:d[0],dest_lng:d[1],pickup_approx:pResolved.approx,destination_approx:dResolved.approx,route:route.geometry,routeIsReal:route.real});
 });
 
 // Address suggestions dropdown -- returns up to 6 candidate addresses as the rider types.
 app.get('/api/geocode-suggest',async(req,res)=>{
   const results=await suggestAddresses(req.query.q||'');
   res.json({results});
+});
+
+// Reverse geocode a dropped map pin into a human-readable address (map-pin picker).
+app.get('/api/reverse-geocode',async(req,res)=>{
+  const lat=parseFloat(req.query.lat),lng=parseFloat(req.query.lng);
+  if(!isValidTTCoord(lat,lng))return res.status(400).json({error:'Invalid coordinates'});
+  const label=await reverseGeocode(lat,lng);
+  res.json({label});
 });
 
 // Route geometry for an existing ride's pickup/destination -- used to (re)draw the map
@@ -552,7 +632,16 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const{points,discount}=clampPointsRedemption(data.points_to_redeem,rider?.pink_points||0,fullFare);
       const fare=Math.round((fullFare-discount)*100)/100;
       if(points>0)await dbRun('UPDATE users SET pink_points=pink_points-? WHERE id=?',[points,userId]);
-      await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,points_redeemed,points_discount)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[uuidv4(),userId,'requested',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,points,discount]);
+      const rideId=uuidv4();
+      await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,points_redeemed,points_discount)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[rideId,userId,'requested',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,points,discount]);
+      pingDriversForRide({id:rideId,pickup_lat:p[0],pickup_lng:p[1]});
+    }else if(type==='reping_ride'){
+      // Rider-facing "notify drivers again" -- e.g. tapped from the "Finding your
+      // driver..." screen when nothing's happening. Only re-pings the rider's own
+      // still-unaccepted ride, never anyone else's.
+      const ride=await dbGet("SELECT * FROM rides WHERE id=? AND rider_id=? AND status='requested' AND driver_id IS NULL",[data.ride_id,userId]);
+      if(!ride)return res.json({ok:false,error:'This ride is no longer waiting for a driver'});
+      await pingDriversForRide(ride);
     }else if(type==='accept_ride'){
       const ride=await dbGet("SELECT * FROM rides WHERE id=? AND status='requested'",[data.ride_id]);
       if(!ride)return res.json({ok:false,error:'Ride no longer available'});
@@ -655,13 +744,43 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
         await setSetting(k,String(data[k]??''));
       }
       await logAudit(req.jwt,'update_settings','settings','',Object.keys(data||{}).filter(k=>allowedKeys.includes(k)).join(','));
+    }else if(type==='resolve_sos'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      await dbRun("UPDATE sos_events SET status='resolved' WHERE id=?",[data.sos_id]);
+      await logAudit(req.jwt,'resolve_sos','sos_event',data.sos_id,'');
     }else if(type==='admin_reset_test_data'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      // Irreversible and platform-wide, so re-verifying the admin's own password here
+      // (not just a JS confirm() dialog) is the actual safeguard against a stray click
+      // or a compromised/left-open session doing this by accident.
+      const admin=await dbGet('SELECT password_hash FROM users WHERE id=?',[req.jwt.id]);
+      if(!admin||!bcrypt.compareSync(data.password||'',admin.password_hash))return res.json({ok:false,error:'Incorrect password'});
       await dbRun('DELETE FROM payments');
       await dbRun('DELETE FROM rides');
       await dbRun('UPDATE users SET total_rides=0,pink_points=0,pink_points_lifetime=0,wallet_balance=0');
       await dbRun('UPDATE driver_profiles SET total_trips=0,total_earnings=0,today_earnings=0,balance=0');
       await logAudit(req.jwt,'reset_test_data','platform','','Cleared all ride/payment history and reset earnings/points counters');
+    }else if(type==='admin_add_business'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const{name,category,description,address,phone,discount,discount_code}=data;
+      if(!name||!address)return res.json({ok:false,error:'Name and address required'});
+      const bizId=uuidv4();
+      await dbRun('INSERT INTO businesses(id,name,category,description,address,phone,discount,discount_code,is_active)VALUES(?,?,?,?,?,?,?,?,1)',[bizId,name,category||'',description||'',address,phone||'',discount||'',discount_code||'']);
+      await logAudit(req.jwt,'add_business','business',bizId,name);
+    }else if(type==='admin_delete_business'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      await dbRun('DELETE FROM businesses WHERE id=?',[data.business_id]);
+      await logAudit(req.jwt,'delete_business','business',data.business_id,'');
+    }else if(type==='admin_toggle_biz_featured'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const biz=await dbGet('SELECT is_featured FROM businesses WHERE id=?',[data.business_id]);
+      if(!biz)return res.json({ok:false,error:'Business not found'});
+      await dbRun('UPDATE businesses SET is_featured=? WHERE id=?',[biz.is_featured?0:1,data.business_id]);
+    }else if(type==='admin_toggle_biz_active'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const biz=await dbGet('SELECT is_active FROM businesses WHERE id=?',[data.business_id]);
+      if(!biz)return res.json({ok:false,error:'Business not found'});
+      await dbRun('UPDATE businesses SET is_active=? WHERE id=?',[biz.is_active?0:1,data.business_id]);
     }else if(type==='rate_ride'){
       await dbRun('UPDATE rides SET rider_rating=?,driver_review=? WHERE id=?',[data.score,data.review||'',data.ride_id]);
       const ride=await dbGet('SELECT driver_id FROM rides WHERE id=?',[data.ride_id]);
@@ -696,6 +815,18 @@ const clients=new Map();
 function broadcastDBUpdate(){buildDB().then(d=>{const m=JSON.stringify({type:'db_update',db:d});clients.forEach(ws=>{if(ws.readyState===WebSocket.OPEN)ws.send(m);});}).catch(console.error);}
 function broadcastAll(data){const m=JSON.stringify(data);clients.forEach(ws=>{if(ws.readyState===WebSocket.OPEN)ws.send(m);});}
 function broadcastTo(uid,data){const ws=clients.get(uid);if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(data));}
+
+// Keeps re-pinging nearby drivers for any ride that's gone unaccepted for a while --
+// previously a request was only ever announced once, at the moment it was booked, so a
+// driver who happened to be mid-ride, looking away, or just out of earshot at that exact
+// instant would never hear about it again even though it sat unclaimed indefinitely.
+setInterval(async()=>{
+  try{
+    const stuck=await dbAll("SELECT * FROM rides WHERE status='requested' AND driver_id IS NULL");
+    for(const ride of stuck)await pingDriversForRide(ride);
+  }catch(e){console.error('Ride re-ping sweep error',e.message);}
+},30000);
+
 wss.on('connection',ws=>{
   let uid=null;
   ws.on('message',raw=>{
