@@ -402,7 +402,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div id="idv-preview-box" style="background:#f9fafb;border-radius:16px;height:200px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;overflow:hidden">
       <span style="color:#9ca3af;font-size:13px">No photo selected</span>
     </div>
-    <input type="file" accept="image/*" capture="user" id="idv-photo" style="display:none" onchange="_previewFile('idv-photo','idv-preview-box')">
+    <input type="file" accept="image/*" id="idv-photo" style="display:none" onchange="_previewFile('idv-photo','idv-preview-box')">
     <button class="btn bs bw" style="margin-bottom:10px" onclick="document.getElementById('idv-photo').click()">📷 Choose Photo</button>
     <button class="btn bp bw" id="idv-btn" onclick="submitIdVerify()">Verify My Identity 🌸</button>
     <p style="text-align:center;font-size:11px;color:#9ca3af;margin-top:14px;line-height:1.6">Your photo is used only to confirm eligibility and is not stored after review.</p>
