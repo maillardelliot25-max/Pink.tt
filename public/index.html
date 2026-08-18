@@ -109,6 +109,16 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 #install-banner .btn.bp.bsm:hover{background:#fff;filter:none;color:var(--pd);transform:none}
 #install-banner .ib-close{background:none;border:none;color:rgba(255,255,255,.85);font-size:16px;padding:4px 6px;cursor:pointer;line-height:1}
 #install-banner .ib-close:hover{color:#fff}
+/* Auth pages (login/register) -- same rotating wallpaper as the landing hero, but
+   toned way down (low opacity + a heavy white wash) so it reads as an ambient texture
+   behind the form rather than competing with it, plus the form itself sits on a
+   frosted glass panel so the video blurs softly behind the actual words/inputs. */
+#pg-login,#pg-register{position:relative}
+#pg-login .topbar,#pg-login .scroll,#pg-register .topbar,#pg-register .scroll{position:relative;z-index:1}
+.auth-video-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.3}
+.auth-video-wash{position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,rgba(255,255,255,.72) 0%,rgba(255,255,255,.93) 55%,#fff 88%);pointer-events:none}
+.auth-wrap{max-width:440px;margin:0 auto;width:100%}
+.glass-card{background:rgba(255,255,255,.68);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.6);border-radius:20px;padding:22px 20px;box-shadow:0 8px 30px rgba(122,18,99,.1)}
 @media (prefers-reduced-motion:reduce){#install-banner{animation:none}#install-banner .ib-bg{display:none}}
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid #f0f0f0;flex-shrink:0}
@@ -371,12 +381,15 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 
 <!-- ══ LOGIN ══ -->
 <div class="page" id="pg-login">
+  <video class="auth-video-bg" id="login-bg-video" autoplay loop muted playsinline></video>
+  <div class="auth-video-wash"></div>
   <div class="topbar">
     <button onclick="go('land')" style="background:none;border:none;cursor:pointer;font-size:20px;color:#9ca3af">←</button>
     <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
     <div style="width:40px"></div>
   </div>
   <div class="scroll" style="padding:20px 18px">
+   <div class="auth-wrap glass-card">
     <div style="text-align:center;margin-bottom:24px;padding-top:8px">
       <h1 style="font-size:24px">Welcome back</h1>
       <p style="color:#9ca3af;font-size:13px;margin-top:4px">Sign in to your Pink.TT account</p>
@@ -399,17 +412,21 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
         <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('priya@demo.pink.tt','Driver@2024')">Pending</button>
       </div>
     </div>
+   </div>
   </div>
 </div>
 
 <!-- ══ REGISTER ══ -->
 <div class="page" id="pg-register">
+  <video class="auth-video-bg" id="register-bg-video" autoplay loop muted playsinline></video>
+  <div class="auth-video-wash"></div>
   <div class="topbar">
     <button onclick="go('land')" style="background:none;border:none;cursor:pointer;font-size:20px;color:#9ca3af">←</button>
     <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
     <div style="width:40px"></div>
   </div>
   <div class="scroll" style="padding:20px 18px">
+   <div class="auth-wrap glass-card">
     <div style="text-align:center;margin-bottom:20px"><h1 style="font-size:24px">Create Account</h1><p style="color:#9ca3af;font-size:13px;margin-top:4px">Join Pink.TT — safe rides for women</p></div>
     <div class="role-sw">
       <div class="role-o on" id="ro-rider" onclick="setRole('rider')">🚗 Rider</div>
@@ -431,6 +448,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <p style="text-align:center;font-size:11px;color:#9ca3af;margin-bottom:12px">By signing up, you confirm you identify as a woman and agree to our <a href="/terms.html" target="_blank" style="color:var(--p)">Terms</a> and <a href="/privacy.html" target="_blank" style="color:var(--p)">Privacy Policy</a>.<br>Pink.TT is a women-only platform.</p>
     <button class="btn bp bw" id="r-btn" onclick="doRegister()">Create Account 🌸</button>
     <p style="text-align:center;margin-top:16px;font-size:13px;color:#9ca3af">Already have an account? <a onclick="go('login')" style="color:var(--p);font-weight:600;cursor:pointer">Sign in</a></p>
+   </div>
   </div>
 </div>
 
@@ -2726,10 +2744,15 @@ function _pickWallpaper(){
     name=WALLPAPER_POOL[Math.floor(Math.random()*WALLPAPER_POOL.length)];
     sessionStorage.setItem('ptt_wallpaper',name);
   }
-  const v=document.getElementById('hero-bg-video');
-  if(!v)return;
-  v.innerHTML=`<source src="/media/${name}.mp4" type="video/mp4"><source src="/media/${name}.webm" type="video/webm">`;
-  v.load();
+  // Same picked wallpaper feeds every backdrop video on the page (landing hero,
+  // login, register, ...) so it's consistent across the whole pre-login flow rather
+  // than a different random clip per screen.
+  ['hero-bg-video','login-bg-video','register-bg-video'].forEach(id=>{
+    const v=document.getElementById(id);
+    if(!v)return;
+    v.innerHTML=`<source src="/media/${name}.mp4" type="video/mp4"><source src="/media/${name}.webm" type="video/webm">`;
+    v.load();
+  });
 }
 _pickWallpaper();
 
