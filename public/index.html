@@ -27,7 +27,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Pink.TT">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -1832,6 +1832,7 @@ function loadTrack(token){
     '</div>' +
     '<p style="text-align:center;font-size:10px;color:#d1d5db;margin-top:12px">Shared by ' + (share.contact_name||'a Pink.TT user') + ' · Expires ' + new Date(share.expires_at).toLocaleString() + '</p>' +
     '<div style="height:20px"></div>';
+  setTimeout(()=>initShareMap(ride),50);
 }
 
 // ─── INIT ────────────────────────────────────────────────────────
@@ -1854,35 +1855,80 @@ function init(){
 let _PTT_TOKEN = localStorage.getItem('ptt_token') || null;
 let _PTT_WS = null, _PTT_WS_OK = false;
 let _MAP_IDLE = null, _MAP_TRACK = null, _MAP_SHARE = null;
-let _CAR_MARKER = null, _P_MARKER = null, _D_MARKER = null;
+let _CAR_MARKER = null, _P_MARKER = null, _D_MARKER = null, _SHARE_CAR_MARKER = null;
 let _LOC_INTERVAL = null;
 
 // ── Leaflet tile helper ──────────────────────────────────────────
+// Leaflet's JS/CSS are self-hosted (public/vendor/leaflet) rather than pulled from a
+// CDN at runtime, so a blocked/slow third-party host can't take the map down. The map
+// TILE IMAGES still come from CARTO at runtime (no realistic way to self-host global
+// map tiles) -- _watchTiles below shows a small non-blocking note if those specifically
+// fail to load, without hiding the rest of the ride info.
+let _leafletLoadPromise=null;
 function _initLeaflet(){
   if(window.L)return Promise.resolve();
-  return new Promise(resolve=>{
+  if(_leafletLoadPromise)return _leafletLoadPromise;
+  _leafletLoadPromise=new Promise((resolve,reject)=>{
     const s=document.createElement('script');
-    s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    s.onload=resolve;document.head.appendChild(s);
+    s.src='/vendor/leaflet/leaflet.js';
+    s.onload=()=>resolve();
+    s.onerror=()=>{_leafletLoadPromise=null;s.remove();reject(new Error('Failed to load map library'));};
+    document.head.appendChild(s);
   });
+  return _leafletLoadPromise;
 }
 function _tileLayer(map){
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+  const layer=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
     attribution:'© <a href="https://openstreetmap.org">OSM</a> © <a href="https://carto.com">CARTO</a>',
     subdomains:'abcd',maxZoom:20
   }).addTo(map);
+  return layer;
+}
+// Shows a small dismissing note if map tiles specifically fail to load (separate from
+// the Leaflet library itself, which is self-hosted and shouldn't fail).
+function _watchTiles(map,containerEl){
+  let tileOk=false,warned=false;
+  map.on('tileload',()=>{tileOk=true;});
+  map.on('tileerror',()=>{
+    if(tileOk||warned)return;
+    warned=true;
+    containerEl.style.position='relative';
+    const note=document.createElement('div');
+    note.style.cssText='position:absolute;bottom:8px;left:8px;right:8px;background:rgba(17,24,39,.85);color:#fff;font-size:10px;padding:6px 10px;border-radius:8px;z-index:500;text-align:center';
+    note.textContent='Map tiles are slow to load — your ride details below are still live';
+    containerEl.appendChild(note);
+    setTimeout(()=>note.remove(),6000);
+  });
+}
+// Shown inside a map container when Leaflet itself fails to load (e.g. offline).
+function _showMapError(el,retryFn){
+  el.innerHTML='';
+  const wrap=document.createElement('div');
+  wrap.style.cssText='height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#9ca3af;font-size:12px;background:#f9fafb';
+  const label=document.createElement('span');label.textContent='🗺️ Map couldn\'t load';
+  const btn=document.createElement('button');
+  btn.style.cssText='padding:6px 16px;background:var(--p);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer';
+  btn.textContent='Retry';
+  btn.onclick=retryFn;
+  wrap.appendChild(label);wrap.appendChild(btn);
+  el.appendChild(wrap);
 }
 function _pinkIcon(){return L.divIcon({html:'<div style="background:#E91E8C;width:13px;height:13px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(233,30,140,.5)"></div>',iconSize:[13,13],iconAnchor:[6.5,6.5],className:''});}
 function _greenIcon(){return L.divIcon({html:'<div style="background:#22c55e;width:13px;height:13px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(34,197,94,.5)"></div>',iconSize:[13,13],iconAnchor:[6.5,6.5],className:''});}
 function _carIcon(){return L.divIcon({html:'<div style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))">🚗</div>',iconSize:[28,28],iconAnchor:[14,14],className:''});}
 
 function initIdleMap(){
+  const el0=document.getElementById('idle-map');if(!el0)return;
   _initLeaflet().then(()=>{
-    const el=document.getElementById('idle-map');if(!el)return;
+    const el=document.getElementById('idle-map');if(!el)return; // page moved on while the library was loading
     if(_MAP_IDLE){try{_MAP_IDLE.remove();}catch{}}_MAP_IDLE=null;
     _MAP_IDLE=L.map(el,{zoomControl:false,attributionControl:false}).setView([10.6549,-61.5019],12);
+    _watchTiles(_MAP_IDLE,el);
     _tileLayer(_MAP_IDLE);L.control.zoom({position:'bottomright'}).addTo(_MAP_IDLE);
     setTimeout(()=>_MAP_IDLE&&_MAP_IDLE.invalidateSize(),300);
+  }).catch(()=>{
+    const el=document.getElementById('idle-map');
+    if(el)_showMapError(el,initIdleMap);
   });
 }
 function updateIdleMap(d){
@@ -1893,13 +1939,15 @@ function updateIdleMap(d){
   _MAP_IDLE.fitBounds([[d.pickup_lat,d.pickup_lng],[d.dest_lat,d.dest_lng]],{padding:[30,30]});
 }
 function initTrackMap(pickup,destination,driverLat,driverLng){
+  const el0=document.getElementById('track-map');if(!el0)return;
   _initLeaflet().then(()=>{
-    const el=document.getElementById('track-map');if(!el)return;
+    const el=document.getElementById('track-map');if(!el)return; // page moved on while the library was loading
     if(_MAP_TRACK){try{_MAP_TRACK.remove();}catch{}}_MAP_TRACK=null;_CAR_MARKER=null;
     const pR=DB.rides.find(r=>r.rider_id===S.user?.id&&['requested','accepted','arriving','in_progress'].includes(r.status));
     const pLat=pR?.pickup_lat||10.6549,pLng=pR?.pickup_lng||-61.5019;
     const dLat=pR?.destination_lat||10.72,dLng=pR?.destination_lng||-61.41;
     _MAP_TRACK=L.map(el,{zoomControl:false,attributionControl:false}).setView([pLat,pLng],13);
+    _watchTiles(_MAP_TRACK,el);
     _tileLayer(_MAP_TRACK);L.control.zoom({position:'bottomright'}).addTo(_MAP_TRACK);
     L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_TRACK).bindPopup('📍 Pickup');
     L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_TRACK).bindPopup('🏁 Destination');
@@ -1909,6 +1957,32 @@ function initTrackMap(pickup,destination,driverLat,driverLng){
     _MAP_TRACK.fitBounds([[pLat,pLng],[dLat,dLng]],{padding:[20,20]});
     _MAP_TRACK._pLat=pLat;_MAP_TRACK._pLng=pLng;_MAP_TRACK._dLat=dLat;_MAP_TRACK._dLng=dLng;
     setTimeout(()=>_MAP_TRACK&&_MAP_TRACK.invalidateSize(),300);
+  }).catch(()=>{
+    const el=document.getElementById('track-map');
+    if(el)_showMapError(el,()=>initTrackMap(pickup,destination,driverLat,driverLng));
+  });
+}
+// Map for the public "Share Trip" tracking page (loadTrack) -- a trusted contact opening
+// a shared link. loadTrack replaces its whole body.innerHTML (including #share-map) on
+// every 10s auto-refresh, so the map is always rebuilt fresh rather than reused --
+// the old container node is gone by the time the next refresh runs.
+function initShareMap(ride){
+  const el0=document.getElementById('share-map');if(!el0)return;
+  _initLeaflet().then(()=>{
+    const el=document.getElementById('share-map');if(!el)return;
+    if(_MAP_SHARE){try{_MAP_SHARE.remove();}catch{}}_MAP_SHARE=null;_SHARE_CAR_MARKER=null;
+    const pLat=ride.pickup_lat,pLng=ride.pickup_lng,dLat=ride.destination_lat,dLng=ride.destination_lng;
+    _MAP_SHARE=L.map(el,{zoomControl:false,attributionControl:false}).setView([pLat,pLng],13);
+    _watchTiles(_MAP_SHARE,el);
+    _tileLayer(_MAP_SHARE);
+    L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_SHARE).bindPopup('📍 Pickup');
+    L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_SHARE).bindPopup('🏁 Destination');
+    _SHARE_CAR_MARKER=L.marker([pLat+(Math.random()-.5)*.02,pLng+(Math.random()-.5)*.02],{icon:_carIcon()}).addTo(_MAP_SHARE);
+    _MAP_SHARE.fitBounds([[pLat,pLng],[dLat,dLng]],{padding:[20,20]});
+    setTimeout(()=>_MAP_SHARE&&_MAP_SHARE.invalidateSize(),300);
+  }).catch(()=>{
+    const el=document.getElementById('share-map');
+    if(el)_showMapError(el,()=>initShareMap(ride));
   });
 }
 function moveCarToward(targetLat,targetLng){
