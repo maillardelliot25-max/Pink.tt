@@ -32,17 +32,18 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{--p:#E91E8C;--pl:#FF6BB5;--pd:#C4006F;--pp:#FFF0F6;--pb:#fce7f3;--g:#22c55e;--y:#f59e0b;--r:#ef4444;--b:#3b82f6;--gray:#f9fafb;--shadow:0 1px 2px rgba(17,17,17,.04),0 10px 24px -8px rgba(17,17,17,.10);--pink-shadow:0 1px 2px rgba(196,0,111,.15),0 10px 22px -6px rgba(233,30,140,.38)}
-html,body{height:100%;overflow:hidden;font-family:'DM Sans',system-ui,sans-serif;background:#f0f0f0;-webkit-font-smoothing:antialiased}
-@media (min-width:500px){
-  html,body{background:linear-gradient(160deg,var(--pp) 0%,#f0f0f0 45%)}
-}
+html,body{height:100%;overflow:hidden;font-family:'DM Sans',system-ui,sans-serif;background:#fff;-webkit-font-smoothing:antialiased}
 h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* height:100dvh (dynamic viewport height) accounts for the mobile browser address bar
    showing/hiding; the plain 100vh fallback above it is for older browsers that don't
    support dvh. Without this, #shell could be sized taller than what's actually visible
    when the address bar is showing, and with html,body now overflow:hidden that extra
    height was simply inaccessible -- looked exactly like "can't scroll down". */
-#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:430px;margin:0 auto;background:#fff;position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(17,17,17,.04),0 30px 70px -20px rgba(17,17,17,.35)}
+/* #shell used to cap out at 430px and float centered like a phone mockup, leaving big
+   gray bars on either side on any tablet/wide-screen/desktop browser. Now fills the
+   full viewport everywhere; a soft width cap only kicks in on genuinely huge desktop
+   monitors so text doesn't stretch into unreadably long lines. */
+#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;max-width:1600px;margin:0 auto;background:#fff;position:relative;overflow:hidden}
 .page{display:none;flex-direction:column;height:100%;overflow:hidden}
 .page.active{display:flex}
 .scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
