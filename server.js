@@ -141,7 +141,16 @@ async function triggerSafetyAlert(message){
 // ── Express ───────────────────────────────────────────────────────────────────
 const app=express();
 app.use(express.json({limit:'5mb'}));
-app.use(express.static(path.join(__dirname,'public')));
+// index.html and sw.js must always be revalidated -- a stale cached copy of either on a
+// real device would keep serving old app code indefinitely after a fix ships. Everything
+// else in public/ (vendor assets, icons) can use normal caching.
+app.use(express.static(path.join(__dirname,'public'),{
+  setHeaders:(res,filePath)=>{
+    if(filePath.endsWith('index.html')||filePath.endsWith('sw.js')){
+      res.setHeader('Cache-Control','no-cache, no-store, must-revalidate');
+    }
+  }
+}));
 function authMW(req,res,next){const t=(req.headers.authorization||'').replace('Bearer ','').trim();if(!t)return res.status(401).json({error:'No token'});try{req.jwt=jwt.verify(t,JWT_SECRET);next();}catch{res.status(401).json({error:'Session expired — please log in again'});}}
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
