@@ -91,6 +91,14 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .toast.err{border-color:var(--r)}
 .toast.ok{border-color:var(--g)}
 @keyframes tIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+/* Install banner */
+#install-banner{position:fixed;left:0;right:0;bottom:0;z-index:180;background:#fff;box-shadow:0 -6px 24px rgba(0,0,0,.15);padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:11px;animation:tIn .3s ease}
+#install-banner .ib-icon{width:38px;height:38px;border-radius:11px;background:var(--p);color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+#install-banner .ib-text{flex:1;min-width:0}
+#install-banner .ib-text b{font-size:13px;display:block}
+#install-banner .ib-text span{font-size:11px;color:#9ca3af}
+#install-banner button{flex-shrink:0}
+#install-banner .ib-close{background:none;border:none;color:#9ca3af;font-size:18px;padding:4px 6px;cursor:pointer}
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid #f0f0f0;flex-shrink:0}
 .tab{flex:1;padding:11px 6px;text-align:center;font-size:12px;font-weight:600;color:#9ca3af;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
@@ -2661,6 +2669,38 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('/sw.js').catch(e=>console.warn('Service worker registration failed',e));
   });
 }
+
+// ── Install-app banner ──────────────────────────────────────────────────────
+// The manifest+service-worker made the app *technically* installable, but
+// nothing ever surfaced that to a user -- Chrome's own install icon is easy to
+// miss and iOS has no install prompt at all. This shows a real, persistent
+// "Install App" banner: a native prompt on Android/Chrome/Edge, and
+// step-by-step instructions on iOS Safari (which has no install API at all).
+// Reappears each new browser session until the app is actually installed.
+let _deferredInstallPrompt=null;
+function _isStandalone(){return window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;}
+function _isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;}
+function showInstallBanner(kind){
+  if(_isStandalone()||sessionStorage.getItem('ptt_install_dismissed'))return;
+  if(document.getElementById('install-banner'))return;
+  const el=document.createElement('div');
+  el.id='install-banner';
+  el.innerHTML=kind==='ios'
+    ?`<div class="ib-icon">📲</div><div class="ib-text"><b>Install Pink.TT</b><span>Tap Share <b>⬆️</b>, then "Add to Home Screen"</span></div><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`
+    :`<div class="ib-icon">📲</div><div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`;
+  document.body.appendChild(el);
+}
+function dismissInstallBanner(){sessionStorage.setItem('ptt_install_dismissed','1');document.getElementById('install-banner')?.remove();}
+async function triggerInstall(){
+  if(!_deferredInstallPrompt)return;
+  _deferredInstallPrompt.prompt();
+  await _deferredInstallPrompt.userChoice;
+  _deferredInstallPrompt=null;
+  document.getElementById('install-banner')?.remove();
+}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();_deferredInstallPrompt=e;showInstallBanner('android');});
+window.addEventListener('appinstalled',()=>{document.getElementById('install-banner')?.remove();sessionStorage.setItem('ptt_install_dismissed','1');});
+if(_isIOS()&&!_isStandalone())setTimeout(()=>showInstallBanner('ios'),1500);
 
 init();
 </script>
