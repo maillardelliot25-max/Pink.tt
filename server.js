@@ -280,6 +280,22 @@ async function suggestAddresses(query){
   }catch(e){console.error('Address suggest error',e.message);return[];}
 }
 
+// Reverse geocoding (coordinate -> human address) for the map-pin picker -- a rider
+// drops a pin by moving the map itself, and needs to see what street that actually
+// corresponds to before confirming it as their pickup/destination.
+async function reverseGeocode(lat,lng){
+  try{
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),4000);
+    const url=`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`;
+    const apiRes=await fetch(url,{headers:{'User-Agent':'PinkTT-Rideshare/1.0 (support@pink.tt)'},signal:controller.signal});
+    clearTimeout(timer);
+    if(!apiRes.ok)return null;
+    const result=await apiRes.json();
+    return result.display_name||null;
+  }catch(e){console.error('Reverse geocode error',e.message);return null;}
+}
+
 // Real driving route (actual roads, not a straight line) via OSRM's free public demo
 // server -- no API key. Returns road distance/duration plus the route geometry so the
 // same path can be drawn on the map for both rider and driver. Falls back to the
@@ -475,6 +491,14 @@ app.post('/api/fare',async(req,res)=>{
 app.get('/api/geocode-suggest',async(req,res)=>{
   const results=await suggestAddresses(req.query.q||'');
   res.json({results});
+});
+
+// Reverse geocode a dropped map pin into a human-readable address (map-pin picker).
+app.get('/api/reverse-geocode',async(req,res)=>{
+  const lat=parseFloat(req.query.lat),lng=parseFloat(req.query.lng);
+  if(!isValidTTCoord(lat,lng))return res.status(400).json({error:'Invalid coordinates'});
+  const label=await reverseGeocode(lat,lng);
+  res.json({label});
 });
 
 // Route geometry for an existing ride's pickup/destination -- used to (re)draw the map

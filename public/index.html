@@ -43,14 +43,14 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    gray bars on either side on any tablet/wide-screen/desktop browser. Now fills the
    full viewport everywhere; a soft width cap only kicks in on genuinely huge desktop
    monitors so text doesn't stretch into unreadably long lines. */
-.app-bg-video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.5}
-.app-bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,47,168,.18),rgba(122,18,99,.28));pointer-events:none}
+.app-bg-video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.65}
+.app-bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,47,168,.35),rgba(122,18,99,.5));pointer-events:none}
 @media (prefers-reduced-motion:reduce){.app-bg-video{display:none}}
 /* Translucent + blurred rather than solid #fff so the app-bg-video shows through as an
    ambient wash on every page -- individual .card elements underneath stay fully opaque
    #fff, so nothing about their own readability changes; only the empty space around
    them (page backgrounds, gaps, empty states) picks up the video/color. */
-#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;max-width:1600px;margin:0 auto;background:rgba(255,255,255,.9);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);position:relative;z-index:1;overflow:hidden}
+#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;max-width:1600px;margin:0 auto;background:rgba(255,255,255,.5);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);position:relative;z-index:1;overflow:hidden}
 .page{display:none;flex-direction:column;height:100%;overflow:hidden}
 .page.active{display:flex}
 .scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
@@ -160,6 +160,14 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .overlay.show{display:flex}
 .sheet{background:#fff;border-radius:20px 20px 0 0;padding:26px 22px 30px;width:100%;max-height:90vh;overflow-y:auto;animation:shU .28s cubic-bezier(.2,.9,.25,1);box-shadow:0 -1px 0 rgba(17,17,17,.05),0 -20px 50px -10px rgba(17,17,17,.25)}
 @keyframes shU{from{transform:translateY(100%)}to{transform:none}}
+/* Fullscreen map pin picker */
+.map-picker{position:fixed;inset:0;z-index:400;background:#fff;display:none;flex-direction:column}
+.map-picker.show{display:flex}
+.map-picker-top{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #f0f0f0;flex-shrink:0}
+.map-picker-x{width:32px;height:32px;border-radius:50%;border:none;background:#f3f4f6;font-size:16px;cursor:pointer;color:#374151}
+#map-picker-map{flex:1;position:relative;background:#f0f0f0}
+.map-picker-pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);font-size:38px;pointer-events:none;z-index:10;filter:drop-shadow(0 4px 6px rgba(0,0,0,.35))}
+.map-picker-bottom{padding:14px 16px 20px;border-top:1px solid #f0f0f0;flex-shrink:0}
 /* Stars */
 .stars{display:flex;gap:5px;justify-content:center}
 .star{font-size:30px;cursor:pointer;color:#e5e7eb;transition:color .1s}
@@ -334,6 +342,21 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div class="fg"><label class="lbl">Short Description</label><input class="inp" id="biz-desc" placeholder="Premium nail care & art"></div>
     <button class="btn bp bw" onclick="saveBiz()">Add Business</button>
     <button class="btn bs bw" style="margin-top:8px" onclick="closeModal('biz-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- Fullscreen Map Pin Picker -->
+<div class="map-picker" id="map-picker">
+  <div class="map-picker-top">
+    <button class="map-picker-x" onclick="closeMapPicker()">✕</button>
+    <span id="map-picker-title" style="font-weight:700;font-size:14px">Set pickup location</span>
+    <div style="width:32px"></div>
+  </div>
+  <div id="map-picker-map"></div>
+  <div class="map-picker-pin">📍</div>
+  <div class="map-picker-bottom">
+    <p id="map-picker-addr" style="font-size:12px;color:#6b7280;margin-bottom:10px;min-height:34px;line-height:1.5">Move the map to place the pin…</p>
+    <button class="btn bp bw" id="map-picker-confirm" onclick="confirmMapPicker()">Confirm This Location</button>
   </div>
 </div>
 
@@ -971,17 +994,22 @@ function renderRiderBook(){
   }
 
   body.innerHTML=`
-    <div id="idle-map" style="height:170px;border-radius:20px;overflow:hidden;border:1.5px solid var(--pb);margin-bottom:14px;background:#f0f0f0"></div>
+    <div style="position:relative;margin-bottom:14px">
+      <div id="idle-map" style="height:170px;border-radius:20px;overflow:hidden;border:1.5px solid var(--pb);background:#f0f0f0;cursor:pointer" onclick="openMapPicker('pickup')"></div>
+      <div style="position:absolute;right:9px;bottom:9px;background:rgba(17,17,17,.72);color:#fff;font-size:10px;font-weight:600;padding:5px 10px;border-radius:20px;pointer-events:none;display:flex;align-items:center;gap:4px">📍 Tap to pin exact location</div>
+    </div>
     <div class="card">
       <h3 style="font-size:16px;margin-bottom:14px">Where to?</h3>
       <div style="position:relative;margin-bottom:10px">
         <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:9px;height:9px;background:var(--p);border-radius:50%;z-index:1"></div>
-        <input class="inp" id="ride-pickup" style="padding-left:28px" placeholder="Locating you…" autocomplete="off">
+        <input class="inp" id="ride-pickup" style="padding-left:28px;padding-right:38px" placeholder="Locating you…" autocomplete="off">
+        <button type="button" title="Pin on map" onclick="openMapPicker('pickup')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:none;background:transparent;font-size:15px;cursor:pointer">📍</button>
         <div id="ride-pickup-suggest" class="addr-suggest"></div>
       </div>
       <div style="position:relative;margin-bottom:14px">
         <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:9px;height:9px;background:#111827;border-radius:50%;z-index:1"></div>
-        <input class="inp" id="ride-dest" style="padding-left:28px" placeholder="Where are you going?" list="dest-list" oninput="onDestChange(this.value)" autocomplete="off">
+        <input class="inp" id="ride-dest" style="padding-left:28px;padding-right:38px" placeholder="Where are you going?" list="dest-list" oninput="onDestChange(this.value)" autocomplete="off">
+        <button type="button" title="Pin on map" onclick="openMapPicker('dest')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:none;background:transparent;font-size:15px;cursor:pointer">📍</button>
         <datalist id="dest-list">${LOCATIONS.map(l=>`<option value="${l}">`).join('')}</datalist>
         <div id="ride-dest-suggest" class="addr-suggest"></div>
       </div>
@@ -1005,8 +1033,11 @@ function renderRiderBook(){
       <label style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--pb);border-radius:14px;padding:11px 14px;margin-bottom:14px;cursor:pointer;font-size:12px">
         <input type="checkbox" id="ride-redeem-points" onchange="showFarePreview(document.getElementById('ride-dest').value)">
         <span>🌸 ${S.user.pink_points} Bullet Pink Points (${S.user.pink_points_tier||'Bronze'}) — redeem for up to ${fmtFare(Math.min(S.user.pink_points/20,999))} off</span>
-      </label>`:''}
-      <div id="promo-row" style="display:none;flex;gap:8px;margin-bottom:10px">
+      </label>`:`
+      <div style="background:#fff;border:1.5px solid var(--pb);border-radius:14px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#9ca3af">
+        🌸 0 Bullet Pink Points — earn points on every ride and redeem them for fare discounts
+      </div>`}
+      <div id="promo-row" style="display:flex;gap:8px;margin-bottom:10px">
         <input class="inp" id="promo-inp" style="flex:1;font-size:16px;padding:9px 12px" placeholder="Promo code (WELCOME25)">
         <button class="btn bs bsm" onclick="applyPromo()">Apply</button>
       </div>
@@ -2285,6 +2316,66 @@ function updateIdleMap(d){
   _P_MARKER=L.marker([d.pickup_lat,d.pickup_lng],{icon:_pinkIcon()}).addTo(_MAP_IDLE).bindPopup('📍 Pickup');
   _D_MARKER=L.marker([d.dest_lat,d.dest_lng],{icon:_greenIcon()}).addTo(_MAP_IDLE).bindPopup('🏁 Destination');
   _MAP_IDLE.fitBounds([[d.pickup_lat,d.pickup_lng],[d.dest_lat,d.dest_lng]],{padding:[30,30]});
+}
+
+// Fullscreen map-pin picker -- lets the rider drop an exact pickup/destination pin by
+// panning the map under a fixed center pin (the same mental model as Uber/Lyft), rather
+// than being limited to whatever Nominatim's address search happens to match. The pin
+// coordinate is always what's reverse-geocoded and confirmed, never a typed guess.
+let _MAP_PICKER=null,_mapPickerTarget='pickup',_mapPickerCoord=null,_mapPickerAddrTimer=null;
+function openMapPicker(target){
+  _mapPickerTarget=target;
+  _mapPickerCoord=null;
+  document.getElementById('map-picker-title').textContent=target==='dest'?'Set destination':'Set pickup location';
+  document.getElementById('map-picker-addr').textContent='Move the map to place the pin…';
+  document.getElementById('map-picker').classList.add('show');
+  const startCoord=target==='dest'
+    ?(S._destSuggest?[S._destSuggest.lat,S._destSuggest.lng]:null)
+    :(S._pickupSuggest?[S._pickupSuggest.lat,S._pickupSuggest.lng]:(typeof S.myLat==='number'?[S.myLat,S.myLng]:null));
+  _initLeaflet().then(()=>{
+    const el=document.getElementById('map-picker-map');if(!el)return;
+    if(_MAP_PICKER){try{_MAP_PICKER.remove();}catch{}}_MAP_PICKER=null;
+    _MAP_PICKER=L.map(el,{zoomControl:false,attributionControl:false}).setView(startCoord||[10.6549,-61.5019],startCoord?16:12);
+    _watchTiles(_MAP_PICKER,el);
+    _tileLayer(_MAP_PICKER);L.control.zoom({position:'bottomright'}).addTo(_MAP_PICKER);
+    _MAP_PICKER.on('moveend',_onMapPickerMove);
+    setTimeout(()=>{_MAP_PICKER&&_MAP_PICKER.invalidateSize();_onMapPickerMove();},250);
+  }).catch(()=>{
+    const el=document.getElementById('map-picker-map');
+    if(el)_showMapError(el,()=>openMapPicker(target));
+  });
+}
+function _onMapPickerMove(){
+  if(!_MAP_PICKER)return;
+  const c=_MAP_PICKER.getCenter();
+  _mapPickerCoord={lat:c.lat,lng:c.lng};
+  const addrEl=document.getElementById('map-picker-addr');
+  if(addrEl)addrEl.textContent='Locating address…';
+  clearTimeout(_mapPickerAddrTimer);
+  _mapPickerAddrTimer=setTimeout(async()=>{
+    const attempt=await _fetchWithRetry(`/api/reverse-geocode?lat=${c.lat}&lng=${c.lng}`);
+    if(!addrEl||!_mapPickerCoord||_mapPickerCoord.lat!==c.lat||_mapPickerCoord.lng!==c.lng)return; // map moved again meanwhile
+    addrEl.textContent=(attempt.ok&&attempt.json.label)?attempt.json.label:`${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`;
+  },400);
+}
+function closeMapPicker(){
+  document.getElementById('map-picker').classList.remove('show');
+}
+function confirmMapPicker(){
+  if(!_mapPickerCoord)return;
+  const addr=document.getElementById('map-picker-addr').textContent;
+  const coord={lat:_mapPickerCoord.lat,lng:_mapPickerCoord.lng,precise:true};
+  if(_mapPickerTarget==='dest'){
+    S._destSuggest=coord;
+    const inp=document.getElementById('ride-dest');if(inp)inp.value=addr;
+    document.getElementById('promo-row').style.display='flex';
+  }else{
+    S._pickupSuggest=coord;
+    const inp=document.getElementById('ride-pickup');if(inp)inp.value=addr;
+  }
+  closeMapPicker();
+  const dest=document.getElementById('ride-dest')?.value;
+  if(dest)showFarePreview(dest);
 }
 function initTrackMap(pickup,destination,driverLat,driverLng){
   const el0=document.getElementById('track-map');if(!el0)return;
