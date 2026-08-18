@@ -46,7 +46,12 @@ const DEFAULT_SETTINGS={
 };
 // Additive migrations for DBs created before a column existed — safe to fail if already applied.
 const MIGRATIONS_SQL=[
-  `ALTER TABLE driver_profiles ADD COLUMN license_photo TEXT DEFAULT ''`
+  `ALTER TABLE driver_profiles ADD COLUMN license_photo TEXT DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN pink_points INTEGER DEFAULT 0`,
+  `ALTER TABLE users ADD COLUMN pink_points_lifetime INTEGER DEFAULT 0`,
+  `ALTER TABLE rides ADD COLUMN points_redeemed INTEGER DEFAULT 0`,
+  `ALTER TABLE rides ADD COLUMN points_discount REAL DEFAULT 0`,
+  `ALTER TABLE rides ADD COLUMN points_earned INTEGER DEFAULT 0`
 ];
 // Postgres-flavored schema: same tables, but datetime('now') and COLLATE NOCASE
 // aren't valid Postgres syntax. Email case-insensitivity is handled at the app
@@ -54,7 +59,12 @@ const MIGRATIONS_SQL=[
 // simply dropped rather than replicated.
 const SCHEMA_SQL_PG=SCHEMA_SQL.map(s=>s.replace(/ COLLATE NOCASE/g,''));
 const MIGRATIONS_SQL_PG=[
-  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS license_photo TEXT DEFAULT ''`
+  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS license_photo TEXT DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS pink_points INTEGER DEFAULT 0`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS pink_points_lifetime INTEGER DEFAULT 0`,
+  `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_redeemed INTEGER DEFAULT 0`,
+  `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_discount REAL DEFAULT 0`,
+  `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_earned INTEGER DEFAULT 0`
 ];
 // Both SCHEMA_SQL and the app's query strings use SQLite syntax (`?` placeholders,
 // datetime('now')); translate to Postgres syntax (`$1,$2,...`, now()) at the call
@@ -144,11 +154,38 @@ async function resolveCoord(address){
   if(geo)return{coord:geo,approx:false};
   return{coord:[10.6549+(Math.random()-.5)*.02,-61.5019+(Math.random()-.5)*.02],approx:true};
 }
-function calcFare(km,min){const h=new Date().getHours(),raw=25+km*3.5+min*1.5,s=(h>=22||h<5)?1.25:((h>=6&&h<9)||(h>=16&&h<19))?1.20:1;return Math.round(raw*s*100)/100;}
+function calcFare(km,min){const h=new Date().getHours(),raw=18+km*3.5+min*1.5,s=(h>=22||h<5)?1.25:((h>=6&&h<9)||(h>=16&&h<19))?1.20:1;return Math.round(raw*s*100)/100;}
+
+// ── Bullet Pink Points loyalty program ─────────────────────────────────────────
+// Points are earned on what the rider ACTUALLY pays (after any points discount),
+// not the pre-discount fare -- earning points on a discount funded by other points
+// would let a balance regenerate itself indefinitely. Redemption is capped at 50%
+// of the fare so a ride can never be reduced to $0 via points alone.
+// Driver payout is calculated from the FULL pre-discount fare (see the ride_status
+// 'completed' handler) -- the points discount comes out of the platform's margin,
+// never the driver's earnings, matching the "without diminishing driver payouts"
+// requirement directly.
+const PINK_POINTS_EARN_RATE=1; // 1 point per TTD $1 actually paid, before tier multiplier
+const PINK_POINTS_REDEEM_RATE=20; // 20 points = TTD $1 off
+const PINK_POINTS_MAX_REDEEM_PCT=0.5; // can't discount more than half the fare
+function pinkPointsTier(lifetimePoints){
+  if(lifetimePoints>=2000)return{name:'Gold',multiplier:1.5};
+  if(lifetimePoints>=500)return{name:'Silver',multiplier:1.25};
+  return{name:'Bronze',multiplier:1.0};
+}
+// Converts a requested point redemption into an actual (points,discount$) pair,
+// clamped to what the rider actually has and the per-ride redemption cap.
+function clampPointsRedemption(requestedPoints,availablePoints,fare){
+  const maxByBalance=Math.max(0,Math.floor(availablePoints||0));
+  const maxByFareCap=Math.floor(fare*PINK_POINTS_MAX_REDEEM_PCT*PINK_POINTS_REDEEM_RATE);
+  const points=Math.max(0,Math.min(Math.floor(requestedPoints||0),maxByBalance,maxByFareCap));
+  const discount=Math.round((points/PINK_POINTS_REDEEM_RATE)*100)/100;
+  return{points,discount};
+}
 function dist(p,d){const R=6371,dLat=(d[0]-p[0])*Math.PI/180,dLon=(d[1]-p[1])*Math.PI/180,a=Math.sin(dLat/2)**2+Math.cos(p[0]*Math.PI/180)*Math.cos(d[0]*Math.PI/180)*Math.sin(dLon/2)**2;return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*10)/10;}
 
 async function buildDB(){
-  const users=(await dbAll('SELECT id,email,first_name,last_name,phone,role,gender,is_verified,is_active,emergency_contact_name,emergency_contact_phone,wallet_balance,total_rides,created_at FROM users')).map(u=>({...u,is_verified:!!u.is_verified,is_active:!!u.is_active}));
+  const users=(await dbAll('SELECT id,email,first_name,last_name,phone,role,gender,is_verified,is_active,emergency_contact_name,emergency_contact_phone,wallet_balance,total_rides,pink_points,pink_points_lifetime,created_at FROM users')).map(u=>({...u,is_verified:!!u.is_verified,is_active:!!u.is_active,pink_points:u.pink_points||0,pink_points_lifetime:u.pink_points_lifetime||0,pink_points_tier:pinkPointsTier(u.pink_points_lifetime||0).name}));
   const driver_profiles=(await dbAll('SELECT id,user_id,license_number,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status,is_online,current_lat,current_lng,total_trips,total_earnings,balance,today_earnings,rating,rating_count,created_at FROM driver_profiles')).map(d=>({...d,is_online:!!d.is_online,approved_at:d.status==='approved'?d.created_at:null}));
   const rides=await dbAll('SELECT * FROM rides');
   const payments=await dbAll('SELECT * FROM payments');
@@ -402,8 +439,12 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       if(ex)return res.json({ok:false,error:'You already have an active ride'});
       const p=isValidTTCoord(data.pickup_lat,data.pickup_lng)?[data.pickup_lat,data.pickup_lng]:(await resolveCoord(data.pickup_address)).coord;
       const d=(await resolveCoord(data.destination_address)).coord;
-      const km=dist(p,d),min=Math.round(km*2.5+5),fare=calcFare(km,min);
-      await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes)VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',[uuidv4(),userId,'requested',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min]);
+      const km=dist(p,d),min=Math.round(km*2.5+5),fullFare=calcFare(km,min);
+      const rider=await dbGet('SELECT pink_points FROM users WHERE id=?',[userId]);
+      const{points,discount}=clampPointsRedemption(data.points_to_redeem,rider?.pink_points||0,fullFare);
+      const fare=Math.round((fullFare-discount)*100)/100;
+      if(points>0)await dbRun('UPDATE users SET pink_points=pink_points-? WHERE id=?',[points,userId]);
+      await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,points_redeemed,points_discount)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[uuidv4(),userId,'requested',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,points,discount]);
     }else if(type==='accept_ride'){
       const ride=await dbGet("SELECT * FROM rides WHERE id=? AND status='requested'",[data.ride_id]);
       if(!ride)return res.json({ok:false,error:'Ride no longer available'});
@@ -417,14 +458,21 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       if(data.status==='arriving'){await dbRun("UPDATE rides SET status='arriving' WHERE id=?",[data.ride_id]);}
       else if(data.status==='in_progress'){await dbRun("UPDATE rides SET status='in_progress',started_at=datetime('now') WHERE id=?",[data.ride_id]);}
       else if(data.status==='completed'){
-        const fare=ride.final_fare||ride.estimated_fare||25,earn=fare*.8;
-        await dbRun("UPDATE rides SET status='completed',completed_at=datetime('now'),final_fare=? WHERE id=?",[fare,data.ride_id]);
+        // fare = what the rider actually pays (estimated_fare already has any points
+        // discount baked in). Driver earnings are calculated from the full pre-discount
+        // fare (fare + points_discount) so a points redemption never reduces payout.
+        const fare=ride.final_fare||ride.estimated_fare||18,fullFare=fare+(ride.points_discount||0),earn=fullFare*.8;
+        const rider=await dbGet('SELECT pink_points,pink_points_lifetime FROM users WHERE id=?',[ride.rider_id]);
+        const tier=pinkPointsTier(rider?.pink_points_lifetime||0);
+        const pointsEarned=Math.round(fare*PINK_POINTS_EARN_RATE*tier.multiplier);
+        await dbRun("UPDATE rides SET status='completed',completed_at=datetime('now'),final_fare=?,points_earned=? WHERE id=?",[fare,pointsEarned,data.ride_id]);
         await dbRun('UPDATE driver_profiles SET total_trips=total_trips+1,total_earnings=total_earnings+?,balance=balance+?,today_earnings=today_earnings+? WHERE user_id=?',[earn,earn,earn,ride.driver_id]);
-        await dbRun('UPDATE users SET total_rides=total_rides+1 WHERE id=?',[ride.rider_id]);
-        await dbRun('INSERT INTO payments(id,ride_id,rider_id,driver_id,amount,platform_fee,driver_earning,status,method)VALUES(?,?,?,?,?,?,?,?,?)',[uuidv4(),ride.id,ride.rider_id,ride.driver_id,fare,fare*.2,earn,'completed','cash']);
-        broadcastTo(ride.rider_id,{type:'ride_completed',fare});
+        await dbRun('UPDATE users SET total_rides=total_rides+1,pink_points=pink_points+?,pink_points_lifetime=pink_points_lifetime+? WHERE id=?',[pointsEarned,pointsEarned,ride.rider_id]);
+        await dbRun('INSERT INTO payments(id,ride_id,rider_id,driver_id,amount,platform_fee,driver_earning,status,method)VALUES(?,?,?,?,?,?,?,?,?)',[uuidv4(),ride.id,ride.rider_id,ride.driver_id,fare,fullFare-earn,earn,'completed','cash']);
+        broadcastTo(ride.rider_id,{type:'ride_completed',fare,pointsEarned});
       }else if(data.status==='cancelled'){
         await dbRun("UPDATE rides SET status='cancelled',cancelled_at=datetime('now') WHERE id=?",[data.ride_id]);
+        if(ride.points_redeemed>0)await dbRun('UPDATE users SET pink_points=pink_points+? WHERE id=?',[ride.points_redeemed,ride.rider_id]);
         if(ride.rider_id)broadcastTo(ride.rider_id,{type:'ride_cancelled'});
         if(ride.driver_id)broadcastTo(ride.driver_id,{type:'ride_cancelled'});
       }

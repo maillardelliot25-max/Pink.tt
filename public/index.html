@@ -918,6 +918,11 @@ function renderRiderBook(){
           <div style="text-align:right;font-size:11px;color:#9ca3af"><div id="fare-km">—</div><div id="fare-min">—</div></div>
         </div>
       </div>
+      ${S.user?.pink_points>0?`
+      <label style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--pb);border-radius:14px;padding:11px 14px;margin-bottom:14px;cursor:pointer;font-size:12px">
+        <input type="checkbox" id="ride-redeem-points" onchange="showFarePreview(document.getElementById('ride-dest').value)">
+        <span>🌸 ${S.user.pink_points} Bullet Pink Points (${S.user.pink_points_tier||'Bronze'}) — redeem for up to ${fmtFare(Math.min(S.user.pink_points/20,999))} off</span>
+      </label>`:''}
       <div id="promo-row" style="display:none;flex;gap:8px;margin-bottom:10px">
         <input class="inp" id="promo-inp" style="flex:1;font-size:13px;padding:9px 12px" placeholder="Promo code (WELCOME25)">
         <button class="btn bs bsm" onclick="applyPromo()">Apply</button>
@@ -952,12 +957,14 @@ function showFarePreview(dest){
   const pickup=document.getElementById('ride-pickup')?.value||'Port of Spain';
   const destination=dest||document.getElementById('ride-dest')?.value||'';
   if(!destination)return;
-  fetch('/api/fare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pickup,destination})})
+  fetch('/api/fare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pickup,destination,pickup_lat:S.myLat,pickup_lng:S.myLng})})
     .then(r=>r.json()).then(d=>{
       S._km=d.km;S._min=d.min;S._fare=d.fare;S._pickupCoord=[d.pickup_lat,d.pickup_lng];S._destCoord=[d.dest_lat,d.dest_lng];
       const f=d.fare,prev=document.getElementById('fare-preview');if(!prev)return;
       prev.style.display='block';
-      const final=S.promoResult?f-S.promoResult.discount_amount:f;
+      const redeemChecked=document.getElementById('ride-redeem-points')?.checked;
+      const pointsDiscount=redeemChecked?Math.min((S.user?.pink_points||0)/20,f*0.5):0;
+      const final=(S.promoResult?f-S.promoResult.discount_amount:f)-pointsDiscount;
       document.getElementById('fare-amt').innerHTML=fmtFare(final)+(d.surge!=='standard'?` <span style="font-size:10px;color:#9ca3af">${d.surge==='night'?'🌙 Night':'⚡ Peak'}</span>`:'');
       document.getElementById('fare-km').textContent=d.km.toFixed(1)+' km';
       document.getElementById('fare-min').textContent='~'+d.min+' min';
@@ -2258,7 +2265,9 @@ bookRide=async function(){
   if(pickup===dest){toast('Pickup and destination cannot be the same','err');return;}
   const btn=document.getElementById('book-btn');
   if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Booking...';}
-  const res=await _mutate('book_ride',{pickup_address:pickup,destination_address:dest,pickup_lat:S.myLat,pickup_lng:S.myLng});
+  const redeemChecked=document.getElementById('ride-redeem-points')?.checked;
+  const pointsToRedeem=redeemChecked?(S.user?.pink_points||0):0;
+  const res=await _mutate('book_ride',{pickup_address:pickup,destination_address:dest,pickup_lat:S.myLat,pickup_lng:S.myLng,points_to_redeem:pointsToRedeem});
   if(res.ok){
     toast('🌸 Ride requested! Finding your driver...','ok');
     await _pttLoadDB();
@@ -2271,6 +2280,21 @@ bookRide=async function(){
     _startRidePoll();
   }
   if(btn){btn.disabled=false;btn.textContent='🌸 Book Ride';}
+};
+
+// Base riderCancel() only mutated local demo state and never told the server, so
+// cancelling never actually persisted (same bug class fixed for driver accept earlier).
+riderCancel=async function(){
+  if(!S.activeRide)return;
+  const id=S.activeRide.id;
+  const res=await _mutate('ride_status',{ride_id:id,status:'cancelled'});
+  if(res.ok){
+    clearInterval(_ridePollTimer);_ridePollTimer=null;
+    S.rideStatus=null;S.activeRide=null;S.driverInfo=null;
+    toast('Ride cancelled');
+    await _pttLoadDB();
+    renderRiderBook&&renderRiderBook();
+  }
 };
 
 // ── Poll active ride for updates ─────────────────────────────────
