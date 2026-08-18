@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pink.TT — You're Offline</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--p:#E91E8C;--pp:#FFF0F6}
+html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#f0f0f0}
+h1{font-family:'Playfair Display',Georgia,serif}
+#shell{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;max-width:430px;margin:0 auto;background:#fff;padding:32px 24px;text-align:center;box-shadow:0 0 60px rgba(0,0,0,.15)}
+.logo-dot{width:56px;height:56px;border-radius:16px;background:var(--p);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:26px;margin-bottom:18px}
+h1{font-size:22px;margin-bottom:8px;color:#111}
+p{color:#6b7280;font-size:14px;line-height:1.6;margin-bottom:24px}
+.btn{display:inline-block;background:var(--p);color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 28px;border-radius:16px;border:none;cursor:pointer}
+.btn:focus-visible{outline:2px solid var(--p);outline-offset:3px}
+</style>
+</head>
+<body>
+<div id="shell">
+  <div class="logo-dot">P</div>
+  <h1>You're offline</h1>
+  <p>We can't reach Pink.TT right now. Check your connection and try again — your safety features need a live connection to work.</p>
+  <button class="btn" onclick="location.reload()">Try Again</button>
+</div>
+</body>
+</html>

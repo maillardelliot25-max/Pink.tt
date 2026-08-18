@@ -26,20 +26,53 @@ can sign up, book rides, and interact with real drivers in real time.
 
 ## How It Works
 
-- **SQLite database** (`pinktt.db`) — all users, rides, earnings persist between restarts
+- **Database** — checked in this order: Postgres (e.g. Supabase) if `DATABASE_URL` is set, else Turso (libSQL) if `TURSO_DATABASE_URL` is set, else local SQLite (`pinktt.db`) for dev
 - **WebSocket** — riders and drivers communicate in real time (no refresh needed)
-- **JWT auth** — secure tokens, 30-day sessions
+- **JWT auth** — secure tokens, 30-day sessions (set `JWT_SECRET` in production)
 - **Live map** — CARTO/OpenStreetMap tiles, Leaflet.js, animated GPS tracking
+- **ID verification** — riders and drivers upload a photo after registering; `POST /api/verify-id` calls a vision AI server-side (key never reaches the browser) to confirm the account is eligible for this women-only platform. Tries `ANTHROPIC_API_KEY` first, falls back to `GEMINI_API_KEY` if that's unset or the Anthropic call fails (e.g. no credit balance). Without either set, this runs in **demo mode** (auto-approves, logs a warning) so local dev doesn't require a key.
+- **Rate limiting** — `/api/register`, `/api/login` (20 req/15min), `/api/mutation` (60 req/min), `/api/verify-id` (10 req/15min); plus a per-account login lockout (5 failed attempts = 15 min lock) independent of the per-IP limiter
+- **SOS safety alert** — logs the event, notifies the admin panel, and — if Twilio env vars + a safety-team phone number (set in-app under Admin → Settings) are configured — places an automated call and SMS to that number. **This never contacts real police directly** — a human on the safety team decides whether to call the Trinidad & Tobago Police Service. No formal TTPS dispatch integration exists; see `/terms.html` and `/privacy.html` for the exact wording shown to users.
+- **Admin panel → Settings tab** — editable safety/support contact numbers, staff/admin account management (create, promote, demote, cannot remove the last admin), and an audit log of sensitive admin actions
+- **New-signup notifications** — every new rider/driver registration notifies all active admins in the dashboard (🔔 bell icon, top right of the admin panel) and, if `GMAIL_USER`/`GMAIL_APP_PASSWORD` are set, by email
+- **Real pickup location** — the booking screen asks for the browser's GPS location and uses those exact coordinates for pickup, instead of a fixed placeholder. Falls back to address-based lookup only if location access is denied
+- **Destination geocoding** — typed destinations are resolved via a small hardcoded list of T&T neighborhoods first, then real geocoding (OpenStreetMap Nominatim, free, no API key) for anything else, so fares reflect actual distance instead of a random nearby guess
+
+## Environment Variables
+
+See `.env.example`. Notable ones:
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string (e.g. Supabase) — takes priority over Turso if both are set |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Hosted Turso DB — used if `DATABASE_URL` isn't set |
+| `JWT_SECRET` | Signs auth tokens — **set a long random value in production**, otherwise an insecure default is used (with a startup warning) |
+| `ANTHROPIC_API_KEY` | Primary provider for `/api/verify-id`. Requires billing set up on console.anthropic.com — no free tier for API usage |
+| `GEMINI_API_KEY` | Fallback provider for `/api/verify-id`, used if Anthropic is unset or fails. Genuinely free, no credit card required — get one at aistudio.google.com |
+| `GEMINI_MODEL` | Optional, defaults to `gemini-3.6-flash` |
+| `SHOW_DEMO_ACCOUNTS` | `true`/`false`. Controls the tap-to-fill demo accounts panel on the login screen. Defaults to visible outside production, hidden when `NODE_ENV=production` |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | Powers the automated SOS call/SMS. Omit any of the three and SOS falls back to logging + admin-panel notification only |
+| `PUBLIC_URL` | Your deployed URL (e.g. `https://pinktt.onrender.com`) — Twilio calls this back to fetch what to say during the SOS call |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Powers admin email notifications on new signups. Free Gmail App Password (needs 2-Step Verification on) — no paid email service needed |
+| `ADMIN_NOTIFICATION_EMAIL` | Who receives signup notification emails. Defaults to `Maillardelliot25@gmail.com` |
+
+**Payment processing is not yet integrated.** Stripe and PayPal don't operate in Trinidad & Tobago; the real options are WiPay, Powertranz, or Republic EPay. This needs a decision on which processor before it can be built.
+| `NODE_ENV` | Set to `production` on your host |
 
 ---
 
 ## Accounts
 
-| Role   | Email              | Password    |
-|--------|--------------------|-------------|
-| Admin  | admin@pink.tt      | Admin@2024  |
+The admin account always seeds on first boot. The rider/driver demo accounts below only seed when `SHOW_DEMO_ACCOUNTS` is not explicitly `false` (see [Environment Variables](#environment-variables)) — set it to `false` in production to skip creating them and hide the quick-fill panel on the login screen.
 
-New users register from the app — no pre-seeding needed.
+| Role          | Email                  | Password         |
+|---------------|------------------------|------------------|
+| Admin         | admin@pink.tt          | Admin@PinkTT2024 |
+| Rider         | sarah@demo.pink.tt     | Rider@2024       |
+| Driver ✓ (approved) | aminah@demo.pink.tt | Driver@2024      |
+| Driver ⏳ (pending)  | priya@demo.pink.tt  | Driver@2024      |
+
+New users register from the app — no pre-seeding needed beyond the above.
 
 ---
 
@@ -113,19 +146,37 @@ python3 patch.py
 
 ---
 
-## Deploy to Production
+## Deploy to Production (Bonto — free, no card required)
 
-For a real server (e.g. DigitalOcean, Railway, Render):
+Bonto ([bonto.dev](https://bonto.dev)) is the current pick. The app's real-time layer (SOS alerts, live ride tracking) depends on a stable WebSocket connection, and Render's free tier drops that connection every time it spins down after 15 minutes idle — a real reliability risk for a safety feature, not just a cosmetic cold start. Bonto's tradeoff (a ~75 compute-hour/month cap) doesn't degrade behavior while the app is actively in use; it just stops working once you cross the monthly cap, which is a more predictable failure mode. Move to a paid always-on tier (on whichever host) before a real public launch.
 
-```bash
-# Set environment variable
-export PORT=3000
-export NODE_ENV=production
+1. Push this repo to GitHub (already done if you're reading this from the repo).
+2. At [bonto.dev](https://bonto.dev), create an account and create a new app, connecting it to this GitHub repo/branch (Git push-to-deploy) — or, if you already created an app earlier, open its **Terminal** tab and run `git fetch origin && git checkout claude/pinktt-server-app-structure-a338zo && git pull && npm install`.
+3. Bonto auto-detects Node.js via `package.json` — no Dockerfile needed. It runs `npm install` then the `start` script (`node server.js`), and auto-assigns `PORT` (the app already reads `process.env.PORT`, no changes needed).
+4. In the app's environment variables settings, add:
+   - `NODE_ENV=production`
+   - `JWT_SECRET=<a long random string>`
+   - `DATABASE_URL` — your Supabase connection string (see below)
+   - `ANTHROPIC_API_KEY` (optional — omit to run ID verification in demo mode)
+   - `SHOW_DEMO_ACCOUNTS=false`
+5. Deploy/redeploy. Bonto gives you a live `*.bonto.run` URL with HTTPS (needed for camera/GPS access on mobile).
+6. Push-to-deploy means future commits to this branch redeploy automatically — confirm that's on in the app settings. (If you set this app up via the Terminal `git clone` method, redeploys need a manual `git pull` in that tab instead — there's no auto-deploy hook that way.)
 
-# Use PM2 for persistence
-npm install -g pm2
-pm2 start server.js --name pinktt
-pm2 save
-```
+### Setting up a persistent database
 
-For HTTPS (required for camera/GPS access on mobile), put behind Nginx + Let's Encrypt.
+Local SQLite doesn't survive redeploys on most hosts — pick one of these.
+
+**Supabase (Postgres)** — if you already have a Supabase project:
+1. Dashboard → Project Settings → Database → Connection string → copy the URI (either "Session pooler" or direct connection both work with this app).
+2. Fill in your database password (set at project creation, or reset it from that same page).
+3. Set that full string as `DATABASE_URL` on your host. No separate setup script needed — the app creates its own tables on first boot.
+
+**Turso (libSQL)** — alternative if you'd rather not use Postgres:
+Run `node turso-setup.js` with a `TURSO_API_TOKEN` (get one free at [turso.tech](https://turso.tech), no card required) to provision a database and print the `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` to set on your host.
+
+### Alternatives considered
+
+- **Render** ([render.com](https://render.com)) — no card, and this repo has a ready `render.yaml` Blueprint if you want to try it (New → Blueprint, connect the repo, it auto-configures). Ruled out as the primary pick because its free tier spins down after 15 minutes idle, dropping the WebSocket connection that SOS alerts and live tracking depend on.
+- **Koyeb** ([koyeb.com](https://www.koyeb.com)) — free Hobby instance, scales to zero after 1hr idle. As of this writing Koyeb is being acquired by Mistral AI and account creation (email verification) was unreliable during testing.
+- **Vercel/Netlify** — ruled out: both run Node as stateless serverless functions with no persistent process, which conflicts with this app's `app.listen()` + in-memory WebSocket design. Moving to either would require rewriting the server as serverless functions and replacing the WebSocket layer (e.g. with Supabase Realtime) — a substantially bigger job than a hosting swap.
+- **Railway / Fly.io** — both now require a credit card to sign up, so they're excluded by the "no card" constraint.

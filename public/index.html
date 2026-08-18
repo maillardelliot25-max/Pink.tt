@@ -2,17 +2,48 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pink.TT — Safe Rides for Women</title>
+<meta name="description" content="Pink.TT connects women riders with verified women drivers across Trinidad & Tobago. Women-only, police-linked SOS, live GPS tracking.">
+<meta name="theme-color" content="#E91E8C">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Pink.TT">
+<meta property="og:title" content="Pink.TT — Safe Rides for Women, By Women">
+<meta property="og:description" content="Women-only rideshare for Trinidad & Tobago. Verified women drivers, police-linked SOS, live GPS tracking.">
+<meta property="og:image" content="https://pinktt.onrender.com/og-image.png">
+<meta property="og:url" content="https://pinktt.onrender.com/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Pink.TT — Safe Rides for Women, By Women">
+<meta name="twitter:description" content="Women-only rideshare for Trinidad & Tobago. Verified women drivers, police-linked SOS, live GPS tracking.">
+<meta name="twitter:image" content="https://pinktt.onrender.com/og-image.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<!-- PWA: makes "Add to Home Screen" open full-screen with no browser chrome, on both iOS and Android -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pink.TT">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-:root{--p:#E91E8C;--pl:#FF6BB5;--pd:#C4006F;--pp:#FFF0F6;--pb:#fce7f3;--g:#22c55e;--y:#f59e0b;--r:#ef4444;--b:#3b82f6;--gray:#f9fafb;--shadow:0 4px 20px rgba(0,0,0,.08);--pink-shadow:0 4px 20px rgba(233,30,140,.25)}
-html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#f0f0f0;-webkit-font-smoothing:antialiased}
+:root{--p:#E91E8C;--pl:#FF6BB5;--pd:#C4006F;--pp:#FFF0F6;--pb:#fce7f3;--g:#22c55e;--y:#f59e0b;--r:#ef4444;--b:#3b82f6;--gray:#f9fafb;--shadow:0 1px 2px rgba(17,17,17,.04),0 10px 24px -8px rgba(17,17,17,.10);--pink-shadow:0 1px 2px rgba(196,0,111,.15),0 10px 22px -6px rgba(233,30,140,.38)}
+html,body{height:100%;overflow:hidden;font-family:'DM Sans',system-ui,sans-serif;background:#fff;-webkit-font-smoothing:antialiased}
 h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
-#shell{display:flex;flex-direction:column;height:100vh;max-width:430px;margin:0 auto;background:#fff;position:relative;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.15)}
+/* height:100dvh (dynamic viewport height) accounts for the mobile browser address bar
+   showing/hiding; the plain 100vh fallback above it is for older browsers that don't
+   support dvh. Without this, #shell could be sized taller than what's actually visible
+   when the address bar is showing, and with html,body now overflow:hidden that extra
+   height was simply inaccessible -- looked exactly like "can't scroll down". */
+/* #shell used to cap out at 430px and float centered like a phone mockup, leaving big
+   gray bars on either side on any tablet/wide-screen/desktop browser. Now fills the
+   full viewport everywhere; a soft width cap only kicks in on genuinely huge desktop
+   monitors so text doesn't stretch into unreadably long lines. */
+#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;max-width:1600px;margin:0 auto;background:#fff;position:relative;overflow:hidden}
 .page{display:none;flex-direction:column;height:100%;overflow:hidden}
 .page.active{display:flex}
 .scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
@@ -21,29 +52,35 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* Top bar */
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff;border-bottom:1px solid #f0f0f0;flex-shrink:0;z-index:10}
 .logo{display:flex;align-items:center;gap:8px}
-.logo-dot{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--p),var(--pl));display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;font-family:'Playfair Display',serif;flex-shrink:0}
-.logo-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--p)}
+.logo-dot{width:30px;height:30px;border-radius:9px;background:linear-gradient(150deg,var(--pl),var(--p) 55%,var(--pd));display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;font-family:'Playfair Display',serif;flex-shrink:0;box-shadow:0 3px 8px -2px rgba(196,0,111,.5),inset 0 1px 0 rgba(255,255,255,.35)}
+.logo-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--p);letter-spacing:-.2px}
 /* Buttons */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;font-family:inherit;font-weight:600;border-radius:14px;transition:all .15s;outline:none;font-size:14px;padding:11px 20px}
-.bp{background:var(--p);color:#fff;box-shadow:var(--pink-shadow)}
-.bp:hover{background:var(--pd);transform:translateY(-1px)}
-.bp:active{transform:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;font-family:inherit;font-weight:700;letter-spacing:.1px;border-radius:11px;transition:transform .15s cubic-bezier(.2,.8,.2,1),box-shadow .15s,background .15s,filter .15s;outline:none;font-size:14px;padding:11px 20px}
+.btn:focus-visible,.tab:focus-visible,.role-o:focus-visible,.tog:focus-visible,a:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.bp{background:linear-gradient(155deg,var(--pl),var(--p) 60%);color:#fff;box-shadow:var(--pink-shadow)}
+.bp:hover{filter:brightness(1.04);transform:translateY(-1px);box-shadow:0 2px 4px rgba(196,0,111,.2),0 14px 26px -8px rgba(233,30,140,.45)}
+.bp:active{transform:translateY(0) scale(.98);filter:brightness(.97)}
 .bs{background:#fff;color:var(--p);border:1.5px solid var(--pb)}
-.bs:hover{background:var(--pp)}
+.bs:hover{background:var(--pp);border-color:var(--p)}
 .br{background:var(--r);color:#fff}
 .bg2{background:var(--g);color:#fff}
 .bw{width:100%}
-.bsm{padding:7px 14px;font-size:12px;border-radius:10px}
+.bsm{padding:7px 14px;font-size:12px;border-radius:9px}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
 /* Form */
-.inp{width:100%;border:1.5px solid #e5e7eb;border-radius:14px;padding:11px 14px;font-size:14px;font-family:inherit;background:#fff;transition:all .15s;outline:none}
-.inp:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(233,30,140,.08)}
-.lbl{display:block;font-size:11px;font-weight:700;color:#6b7280;margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
+.inp{width:100%;border:1.5px solid #e5e7eb;border-radius:11px;padding:11px 14px;font-size:14px;font-family:inherit;background:#fff;transition:all .15s;outline:none}
+.inp:focus{border-color:var(--p);box-shadow:0 0 0 3.5px rgba(233,30,140,.1)}
+.addr-suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid rgba(17,17,17,.06);border-radius:12px;box-shadow:0 1px 2px rgba(17,17,17,.04),0 16px 32px -10px rgba(17,17,17,.22);z-index:50;max-height:220px;overflow-y:auto;display:none}
+.addr-suggest.show{display:block}
+.addr-suggest-item{padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid #f3f4f6}
+.addr-suggest-item:last-child{border-bottom:none}
+.addr-suggest-item:hover,.addr-suggest-item:active{background:var(--pp)}
+.lbl{display:block;font-size:10.5px;font-weight:800;color:#6b7280;margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px}
 .fg{margin-bottom:14px}
 /* Cards */
-.card{background:#fff;border-radius:20px;padding:18px;box-shadow:var(--shadow)}
+.card{background:#fff;border-radius:16px;padding:18px;box-shadow:var(--shadow);border:1px solid rgba(17,17,17,.045)}
 /* Badges */
-.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
 .bpink{background:#fce7f3;color:#9d174d}
 .bgrn{background:#dcfce7;color:#166534}
 .byel{background:#fef9c3;color:#854d0e}
@@ -51,14 +88,33 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .bblu{background:#dbeafe;color:#1e40af}
 /* Toast */
 #toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:7px;width:90%;max-width:380px;pointer-events:none}
-.toast{background:#fff;border-radius:14px;padding:11px 15px;font-size:13px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,.18);border-left:4px solid var(--p);animation:tIn .25s ease;display:flex;align-items:center;gap:9px}
+.toast{background:#fff;border-radius:11px;padding:11px 15px;font-size:13px;font-weight:600;box-shadow:0 2px 6px rgba(17,17,17,.06),0 16px 32px -10px rgba(17,17,17,.25);border-left:3px solid var(--p);animation:tIn .25s ease;display:flex;align-items:center;gap:9px}
 .toast.err{border-color:var(--r)}
 .toast.ok{border-color:var(--g)}
 @keyframes tIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+/* Install banner -- a continuously-playing animated video backdrop, like Chrome's
+   classic top infobar but a lot more alive. */
+#install-banner{position:fixed;left:0;right:0;top:0;z-index:180;overflow:hidden;color:#fff;background:#7a1263;box-shadow:0 4px 18px rgba(196,0,111,.4);padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;display:flex;align-items:center;gap:10px;animation:tInTop .25s ease}
+@keyframes tInTop{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:none}}
+#install-banner .ib-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.8}
+#install-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(100deg,rgba(122,10,80,.78),rgba(90,8,65,.68));pointer-events:none}
+#install-banner>*{position:relative;z-index:1}
+#install-banner .ib-icon{width:30px;height:30px;border-radius:8px;background:#fff;border:1px solid rgba(255,255,255,.6);box-shadow:0 2px 8px rgba(0,0,0,.25);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:3px}
+#install-banner .ib-icon img{width:100%;height:100%;object-fit:contain}
+#install-banner .ib-text{flex:1;min-width:0}
+#install-banner .ib-text b{font-size:12.5px;display:block;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.25)}
+#install-banner .ib-text span{font-size:10.5px;color:rgba(255,255,255,.88)}
+#install-banner button{flex-shrink:0}
+#install-banner .btn.bp.bsm{padding:6px 12px;font-size:12px;background:#fff;color:var(--pd);box-shadow:0 2px 8px rgba(0,0,0,.2)}
+#install-banner .btn.bp.bsm:hover{background:#fff;filter:none;color:var(--pd);transform:none}
+#install-banner .ib-close{background:none;border:none;color:rgba(255,255,255,.85);font-size:16px;padding:4px 6px;cursor:pointer;line-height:1}
+#install-banner .ib-close:hover{color:#fff}
+@media (prefers-reduced-motion:reduce){#install-banner{animation:none}#install-banner .ib-bg{display:none}}
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid #f0f0f0;flex-shrink:0}
-.tab{flex:1;padding:11px 6px;text-align:center;font-size:12px;font-weight:600;color:#9ca3af;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.tab{flex:1;padding:11px 6px;text-align:center;font-size:12px;font-weight:700;color:#9ca3af;cursor:pointer;border-bottom:2.5px solid transparent;transition:all .15s;white-space:nowrap}
 .tab.on{color:var(--p);border-color:var(--p)}
+.tab:hover:not(.on){color:#6b7280}
 /* Spinners */
 .spin{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:rot .6s linear infinite;display:inline-block}
 .spinp{border-color:rgba(233,30,140,.15);border-top-color:var(--p)}
@@ -80,7 +136,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* Modal */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end}
 .overlay.show{display:flex}
-.sheet{background:#fff;border-radius:28px 28px 0 0;padding:26px 22px 30px;width:100%;max-height:90vh;overflow-y:auto;animation:shU .28s ease}
+.sheet{background:#fff;border-radius:20px 20px 0 0;padding:26px 22px 30px;width:100%;max-height:90vh;overflow-y:auto;animation:shU .28s cubic-bezier(.2,.9,.25,1);box-shadow:0 -1px 0 rgba(17,17,17,.05),0 -20px 50px -10px rgba(17,17,17,.25)}
 @keyframes shU{from{transform:translateY(100%)}to{transform:none}}
 /* Stars */
 .stars{display:flex;gap:5px;justify-content:center}
@@ -91,6 +147,13 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .empty-i{font-size:44px;margin-bottom:10px}
 /* Landing */
 .hero{background:linear-gradient(160deg,var(--pp) 0%,#fff 70%);padding:40px 22px 32px;text-align:center;position:relative;overflow:hidden}
+.hero.has-video{background:#7a1263;padding-top:56px;padding-bottom:40px}
+.hero-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%)}
+.hero.has-video .hero-chip{position:relative;z-index:1;background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.4);backdrop-filter:blur(2px)}
+.hero.has-video h1{position:relative;z-index:1;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.3)}
+.hero.has-video h1 em{color:#ffe1f1}
+.hero.has-video p{position:relative;z-index:1;color:rgba(255,255,255,.92);text-shadow:0 1px 6px rgba(0,0,0,.25)}
+.hero.has-video>div:last-child{position:relative;z-index:1}
 .hero h1{font-size:28px;line-height:1.25;margin-bottom:10px}
 .hero h1 em{color:var(--p);font-style:normal}
 .hero p{color:#6b7280;font-size:14px;line-height:1.65;margin-bottom:24px}
@@ -214,6 +277,15 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
   </div>
 </div>
 
+<!-- Notifications Modal -->
+<div class="overlay" id="notif-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:14px">Notifications 🔔</h3>
+    <div id="notif-list" style="max-height:50vh;overflow-y:auto"></div>
+    <button class="btn bs bw" style="margin-top:12px" onclick="closeModal('notif-modal')">Close</button>
+  </div>
+</div>
+
 <!-- Add Business Modal (Admin) -->
 <div class="overlay" id="biz-modal">
   <div class="sheet">
@@ -235,6 +307,15 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
   </div>
 </div>
 
+<!-- Driver Licence Photo Modal (Admin) -->
+<div class="overlay" id="license-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:14px">Driver's Licence</h3>
+    <div id="license-photo-box" style="margin-bottom:14px"></div>
+    <button class="btn bs bw" onclick="closeModal('license-modal')">Close</button>
+  </div>
+</div>
+
 <div id="shell">
 
 <!-- ══ LANDING ══ -->
@@ -247,8 +328,9 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
         <button class="btn bp bsm" onclick="go('register')">Sign Up</button>
       </div>
     </div>
-    <div class="hero">
-      <div class="hero-chip">🛡️ Women-Only · TTPS Police Linked · Live GPS</div>
+    <div class="hero has-video" id="hero-wallpaper">
+      <video class="hero-bg" id="hero-bg-video" autoplay loop muted playsinline></video>
+      <div class="hero-chip">🛡️ Women-Only · Safety Team Alerts · Live GPS</div>
       <h1>Safe Rides for Women,<br><em>By Women</em></h1>
       <p>Pink.TT connects women riders with verified women drivers across T&T. Your safety is our priority — every single ride.</p>
       <div style="display:flex;flex-direction:column;gap:10px">
@@ -256,10 +338,10 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
         <button class="btn bs bw" onclick="goRole('driver')">🚙 Become a Driver</button>
       </div>
     </div>
-    <div style="background:#fff3f3;padding:9px 16px;text-align:center;font-size:11px;font-weight:600;color:#991b1b;border-top:1px solid #fecaca;border-bottom:1px solid #fecaca">🚔 SOS alerts TTPS Police · Emergency Contact · Safety Team — simultaneously</div>
+    <div style="background:#fff3f3;padding:9px 16px;text-align:center;font-size:11px;font-weight:600;color:#991b1b;border-top:1px solid #fecaca;border-bottom:1px solid #fecaca">🆘 SOS instantly alerts our Safety Team & your Emergency Contact</div>
     <div class="stats-row">
       <div class="stat"><div class="stat-v">100%</div><div class="stat-l">Women Only</div></div>
-      <div class="stat"><div class="stat-v">🚔</div><div class="stat-l">Police Linked</div></div>
+      <div class="stat"><div class="stat-v">🆘</div><div class="stat-l">Safety Team</div></div>
       <div class="stat"><div class="stat-v">$25</div><div class="stat-l">From (TTD)</div></div>
     </div>
     <div style="padding:24px 18px">
@@ -268,7 +350,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
       <div class="feat-grid">
         <div class="feat"><div class="feat-ico">🆘</div><h4>SOS Emergency</h4><p>One-tap alert to safety team & emergency contacts instantly</p></div>
         <div class="feat"><div class="feat-ico">📍</div><h4>Live Tracking</h4><p>Share real-time trip link with loved ones from pickup to drop-off</p></div>
-        <div class="feat"><div class="feat-ico">✅</div><h4>Verified Drivers</h4><p>Background-checked, approved women drivers only</p></div>
+        <div class="feat"><div class="feat-ico">✅</div><h4>Verified Drivers</h4><p>Admin-reviewed, licence-verified women drivers only</p></div>
         <div class="feat"><div class="feat-ico">⭐</div><h4>Rating System</h4><p>Rate every ride, report incidents instantly & safely</p></div>
         <div class="feat"><div class="feat-ico">💅</div><h4>Discover</h4><p>Women-owned spas, salons & wellness businesses near you</p></div>
         <div class="feat"><div class="feat-ico">🎁</div><h4>Promotions</h4><p>Exclusive promo codes & discounts for Pink.TT riders</p></div>
@@ -281,7 +363,8 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     </div>
     <div class="footer-bar">
       <div class="logo" style="justify-content:center;margin-bottom:6px"><div class="logo-dot" style="width:22px;height:22px;font-size:10px">P</div><span class="logo-name" style="color:#fff">Pink.TT</span></div>
-      © 2024 Pink.TT · Women-only rideshare · Trinidad & Tobago<br>Safety · Trust · Reliability
+      © 2026 Pink.TT · Women-only rideshare · Trinidad & Tobago<br>Safety · Trust · Reliability<br>
+      <a href="/terms.html" style="color:#9ca3af;text-decoration:underline">Terms</a> · <a href="/privacy.html" style="color:#9ca3af;text-decoration:underline">Privacy</a> · <a href="/guidelines.html" style="color:#9ca3af;text-decoration:underline">Guidelines</a> · <a href="/driver-agreement.html" style="color:#9ca3af;text-decoration:underline">Driver Agreement</a>
     </div>
   </div>
 </div>
@@ -305,10 +388,10 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div style="border-top:1px solid #f0f0f0;margin:18px 0"></div>
     <div class="demo-box">
       <p>Demo Accounts — Click to fill</p>
-      <div class="demo-row"><span>Admin:</span><code style="font-size:10px"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a4c5c0c9cdcae4d4cdcacf8ad0d0">[email&#160;protected]</a> / Admin@PinkTT2024</code></div>
-      <div class="demo-row"><span>Rider:</span><code style="font-size:10px"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b7c4d6c5d6dff7d3d2dad899c7ded9dc99c3c3">[email&#160;protected]</a> / Rider@2024</code></div>
-      <div class="demo-row"><span>Driver ✓:</span><code style="font-size:10px"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="5a3b3733343b321a3e3f3735742a333431742e2e">[email&#160;protected]</a> / Driver@2024</code></div>
-      <div class="demo-row"><span>Driver ⏳:</span><code style="font-size:10px"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f18183988890b195949c9edf81989f9adf8585">[email&#160;protected]</a> / Driver@2024</code></div>
+      <div class="demo-row"><span>Admin:</span><code style="font-size:10px">admin@pink.tt / Admin@PinkTT2024</code></div>
+      <div class="demo-row"><span>Rider:</span><code style="font-size:10px">sarah@demo.pink.tt / Rider@2024</code></div>
+      <div class="demo-row"><span>Driver ✓:</span><code style="font-size:10px">aminah@demo.pink.tt / Driver@2024</code></div>
+      <div class="demo-row"><span>Driver ⏳:</span><code style="font-size:10px">priya@demo.pink.tt / Driver@2024</code></div>
       <div class="demo-btns">
         <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('admin@pink.tt','Admin@PinkTT2024')">Admin</button>
         <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('sarah@demo.pink.tt','Rider@2024')">Rider</button>
@@ -345,9 +428,31 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
       <div class="fg"><label class="lbl">Contact name</label><input class="inp" id="r-ec-name" placeholder="Mom / Sister / Friend"></div>
       <div class="fg" style="margin-bottom:0"><label class="lbl">Contact phone</label><input class="inp" id="r-ec-phone" placeholder="+1 868 xxx xxxx"></div>
     </div>
-    <p style="text-align:center;font-size:11px;color:#9ca3af;margin-bottom:12px">By signing up, you confirm you identify as a woman.<br>Pink.TT is a women-only platform.</p>
+    <p style="text-align:center;font-size:11px;color:#9ca3af;margin-bottom:12px">By signing up, you confirm you identify as a woman and agree to our <a href="/terms.html" target="_blank" style="color:var(--p)">Terms</a> and <a href="/privacy.html" target="_blank" style="color:var(--p)">Privacy Policy</a>.<br>Pink.TT is a women-only platform.</p>
     <button class="btn bp bw" id="r-btn" onclick="doRegister()">Create Account 🌸</button>
     <p style="text-align:center;margin-top:16px;font-size:13px;color:#9ca3af">Already have an account? <a onclick="go('login')" style="color:var(--p);font-weight:600;cursor:pointer">Sign in</a></p>
+  </div>
+</div>
+
+<!-- ══ ID VERIFY ══ -->
+<div class="page" id="pg-idverify">
+  <div class="topbar">
+    <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
+    <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">⎋</button>
+  </div>
+  <div class="scroll" style="padding:20px 18px">
+    <div style="text-align:center;margin-bottom:22px">
+      <div style="font-size:50px;margin-bottom:8px">🪪</div>
+      <h2 style="font-size:22px">Verify Your Identity</h2>
+      <p style="color:#9ca3af;font-size:13px;margin-top:4px;line-height:1.6">Pink.TT is a women-only platform. Upload a clear photo of your face so we can confirm your account before you continue.</p>
+    </div>
+    <div id="idv-preview-box" style="background:#f9fafb;border-radius:16px;height:200px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;overflow:hidden">
+      <span style="color:#9ca3af;font-size:13px">No photo selected</span>
+    </div>
+    <input type="file" accept="image/*" id="idv-photo" style="display:none" onchange="_previewFile('idv-photo','idv-preview-box')">
+    <button class="btn bs bw" style="margin-bottom:10px" onclick="document.getElementById('idv-photo').click()">📷 Choose Photo</button>
+    <button class="btn bp bw" id="idv-btn" onclick="submitIdVerify()">Verify My Identity 🌸</button>
+    <p style="text-align:center;font-size:11px;color:#9ca3af;margin-top:14px;line-height:1.6">Your photo is used only to confirm eligibility and is not stored after review.</p>
   </div>
 </div>
 
@@ -357,8 +462,8 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
     <div style="display:flex;align-items:center;gap:8px">
       <button class="sosbtn" onclick="openModal('sos-modal')">SOS</button>
-      <button onclick="go('discover')" style="background:var(--pp);border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:16px" title="Discover">💅</button>
-      <button onclick="showMenu()" style="background:#f3f4f6;border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:15px;position:relative">👤<span id="r-notif-dot" class="notif-dot" style="display:none"></span></button>
+      <button onclick="go('discover')" style="background:var(--pp);border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:16px" title="Discover" aria-label="Discover businesses">💅</button>
+      <button onclick="showMenu()" style="background:#f3f4f6;border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:15px;position:relative" aria-label="Account menu">👤<span id="r-notif-dot" class="notif-dot" style="display:none"></span></button>
     </div>
   </div>
   <div class="tabs">
@@ -376,7 +481,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div style="display:flex;align-items:center;gap:7px">
       <div id="tog" class="tog" onclick="toggleOnline()"></div>
       <span id="tog-lbl" style="font-size:11px;color:#9ca3af;font-weight:600">Offline</span>
-      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px">⎋</button>
+      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">⎋</button>
     </div>
   </div>
   <div id="driver-banner" style="display:none"></div>
@@ -417,6 +522,12 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     </div>
     <div style="height:10px"></div>
     <div class="fg"><label class="lbl">License Plate</label><input class="inp" id="ds-plate" placeholder="PAB 1234"></div>
+    <p style="font-size:10px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 10px">🪪 Licence Photo</p>
+    <div id="ds-lic-photo-box" style="background:#f9fafb;border-radius:14px;height:140px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;overflow:hidden">
+      <span style="color:#9ca3af;font-size:13px">No photo selected</span>
+    </div>
+    <input type="file" accept="image/*" id="ds-lic-photo" style="display:none" onchange="_previewFile('ds-lic-photo','ds-lic-photo-box')">
+    <button class="btn bs bw" style="margin-bottom:16px" onclick="document.getElementById('ds-lic-photo').click()">📷 Upload Licence Photo</button>
     <div style="background:var(--pp);border-radius:14px;padding:14px;margin-bottom:16px">
       <p style="font-weight:700;font-size:13px;color:var(--p);margin-bottom:8px">What happens next?</p>
       <ul style="font-size:12px;color:#9d174d;list-style:none;display:flex;flex-direction:column;gap:4px">
@@ -426,6 +537,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
         <li>✅ Go online and start earning!</li>
       </ul>
     </div>
+    <p style="text-align:center;font-size:11px;color:#9ca3af;margin-bottom:12px">By submitting, you agree to the <a href="/driver-agreement.html" target="_blank" style="color:var(--p)">Driver Agreement</a>, confirming you're an independent contractor responsible for your own licensing and insurance.</p>
     <button class="btn bp bw" id="ds-btn" onclick="submitApp()">Submit Application 🌸</button>
   </div>
 </div>
@@ -436,8 +548,9 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div class="logo"><div class="logo-dot">P</div><span class="logo-name" style="font-size:14px">Pink.TT <span style="font-size:10px;background:var(--pp);color:var(--p);padding:1px 6px;border-radius:6px;font-family:sans-serif;font-weight:700">Admin</span></span></div>
     <div style="display:flex;align-items:center;gap:7px">
       <div id="admin-sos-badge" style="display:none;background:var(--r);color:#fff;font-size:10px;font-weight:800;padding:4px 9px;border-radius:20px;cursor:pointer;animation:sosp 1.5s infinite" onclick="aTab('safety')">🚨 SOS</div>
+      <button onclick="showNotifs()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:14px;position:relative" aria-label="Notifications">🔔<span id="admin-notif-dot" class="notif-dot" style="display:none"></span></button>
       <button onclick="go('discover')" style="background:var(--pp);border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:14px" title="Marketplace">💅</button>
-      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px">⎋</button>
+      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">⎋</button>
     </div>
   </div>
   <div class="tabs" style="overflow-x:auto;flex-shrink:0">
@@ -448,6 +561,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div class="tab" id="at-safety" onclick="aTab('safety')" style="min-width:70px">🛡️ Safety</div>
     <div class="tab" id="at-biz" onclick="aTab('biz')" style="min-width:70px">💅 Biz</div>
     <div class="tab" id="at-promo" onclick="aTab('promo')" style="min-width:70px">🎁 Promos</div>
+    <div class="tab" id="at-admin" onclick="aTab('admin')" style="min-width:70px">⚙️ Admin</div>
   </div>
   <div class="scroll" id="admin-body" style="padding:14px">
     <div class="loading"><div class="spin spinp" style="width:32px;height:32px"></div></div>
@@ -498,7 +612,30 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 
 </div><!-- #shell -->
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script>
+// ── Accessibility: keyboard operability for custom clickable divs ─────────────
+// .tab / .role-o / .tog are plain <div onclick> controls rendered via innerHTML
+// throughout the app; tag them focusable + activate on Enter/Space app-wide
+// rather than editing every template that creates one.
+(function(){
+  function tagFocusable(root){
+    root.querySelectorAll('.tab,.role-o,.tog').forEach(el=>{
+      if(!el.hasAttribute('tabindex'))el.setAttribute('tabindex','0');
+      if(!el.hasAttribute('role'))el.setAttribute('role',el.classList.contains('tog')?'switch':'button');
+    });
+  }
+  document.addEventListener('keydown',e=>{
+    if((e.key==='Enter'||e.key===' ')&&e.target.matches?.('.tab,.role-o,.tog')){
+      e.preventDefault();e.target.click();
+    }
+  });
+  document.addEventListener('DOMContentLoaded',()=>{
+    const root=document.getElementById('shell')||document.body;
+    tagFocusable(document);
+    new MutationObserver(()=>tagFocusable(root)).observe(root,{childList:true,subtree:true});
+  });
+})();
+
 /* ═══════════════════════════════════════════════════════════════
    PINK.TT — COMPLETE APPLICATION ENGINE v2.0
    Full in-memory database · All features · Production-ready UI
@@ -519,7 +656,7 @@ const fmtFare = n => 'TTD $' + parseFloat(n).toFixed(2);
 const fmtDate = d => new Date(d).toLocaleString('en-TT');
 
 // ─── IN-MEMORY DATABASE ─────────────────────────────────────────
-const DB = { users:[], driver_profiles:[], rides:[], sos_events:[], trip_shares:[], reports:[], payments:[], businesses:[], business_services:[], business_discounts:[], promotions:[], notifications:[] };
+const DB = { users:[], driver_profiles:[], rides:[], sos_events:[], trip_shares:[], reports:[], payments:[], businesses:[], business_services:[], business_discounts:[], promotions:[], notifications:[], settings:{} };
 
 // ─── SEED DATA ──────────────────────────────────────────────────
 const ADMIN_ID=uid(),RIDER1_ID=uid(),RIDER2_ID=uid(),DRIVER1_ID=uid(),DRIVER2_ID=uid(),DP1_ID=uid(),DP2_ID=uid();
@@ -603,8 +740,9 @@ function go(page){
 function goBack(){ go(S.prevPage||'land'); }
 function goRole(role){ S.regRole=role; setRole(role); go('register'); }
 function routeUser(user){
-  if(user.role==='admin'){go('admin');loadAdmin();}
-  else if(user.role==='driver'){go('driver');loadDriver();}
+  if(user.role==='admin'){go('admin');loadAdmin();return;}
+  if(!user.is_verified){go('idverify');renderIdVerify&&renderIdVerify();return;}
+  if(user.role==='driver'){go('driver');loadDriver();}
   else{go('rider');renderRiderBook();}
 }
 
@@ -672,7 +810,7 @@ function setRole(r){
 
 function doLogout(){
   clearInterval(S.simTimer);
-  S={user:null,regRole:'rider',rTab:'book',dTab:'reqs',aTab:'ov',isOnline:false,dp:null,activeRide:null,rideStatus:null,driverInfo:null,currentDriverRide:null,pendingRides:[],rating:0,rideToRate:null,shareRideId:null,reportRideId:null,reportDriverId:null,simTimer:null,currentBizCat:'',currentBizId:null,prevPage:'land',promoResult:null};
+  S={user:null,regRole:'rider',rTab:'book',dTab:'reqs',aTab:'ov',isOnline:false,dp:null,activeRide:null,rideStatus:null,driverInfo:null,currentDriverRide:null,pendingRides:[],rating:0,rideToRate:null,shareRideId:null,reportRideId:null,reportDriverId:null,simTimer:null,currentBizCat:'',currentBizId:null,prevPage:'land',promoResult:null,myLat:null,myLng:null};
   try{sessionStorage.removeItem('pinktt')}catch{}
   go('land');
 }
@@ -684,16 +822,35 @@ function showMenu(){
     {label:'🔔 Notifications',action:()=>{showNotifs()}},
     {label:'⎋ Sign Out',action:doLogout,red:true},
   ];
-  let html='<div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300" onclick="closeUserMenu()"></div><div style="position:fixed;top:54px;right:12px;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.15);z-index:301;min-width:210px;overflow:hidden" id="user-menu">';
+  let html='<div style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300" onclick="closeUserMenu()"></div><div style="position:fixed;top:54px;right:12px;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.25);z-index:301;min-width:210px;overflow:hidden" id="user-menu">';
   html+=`<div style="padding:12px 16px;border-bottom:1px solid #f0f0f0"><p style="font-weight:600;font-size:13px">${S.user.first_name} ${S.user.last_name}</p><p style="font-size:11px;color:#9ca3af">${S.user.email}</p></div>`;
   menu.forEach(m=>{html+=`<button onclick="closeUserMenu();(${m.action.toString()})()" style="width:100%;padding:12px 16px;border:none;cursor:pointer;text-align:left;font-size:13px;font-weight:500;background:#fff;color:${m.red?'#ef4444':'#374151'};hover:background:#f9fafb">${m.label}</button>`;});
   html+='</div>';
   const div=document.createElement('div');div.id='user-menu-wrap';div.innerHTML=html;document.body.appendChild(div);
 }
 function closeUserMenu(){const m=document.getElementById('user-menu-wrap');if(m)m.remove();}
-function showNotifs(){
-  const notifs=DB.notifications.filter(n=>n.user_id===S.user?.id).slice(0,10);
-  toast(notifs.length?`${notifs.length} notifications — feature in full API version`:'No new notifications 🌸');
+async function showNotifs(){
+  const notifs=DB.notifications.filter(n=>n.user_id===S.user?.id).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,20);
+  const list=document.getElementById('notif-list');
+  list.innerHTML=notifs.length?notifs.map(n=>`
+    <div style="padding:11px 0;border-bottom:1px solid #f0f0f0;${n.is_read?'':'background:var(--pp)'}">
+      <p style="font-size:13px;line-height:1.4">${n.message}</p>
+      <p style="font-size:10px;color:#9ca3af;margin-top:3px">${fmtDate(n.created_at)}</p>
+    </div>`).join(''):'<p style="text-align:center;color:#9ca3af;font-size:13px;padding:20px 0">No notifications yet</p>';
+  openModal('notif-modal');
+  const unreadIds=notifs.filter(n=>!n.is_read).map(n=>n.id);
+  if(unreadIds.length){
+    await _mutate('mark_notifs_read',{ids:unreadIds});
+    await _pttLoadDB();
+    _updateNotifDots();
+  }
+}
+// Toggles the unread-notification dot for whichever role is currently signed in.
+function _updateNotifDots(){
+  if(!S.user)return;
+  const unread=DB.notifications.filter(n=>n.user_id===S.user.id&&!n.is_read).length;
+  const rDot=document.getElementById('r-notif-dot');if(rDot)rDot.style.display=unread?'block':'none';
+  const aDot=document.getElementById('admin-notif-dot');if(aDot)aDot.style.display=unread?'block':'none';
 }
 
 // ─── RIDER DASHBOARD ────────────────────────────────────────────
@@ -779,12 +936,14 @@ function renderRiderBook(){
       <h3 style="font-size:16px;margin-bottom:14px">Where to?</h3>
       <div style="position:relative;margin-bottom:10px">
         <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:9px;height:9px;background:var(--p);border-radius:50%;z-index:1"></div>
-        <input class="inp" id="ride-pickup" style="padding-left:28px" placeholder="Pickup location" value="Current Location — Port of Spain">
+        <input class="inp" id="ride-pickup" style="padding-left:28px" placeholder="Locating you…" autocomplete="off">
+        <div id="ride-pickup-suggest" class="addr-suggest"></div>
       </div>
       <div style="position:relative;margin-bottom:14px">
         <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:9px;height:9px;background:#111827;border-radius:50%;z-index:1"></div>
-        <input class="inp" id="ride-dest" style="padding-left:28px" placeholder="Where are you going?" list="dest-list" oninput="onDestChange(this.value)">
+        <input class="inp" id="ride-dest" style="padding-left:28px" placeholder="Where are you going?" list="dest-list" oninput="onDestChange(this.value)" autocomplete="off">
         <datalist id="dest-list">${LOCATIONS.map(l=>`<option value="${l}">`).join('')}</datalist>
+        <div id="ride-dest-suggest" class="addr-suggest"></div>
       </div>
       <div id="fare-preview" style="display:none;background:var(--pp);border-radius:14px;padding:11px 14px;margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -794,6 +953,11 @@ function renderRiderBook(){
           <div style="text-align:right;font-size:11px;color:#9ca3af"><div id="fare-km">—</div><div id="fare-min">—</div></div>
         </div>
       </div>
+      ${S.user?.pink_points>0?`
+      <label style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--pb);border-radius:14px;padding:11px 14px;margin-bottom:14px;cursor:pointer;font-size:12px">
+        <input type="checkbox" id="ride-redeem-points" onchange="showFarePreview(document.getElementById('ride-dest').value)">
+        <span>🌸 ${S.user.pink_points} Bullet Pink Points (${S.user.pink_points_tier||'Bronze'}) — redeem for up to ${fmtFare(Math.min(S.user.pink_points/20,999))} off</span>
+      </label>`:''}
       <div id="promo-row" style="display:none;flex;gap:8px;margin-bottom:10px">
         <input class="inp" id="promo-inp" style="flex:1;font-size:13px;padding:9px 12px" placeholder="Promo code (WELCOME25)">
         <button class="btn bs bsm" onclick="applyPromo()">Apply</button>
@@ -821,24 +985,32 @@ function renderRiderBook(){
 
 let destTimer;
 function onDestChange(v){
-  clearTimeout(destTimer);destTimer=setTimeout(()=>{if(v.length>2){showFarePreview(v);document.getElementById('promo-row').style.display='flex';}},500);
+  clearTimeout(destTimer);destTimer=setTimeout(()=>{if(v.length>2){showFarePreview(v);const pr=document.getElementById('promo-row');if(pr)pr.style.display='flex';}},500);
 }
 function setDest(d){const inp=document.getElementById('ride-dest');if(inp){inp.value=d;showFarePreview(d);document.getElementById('promo-row').style.display='flex';}}
 function showFarePreview(dest){
   const pickup=document.getElementById('ride-pickup')?.value||'Port of Spain';
   const destination=dest||document.getElementById('ride-dest')?.value||'';
   if(!destination)return;
-  fetch('/api/fare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pickup,destination})})
+  const pickupCoord=S._pickupSuggest,destCoord=S._destSuggest;
+  fetch('/api/fare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    pickup,destination,
+    pickup_lat:pickupCoord?.lat??S.myLat,pickup_lng:pickupCoord?.lng??S.myLng,
+    destination_lat:destCoord?.lat,destination_lng:destCoord?.lng
+  })})
     .then(r=>r.json()).then(d=>{
       S._km=d.km;S._min=d.min;S._fare=d.fare;S._pickupCoord=[d.pickup_lat,d.pickup_lng];S._destCoord=[d.dest_lat,d.dest_lng];
       const f=d.fare,prev=document.getElementById('fare-preview');if(!prev)return;
       prev.style.display='block';
-      const final=S.promoResult?f-S.promoResult.discount_amount:f;
-      document.getElementById('fare-amt').innerHTML=fmtFare(final)+(d.surge!=='standard'?` <span style="font-size:10px;color:#9ca3af">${d.surge==='night'?'🌙 Night':'⚡ Peak'}</span>`:'');
+      const redeemChecked=document.getElementById('ride-redeem-points')?.checked;
+      const pointsDiscount=redeemChecked?Math.min((S.user?.pink_points||0)/20,f*0.5):0;
+      const final=(S.promoResult?f-S.promoResult.discount_amount:f)-pointsDiscount;
+      document.getElementById('fare-amt').innerHTML=fmtFare(final);
       document.getElementById('fare-km').textContent=d.km.toFixed(1)+' km';
       document.getElementById('fare-min').textContent='~'+d.min+' min';
       // Update idle map with route
       updateIdleMap(d);
+      if(_MAP_IDLE&&d.route)_drawRoute(_MAP_IDLE,d.route);
     }).catch(()=>{
       const hsh=destination.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
       const km=Math.max(3,(hsh%35)+3),min=Math.ceil(km*2.5+5),f=calcFare(km,min);
@@ -953,11 +1125,12 @@ function submitReport(){
 // Rating
 function openRateModal(){S.rideToRate=S.activeRide?.id;openModal('rate-modal');}
 function setRating(n){S.rating=n;document.querySelectorAll('.star').forEach((s,i)=>s.classList.toggle('on',i<n));}
-function submitRate(){
+async function submitRate(){
   if(!S.rating){toast('Please select a rating','err');return;}
-  const ride=DB.rides.find(r=>r.id===S.rideToRate);
-  if(ride){ride.rider_rating=S.rating;ride.driver_review=document.getElementById('rate-review').value;}
-  if(ride?.driver_id){const dp=DB.driver_profiles.find(d=>d.user_id===ride.driver_id);if(dp){dp.rating=(dp.rating*dp.rating_count+S.rating)/(dp.rating_count+1);dp.rating_count++;}}
+  const rideId=S.rideToRate,score=S.rating,review=document.getElementById('rate-review').value;
+  const res=await _mutate('rate_ride',{ride_id:rideId,score,review});
+  if(!res.ok){toast(res.error||'Could not submit rating','err');return;}
+  await _pttLoadDB();
   toast('Rating submitted! Thanks 🌸','ok');
   closeModal('rate-modal');S.rating=0;S.rideToRate=null;
   document.querySelectorAll('.star').forEach(s=>s.classList.remove('on'));
@@ -1132,7 +1305,7 @@ function renderDriverRequests(body){
   body.innerHTML=pending.map(r=>{
     const rider=DB.users.find(u=>u.id===r.rider_id)||{};
     const dist=(1.5+Math.random()*4).toFixed(1);
-    return `<div class="req-card slide-up">
+    return `<div class="req-card slide-up" data-ride="${r.id}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <span class="badge bpink">New Request</span>
         <span style="font-weight:700;color:var(--p);font-size:16px">${fmtFare(r.estimated_fare)}</span>
@@ -1170,10 +1343,7 @@ function renderDriverActive(body){
   if(!r||!['accepted','arriving','in_progress'].includes(r.status)){body.innerHTML='<div class="empty"><div class="empty-i">🗺️</div><p>No active ride</p><p style="font-size:13px">Accept a request to start driving</p></div>';return;}
   const rider=DB.users.find(u=>u.id===r.rider_id)||{};
   body.innerHTML=`
-    <div class="mapbox" style="margin-bottom:12px">
-      <div class="map-pin">${r.status==='in_progress'?'🚗':'📍'}</div>
-      <p style="color:var(--p);font-size:13px;font-weight:600;position:relative">${r.status==='in_progress'?'Trip in Progress':'Navigate to Pickup'}</p>
-    </div>
+    <div id="driver-active-map" style="height:170px;border-radius:20px;overflow:hidden;border:1.5px solid var(--pb);margin-bottom:12px;background:#f0f0f0"></div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <span class="badge ${r.status==='accepted'?'byel':r.status==='arriving'?'badge' :'bgrn'}">${r.status==='accepted'?'⏳ Going to pickup':r.status==='arriving'?'🚗 Arriving':'🚗 In progress'}</span>
@@ -1194,6 +1364,30 @@ function renderDriverActive(body){
       </div>
     </div>
   `;
+  initDriverActiveMap(r);
+}
+// The driver's active-ride map -- shows the same pickup-to-destination route the rider
+// sees, so both sides are looking at the same path. There was previously no real map
+// here at all, just a decorative gradient box with an emoji pin.
+let _MAP_DRIVER_ACTIVE=null;
+function initDriverActiveMap(ride){
+  const el0=document.getElementById('driver-active-map');if(!el0)return;
+  _initLeaflet().then(()=>{
+    const el=document.getElementById('driver-active-map');if(!el)return;
+    if(_MAP_DRIVER_ACTIVE){try{_MAP_DRIVER_ACTIVE.remove();}catch{}}_MAP_DRIVER_ACTIVE=null;
+    const pLat=ride.pickup_lat,pLng=ride.pickup_lng,dLat=ride.destination_lat,dLng=ride.destination_lng;
+    _MAP_DRIVER_ACTIVE=L.map(el,{zoomControl:false,attributionControl:false}).setView([pLat,pLng],13);
+    _watchTiles(_MAP_DRIVER_ACTIVE,el);
+    _tileLayer(_MAP_DRIVER_ACTIVE);L.control.zoom({position:'bottomright'}).addTo(_MAP_DRIVER_ACTIVE);
+    const pMk=L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_DRIVER_ACTIVE).bindPopup('📍 Pickup');
+    const dMk=L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_DRIVER_ACTIVE).bindPopup('🏁 Destination');
+    _MAP_DRIVER_ACTIVE.fitBounds([[pLat,pLng],[dLat,dLng]],{padding:[20,20]});
+    setTimeout(()=>_MAP_DRIVER_ACTIVE&&_MAP_DRIVER_ACTIVE.invalidateSize(),300);
+    _fetchAndDrawRoute(()=>_MAP_DRIVER_ACTIVE,pLat,pLng,dLat,dLng,pMk,dMk);
+  }).catch(()=>{
+    const el=document.getElementById('driver-active-map');
+    if(el)_showMapError(el,()=>initDriverActiveMap(ride));
+  });
 }
 
 function startRide(){
@@ -1265,7 +1459,7 @@ function submitApp(){
 function loadAdmin(){aTab(S.aTab);}
 function aTab(t){
   S.aTab=t;
-  ['ov','drv','usr','rides','safety','biz','promo'].forEach(x=>{const el=document.getElementById('at-'+x);if(el)el.classList.toggle('on',x===t);});
+  ['ov','drv','usr','rides','safety','biz','promo','admin'].forEach(x=>{const el=document.getElementById('at-'+x);if(el)el.classList.toggle('on',x===t);});
   const body=document.getElementById('admin-body');
   if(t==='ov')renderAdminOverview(body);
   else if(t==='drv')renderAdminDrivers(body);
@@ -1273,7 +1467,8 @@ function aTab(t){
   else if(t==='rides')renderAdminRides(body);
   else if(t==='safety')renderAdminSafety(body);
   else if(t==='biz')renderAdminBiz(body);
-  else renderAdminPromos(body);
+  else if(t==='promo')renderAdminPromos(body);
+  else renderAdminSettings(body);
 }
 
 function renderAdminOverview(body){
@@ -1297,8 +1492,8 @@ function renderAdminOverview(body){
       ${pendDrv.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #f9fafb">
         <div><p style="font-weight:600;font-size:13px">${d.first_name} ${d.last_name}</p><p style="font-size:11px;color:#9ca3af">${d.email} · ${d.vehicle_year} ${d.vehicle_make} ${d.vehicle_model}</p></div>
         <div style="display:flex;gap:5px">
-          <button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="reviewDriver('${d.id}','rejected')">✕</button>
-          <button class="btn bsm" style="background:#dcfce7;color:var(--g)" onclick="reviewDriver('${d.id}','approved')">✓</button>
+          <button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="rejectDriver('${d.user_id}')">✕</button>
+          <button class="btn bsm" style="background:#dcfce7;color:var(--g)" onclick="approveDriver('${d.user_id}')">✓</button>
         </div>
       </div>`).join('')}
     </div>`:''}
@@ -1355,9 +1550,10 @@ function renderDrvList(dps,status){
         <div style="display:flex;gap:14px;margin-top:5px;font-size:11px;color:#9ca3af"><span>⭐ ${d.rating?.toFixed(1)||'5.0'}</span><span>🗺️ ${d.total_trips||0} trips</span><span>💰 TTD $${(d.total_earnings||0).toFixed(0)}</span></div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${d.status!=='approved'?`<button class="btn bsm" style="background:#dcfce7;color:#166534" onclick="reviewDriver('${d.id}','approved')">✓ Approve</button>`:''}
-        ${d.status!=='rejected'&&d.status!=='suspended'?`<button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="reviewDriver('${d.id}','rejected')">✕ Reject</button>`:''}
-        ${d.status!=='suspended'?`<button class="btn bsm" style="background:#f3f4f6;color:#6b7280" onclick="reviewDriver('${d.id}','suspended')">⊘ Suspend</button>`:''}
+        ${d.status!=='approved'?`<button class="btn bsm" style="background:#dcfce7;color:#166534" onclick="approveDriver('${d.user_id}')">✓ Approve</button>`:''}
+        ${d.status!=='rejected'&&d.status!=='suspended'?`<button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="rejectDriver('${d.user_id}')">✕ Reject</button>`:''}
+        ${d.status!=='suspended'?`<button class="btn bsm" style="background:#f3f4f6;color:#6b7280" onclick="suspendDriver('${d.user_id}')">⊘ Suspend</button>`:''}
+        <button class="btn bsm" style="background:var(--pp);color:var(--p)" onclick="viewLicensePhoto('${d.user_id}')">🪪 View Licence</button>
       </div>
     </div>`;
   }).join('');
@@ -1376,12 +1572,24 @@ function renderUsrList(q){
     return `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
       <div><p style="font-weight:600;font-size:13px">${u.first_name} ${u.last_name} <span class="badge ${rc}">${u.role}</span></p><p style="font-size:11px;color:#9ca3af">${u.email}</p><p style="font-size:10px;color:#d1d5db">${fmtDate(u.created_at)}</p></div>
       <div style="text-align:right"><span class="badge ${bc}" style="display:block;margin-bottom:5px">${u.is_active?'Active':'Suspended'}</span>
-      ${u.role!=='admin'?`<button class="btn bsm" style="background:${u.is_active?'#fee2e2':'#dcfce7'};color:${u.is_active?'var(--r)':'var(--g)'}" onclick="toggleUsr('${u.id}',${!u.is_active})">${u.is_active?'Suspend':'Activate'}</button>`:''}
+      ${u.role!=='admin'?`<button class="btn bsm" style="background:${u.is_active?'#fee2e2':'#dcfce7'};color:${u.is_active?'var(--r)':'var(--g)'}" onclick="_realToggleUsr('${u.id}',${!u.is_active})">${u.is_active?'Suspend':'Activate'}</button>`:''}
+      ${u.role!=='admin'?`<button class="btn bsm" style="background:var(--pp);color:var(--p);margin-top:5px" onclick="promoteToAdmin('${u.id}')">Make Admin</button>`:''}
       </div>
     </div>`;
   }).join('');
 }
 function toggleUsr(id,active){const u=DB.users.find(x=>x.id===id);if(!u)return;u.is_active=active;toast(active?'User activated':'User suspended',active?'ok':'err');renderUsrList('');}
+async function _realToggleUsr(id,active){
+  const res=await _mutate('toggle_user_active',{user_id:id,active});
+  if(res.ok){toast(active?'User activated':'User suspended',active?'ok':'err');await _pttLoadDB();renderUsrList(document.getElementById('usr-search')?.value||'');}
+  else toast(res.error||'Action failed','err');
+}
+async function promoteToAdmin(id){
+  if(!confirm('Give this account full admin access?'))return;
+  const res=await _mutate('update_user_role',{user_id:id,role:'admin'});
+  if(res.ok){toast('User promoted to admin','ok');await _pttLoadDB();renderUsrList(document.getElementById('usr-search')?.value||'');}
+  else toast(res.error||'Could not update role','err');
+}
 
 function renderAdminRides(body){
   const rides=DB.rides.slice().sort((a,b)=>new Date(b.requested_at)-new Date(a.requested_at));
@@ -1485,7 +1693,7 @@ function renderAdminPromos(body){
       </div>
       <div style="display:flex;gap:12px;font-size:11px;color:#9ca3af;margin-bottom:10px">
         <span>💰 ${p.type==='percentage'?p.value+'%':'TTD $'+p.value} off</span>
-        <span>📊 ${p.usage_count}/${p.usage_limit||'∞'} used</span>
+        <span>📊 ${p.usage_count||0}/${p.usage_limit||'∞'} used</span>
         <span>📅 Until ${new Date(p.valid_until).toLocaleDateString()}</span>
       </div>
       <button class="btn bsm" style="background:${p.is_active?'#fee2e2':'#dcfce7'};color:${p.is_active?'var(--r)':'var(--g)'}" onclick="togglePromo('${p.id}')">${p.is_active?'Deactivate':'Activate'}</button>
@@ -1493,6 +1701,101 @@ function renderAdminPromos(body){
   `;
 }
 function togglePromo(id){const p=DB.promotions.find(x=>x.id===id);if(!p)return;p.is_active=!p.is_active;toast(p.is_active?'Promo activated':'Promo deactivated');renderAdminPromos(document.getElementById('admin-body'));}
+
+// ─── ADMIN SETTINGS / STAFF / SECURITY ──────────────────────────
+function renderAdminSettings(body){
+  const s=DB.settings||{};
+  const staff=DB.users.filter(u=>u.role==='admin');
+  body.innerHTML=`
+    <div class="card" style="margin-bottom:14px">
+      <h4 style="font-size:14px;margin-bottom:4px">🛡️ Safety &amp; Support Contacts</h4>
+      <p style="font-size:11px;color:#9ca3af;margin-bottom:12px">Shown to riders/drivers and used for automated SOS alerts. ${s.safety_team_phone?'':'<strong style=\'color:var(--r)\'>No safety team phone set — SOS will not place a real call/SMS until you add one.</strong>'}</p>
+      <div class="fg"><label class="lbl">Safety team phone (for automated SOS call/SMS)</label><input class="inp" id="set-safety-phone" placeholder="+1 868 xxx xxxx" value="${s.safety_team_phone||''}"></div>
+      <div class="fg"><label class="lbl">Support email</label><input class="inp" id="set-support-email" placeholder="support@pink.tt" value="${s.support_email||''}"></div>
+      <div class="fg" style="margin-bottom:0"><label class="lbl">Support phone</label><input class="inp" id="set-support-phone" placeholder="+1 868 xxx xxxx" value="${s.support_phone||''}"></div>
+      <p style="font-size:10px;color:#9ca3af;margin-top:10px;line-height:1.5">${s.ttps_integration_note||''}</p>
+      <button class="btn bp bw" style="margin-top:12px" onclick="saveAdminSettings()">Save Contacts</button>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <h4 style="font-size:14px;margin-bottom:12px">👑 Staff &amp; Admin Accounts (${staff.length})</h4>
+      ${staff.map(u=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #f9fafb">
+        <div><p style="font-weight:600;font-size:13px">${u.first_name} ${u.last_name}${u.id===S.user.id?' (you)':''}</p><p style="font-size:11px;color:#9ca3af">${u.email}</p></div>
+        ${u.id!==S.user.id?`<button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="demoteAdmin('${u.id}')">Remove Admin</button>`:''}
+      </div>`).join('')}
+      <div style="background:#f9fafb;border-radius:14px;padding:14px;margin-top:12px">
+        <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Add Staff / Admin</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <input class="inp" id="staff-first" placeholder="First name">
+          <input class="inp" id="staff-last" placeholder="Last name">
+        </div>
+        <div style="height:10px"></div>
+        <input class="inp" id="staff-email" type="email" placeholder="staff@pink.tt" style="margin-bottom:10px">
+        <input class="inp" id="staff-pass" type="password" placeholder="Min. 8 characters" style="margin-bottom:10px">
+        <button class="btn bs bw" onclick="createStaffAccount()">+ Create Staff Account</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="font-size:14px">📜 Audit Log</h4>
+        <button class="btn bs bsm" onclick="loadAuditLog()">Refresh</button>
+      </div>
+      <div id="audit-log-box"><p style="font-size:12px;color:#9ca3af">Tap Refresh to load recent admin actions.</p></div>
+    </div>
+    <div class="card" style="border:1px solid #fecaca">
+      <h4 style="font-size:14px;margin-bottom:6px;color:var(--r)">⚠️ Reset Test Data</h4>
+      <p style="font-size:11px;color:#9ca3af;margin-bottom:12px">Permanently deletes every ride and payment on the platform, and resets rider Pink Points / driver earnings back to zero. Use this once before launch to clear out development/testing data. This cannot be undone.</p>
+      <button class="btn bw" style="background:#fee2e2;color:var(--r)" onclick="resetTestData()">Delete All Ride &amp; Payment History</button>
+    </div>
+  `;
+}
+async function resetTestData(){
+  if(!confirm('This permanently deletes ALL rides and payments on the platform and resets earnings/points to zero. This cannot be undone. Continue?'))return;
+  if(!confirm('Are you absolutely sure? Type OK to confirm this cannot be reversed.'))return;
+  const res=await _mutate('admin_reset_test_data',{});
+  if(res.ok){toast('Test data cleared','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
+  else toast(res.error||'Could not reset data','err');
+}
+async function saveAdminSettings(){
+  const data={
+    safety_team_phone:document.getElementById('set-safety-phone').value.trim(),
+    support_email:document.getElementById('set-support-email').value.trim(),
+    support_phone:document.getElementById('set-support-phone').value.trim()
+  };
+  const res=await _mutate('update_settings',data);
+  if(res.ok){toast('Settings saved','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
+  else toast(res.error||'Save failed','err');
+}
+async function createStaffAccount(){
+  const data={
+    first_name:document.getElementById('staff-first').value.trim(),
+    last_name:document.getElementById('staff-last').value.trim(),
+    email:document.getElementById('staff-email').value.trim().toLowerCase(),
+    password:document.getElementById('staff-pass').value
+  };
+  if(!data.first_name||!data.last_name||!data.email||!data.password){toast('All fields required','err');return;}
+  const res=await _mutate('create_staff',data);
+  if(res.ok){toast('Staff account created','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
+  else toast(res.error||'Could not create staff account','err');
+}
+async function demoteAdmin(userId){
+  if(!confirm('Remove admin access for this account? They will become a regular rider.'))return;
+  const res=await _mutate('update_user_role',{user_id:userId,role:'rider'});
+  if(res.ok){toast('Admin access removed','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
+  else toast(res.error||'Could not update role','err');
+}
+async function loadAuditLog(){
+  const box=document.getElementById('audit-log-box');if(!box)return;
+  box.innerHTML='<p style="font-size:12px;color:#9ca3af">Loading…</p>';
+  try{
+    const r=await fetch('/api/audit-log',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    const data=await r.json();
+    if(!data.log?.length){box.innerHTML='<p style="font-size:12px;color:#9ca3af">No admin actions recorded yet.</p>';return;}
+    box.innerHTML=data.log.map(l=>`<div style="padding:7px 0;border-top:1px solid #f9fafb;font-size:12px">
+      <strong>${l.action}</strong> ${l.target_type?('· '+l.target_type):''} ${l.details?('— '+l.details):''}
+      <div style="font-size:10px;color:#9ca3af">${l.admin_email} · ${fmtDate(l.created_at)}</div>
+    </div>`).join('');
+  }catch(e){box.innerHTML='<p style="font-size:12px;color:var(--r)">Could not load audit log</p>';}
+}
 
 // ─── DISCOVER MARKETPLACE ───────────────────────────────────────
 function renderDiscover(){
@@ -1641,10 +1944,11 @@ function loadTrack(token){
     '<div style="background:var(--pp);border-radius:14px;padding:14px;display:flex;gap:10px;align-items:flex-start">' +
     '<span style="font-size:22px;flex-shrink:0">🛡️</span>' +
     '<div><p style="font-weight:700;font-size:13px;color:var(--p)">Verified Safe Ride</p>' +
-    '<p style="font-size:12px;color:#9d174d;margin-top:3px;line-height:1.5">This ride is by a verified Pink.TT driver — women-only, background-checked, community-rated.</p></div>' +
+    '<p style="font-size:12px;color:#9d174d;margin-top:3px;line-height:1.5">This ride is by a verified Pink.TT driver — women-only, admin-reviewed, community-rated.</p></div>' +
     '</div>' +
     '<p style="text-align:center;font-size:10px;color:#d1d5db;margin-top:12px">Shared by ' + (share.contact_name||'a Pink.TT user') + ' · Expires ' + new Date(share.expires_at).toLocaleString() + '</p>' +
     '<div style="height:20px"></div>';
+  setTimeout(()=>initShareMap(ride),50);
 }
 
 // ─── INIT ────────────────────────────────────────────────────────
@@ -1667,35 +1971,180 @@ function init(){
 let _PTT_TOKEN = localStorage.getItem('ptt_token') || null;
 let _PTT_WS = null, _PTT_WS_OK = false;
 let _MAP_IDLE = null, _MAP_TRACK = null, _MAP_SHARE = null;
-let _CAR_MARKER = null, _P_MARKER = null, _D_MARKER = null;
+let _CAR_MARKER = null, _P_MARKER = null, _D_MARKER = null, _SHARE_CAR_MARKER = null;
 let _LOC_INTERVAL = null;
 
 // ── Leaflet tile helper ──────────────────────────────────────────
+// Leaflet's JS/CSS are self-hosted (public/vendor/leaflet) rather than pulled from a
+// CDN at runtime, so a blocked/slow third-party host can't take the map down. The map
+// TILE IMAGES still come from CARTO at runtime (no realistic way to self-host global
+// map tiles) -- _watchTiles below shows a small non-blocking note if those specifically
+// fail to load, without hiding the rest of the ride info.
+let _leafletLoadPromise=null;
 function _initLeaflet(){
   if(window.L)return Promise.resolve();
-  return new Promise(resolve=>{
+  if(_leafletLoadPromise)return _leafletLoadPromise;
+  _leafletLoadPromise=new Promise((resolve,reject)=>{
     const s=document.createElement('script');
-    s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    s.onload=resolve;document.head.appendChild(s);
+    s.src='/vendor/leaflet/leaflet.js';
+    s.onload=()=>resolve();
+    s.onerror=()=>{_leafletLoadPromise=null;s.remove();reject(new Error('Failed to load map library'));};
+    document.head.appendChild(s);
   });
+  return _leafletLoadPromise;
 }
 function _tileLayer(map){
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+  const layer=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
     attribution:'© <a href="https://openstreetmap.org">OSM</a> © <a href="https://carto.com">CARTO</a>',
     subdomains:'abcd',maxZoom:20
   }).addTo(map);
+  return layer;
+}
+// Shows a small dismissing note if map tiles specifically fail to load (separate from
+// the Leaflet library itself, which is self-hosted and shouldn't fail).
+function _watchTiles(map,containerEl){
+  let tileOk=false,warned=false;
+  map.on('tileload',()=>{tileOk=true;});
+  map.on('tileerror',()=>{
+    if(tileOk||warned)return;
+    warned=true;
+    containerEl.style.position='relative';
+    const note=document.createElement('div');
+    note.style.cssText='position:absolute;bottom:8px;left:8px;right:8px;background:rgba(17,24,39,.85);color:#fff;font-size:10px;padding:6px 10px;border-radius:8px;z-index:500;text-align:center';
+    note.textContent='Map tiles are slow to load — your ride details below are still live';
+    containerEl.appendChild(note);
+    setTimeout(()=>note.remove(),6000);
+  });
+}
+// Shown inside a map container when Leaflet itself fails to load (e.g. offline).
+function _showMapError(el,retryFn){
+  el.innerHTML='';
+  const wrap=document.createElement('div');
+  wrap.style.cssText='height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#9ca3af;font-size:12px;background:#f9fafb';
+  const label=document.createElement('span');label.textContent='🗺️ Map couldn\'t load';
+  const btn=document.createElement('button');
+  btn.style.cssText='padding:6px 16px;background:var(--p);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer';
+  btn.textContent='Retry';
+  btn.onclick=retryFn;
+  wrap.appendChild(label);wrap.appendChild(btn);
+  el.appendChild(wrap);
 }
 function _pinkIcon(){return L.divIcon({html:'<div style="background:#E91E8C;width:13px;height:13px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(233,30,140,.5)"></div>',iconSize:[13,13],iconAnchor:[6.5,6.5],className:''});}
 function _greenIcon(){return L.divIcon({html:'<div style="background:#22c55e;width:13px;height:13px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(34,197,94,.5)"></div>',iconSize:[13,13],iconAnchor:[6.5,6.5],className:''});}
 function _carIcon(){return L.divIcon({html:'<div style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))">🚗</div>',iconSize:[28,28],iconAnchor:[14,14],className:''});}
+function _meIcon(){return L.divIcon({html:'<div style="background:#3b82f6;width:15px;height:15px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.3)"></div>',iconSize:[15,15],iconAnchor:[7.5,7.5],className:''});}
+
+// ── Real GPS pickup location ──────────────────────────────────────
+// The pickup field used to default to hardcoded text ("Current Location — Port of
+// Spain") that never reflected where the rider actually was, and unrecognized/typo'd
+// addresses fell back to a random offset that could land anywhere nearby -- including
+// in the ocean. This asks the browser for the real position and uses those exact
+// coordinates for the pickup point, only falling back to the fake address lookup if
+// location access is denied or unavailable.
+let _ME_MARKER=null;
+// _locateRider() used to fire on every single render of the Book Ride screen (tab
+// switches, live WebSocket updates while sitting on that tab, etc.), which re-asked the
+// browser for location every time -- on Android that can re-surface the permission
+// dialog on each call instead of asking once. This now asks at most once per app
+// session: once we have a location, or the user has denied/dismissed the request, we
+// never call getCurrentPosition again until the page is reloaded.
+let _locateAsked=false;
+function _locateRider(){
+  const input=document.getElementById('ride-pickup');
+  if(_locateAsked||typeof S.myLat==='number'){
+    if(_MAP_IDLE&&typeof S.myLat==='number'&&!_ME_MARKER){
+      _MAP_IDLE.setView([S.myLat,S.myLng],15);
+      _ME_MARKER=L.marker([S.myLat,S.myLng],{icon:_meIcon()}).addTo(_MAP_IDLE).bindPopup('📍 You are here');
+    }
+    return;
+  }
+  if(!navigator.geolocation){
+    if(input&&!input.value)input.placeholder='Enter pickup location';
+    return;
+  }
+  _locateAsked=true;
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      S.myLat=pos.coords.latitude;S.myLng=pos.coords.longitude;
+      const el=document.getElementById('ride-pickup');
+      if(el&&!el.value)el.value='Current Location';
+      if(_MAP_IDLE){
+        _MAP_IDLE.setView([S.myLat,S.myLng],15);
+        if(_ME_MARKER)try{_ME_MARKER.remove();}catch{}
+        _ME_MARKER=L.marker([S.myLat,S.myLng],{icon:_meIcon()}).addTo(_MAP_IDLE).bindPopup('📍 You are here');
+      }
+    },
+    err=>{
+      console.warn('Geolocation unavailable:',err.message);
+      const el=document.getElementById('ride-pickup');
+      if(el&&!el.value)el.placeholder='Enter pickup location';
+    },
+    {enableHighAccuracy:true,timeout:10000,maximumAge:60000}
+  );
+}
+
+// ── Address suggestions dropdown ──────────────────────────────────
+// Attaches live search-as-you-type suggestions to an input, backed by /api/geocode-suggest
+// (real address lookup, not just the ~18 hardcoded neighborhood names). Picking a
+// suggestion stores its exact coordinate via onPick so booking uses that coordinate
+// directly instead of re-guessing from the typed text.
+let _addrSuggestTimer=null;
+function _attachAddressSuggest(inputId,dropdownId,onPick){
+  const input=document.getElementById(inputId),dropdown=document.getElementById(dropdownId);
+  if(!input||!dropdown)return;
+  input.addEventListener('input',()=>{
+    onPick(null); // typing invalidates any previously picked coordinate
+    clearTimeout(_addrSuggestTimer);
+    const q=input.value.trim();
+    if(q.length<3){dropdown.classList.remove('show');return;}
+    _addrSuggestTimer=setTimeout(async()=>{
+      try{
+        const r=await fetch('/api/geocode-suggest?q='+encodeURIComponent(q));
+        const{results}=await r.json();
+        if(!results||!results.length){dropdown.classList.remove('show');return;}
+        dropdown.innerHTML=results.map((res,i)=>`<div class="addr-suggest-item" data-i="${i}">${res.label}</div>`).join('');
+        dropdown.classList.add('show');
+        dropdown.querySelectorAll('.addr-suggest-item').forEach(el=>{
+          el.onclick=()=>{
+            const res=results[+el.dataset.i];
+            input.value=res.label;
+            dropdown.classList.remove('show');
+            onPick({lat:res.lat,lng:res.lng});
+          };
+        });
+      }catch{dropdown.classList.remove('show');}
+    },350);
+  });
+  document.addEventListener('click',e=>{
+    if(e.target!==input&&!dropdown.contains(e.target))dropdown.classList.remove('show');
+  });
+}
+
+// Draws (or redraws) a route polyline on a Leaflet map from geometry returned by
+// /api/fare or /api/route -- an array of [lat,lng] points following actual roads
+// (falls back to a straight line between the two points if the routing service
+// was unreachable, per getRoute's server-side fallback).
+let _ROUTE_LINE=null;
+function _drawRoute(map,geometry){
+  if(!map||!geometry||!geometry.length)return;
+  if(_ROUTE_LINE){try{_ROUTE_LINE.remove();}catch{}}
+  _ROUTE_LINE=L.polyline(geometry,{color:'#E91E8C',weight:4,opacity:.85}).addTo(map);
+}
 
 function initIdleMap(){
+  const el0=document.getElementById('idle-map');if(!el0)return;
   _initLeaflet().then(()=>{
-    const el=document.getElementById('idle-map');if(!el)return;
-    if(_MAP_IDLE){try{_MAP_IDLE.remove();}catch{}}_MAP_IDLE=null;
-    _MAP_IDLE=L.map(el,{zoomControl:false,attributionControl:false}).setView([10.6549,-61.5019],12);
+    const el=document.getElementById('idle-map');if(!el)return; // page moved on while the library was loading
+    if(_MAP_IDLE){try{_MAP_IDLE.remove();}catch{}}_MAP_IDLE=null;_ME_MARKER=null;
+    const haveLoc=typeof S.myLat==='number'&&typeof S.myLng==='number';
+    _MAP_IDLE=L.map(el,{zoomControl:false,attributionControl:false}).setView(haveLoc?[S.myLat,S.myLng]:[10.6549,-61.5019],haveLoc?15:12);
+    _watchTiles(_MAP_IDLE,el);
     _tileLayer(_MAP_IDLE);L.control.zoom({position:'bottomright'}).addTo(_MAP_IDLE);
+    if(haveLoc)_ME_MARKER=L.marker([S.myLat,S.myLng],{icon:_meIcon()}).addTo(_MAP_IDLE).bindPopup('📍 You are here');
     setTimeout(()=>_MAP_IDLE&&_MAP_IDLE.invalidateSize(),300);
+  }).catch(()=>{
+    const el=document.getElementById('idle-map');
+    if(el)_showMapError(el,initIdleMap);
   });
 }
 function updateIdleMap(d){
@@ -1706,22 +2155,72 @@ function updateIdleMap(d){
   _MAP_IDLE.fitBounds([[d.pickup_lat,d.pickup_lng],[d.dest_lat,d.dest_lng]],{padding:[30,30]});
 }
 function initTrackMap(pickup,destination,driverLat,driverLng){
+  const el0=document.getElementById('track-map');if(!el0)return;
   _initLeaflet().then(()=>{
-    const el=document.getElementById('track-map');if(!el)return;
+    const el=document.getElementById('track-map');if(!el)return; // page moved on while the library was loading
     if(_MAP_TRACK){try{_MAP_TRACK.remove();}catch{}}_MAP_TRACK=null;_CAR_MARKER=null;
     const pR=DB.rides.find(r=>r.rider_id===S.user?.id&&['requested','accepted','arriving','in_progress'].includes(r.status));
     const pLat=pR?.pickup_lat||10.6549,pLng=pR?.pickup_lng||-61.5019;
     const dLat=pR?.destination_lat||10.72,dLng=pR?.destination_lng||-61.41;
     _MAP_TRACK=L.map(el,{zoomControl:false,attributionControl:false}).setView([pLat,pLng],13);
+    _watchTiles(_MAP_TRACK,el);
     _tileLayer(_MAP_TRACK);L.control.zoom({position:'bottomright'}).addTo(_MAP_TRACK);
-    L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_TRACK).bindPopup('📍 Pickup');
-    L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_TRACK).bindPopup('🏁 Destination');
+    const pMk=L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_TRACK).bindPopup('📍 Pickup');
+    const dMk=L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_TRACK).bindPopup('🏁 Destination');
     const carStart=driverLat||pLat+(Math.random()-.5)*.02;
     const carStartLng=driverLng||pLng+(Math.random()-.5)*.02;
     _CAR_MARKER=L.marker([carStart,carStartLng],{icon:_carIcon()}).addTo(_MAP_TRACK);
     _MAP_TRACK.fitBounds([[pLat,pLng],[dLat,dLng]],{padding:[20,20]});
     _MAP_TRACK._pLat=pLat;_MAP_TRACK._pLng=pLng;_MAP_TRACK._dLat=dLat;_MAP_TRACK._dLng=dLng;
     setTimeout(()=>_MAP_TRACK&&_MAP_TRACK.invalidateSize(),300);
+    _fetchAndDrawRoute(()=>_MAP_TRACK,pLat,pLng,dLat,dLng,pMk,dMk);
+  }).catch(()=>{
+    const el=document.getElementById('track-map');
+    if(el)_showMapError(el,()=>initTrackMap(pickup,destination,driverLat,driverLng));
+  });
+}
+// Fetches the real driving route for a map and draws it once loaded. Takes a getter
+// (not the map instance directly) since the map may be torn down/rebuilt again before
+// this async fetch resolves.
+async function _fetchAndDrawRoute(getMap,pLat,pLng,dLat,dLng,pMarker,dMarker){
+  try{
+    const r=await fetch(`/api/route?pickup_lat=${pLat}&pickup_lng=${pLng}&dest_lat=${dLat}&dest_lng=${dLng}`);
+    const route=await r.json();
+    const map=getMap();
+    if(map&&route.geometry){
+      _drawRoute(map,route.geometry);
+      // Snap the pin/flag markers onto the real road route so they never appear
+      // off-road (e.g. in water) when the raw geocoded coordinate is imprecise --
+      // OSRM always snaps its route endpoints to the nearest routable road.
+      if(route.real&&route.geometry.length>1){
+        if(pMarker)pMarker.setLatLng(route.geometry[0]);
+        if(dMarker)dMarker.setLatLng(route.geometry[route.geometry.length-1]);
+      }
+    }
+  }catch{}
+}
+// Map for the public "Share Trip" tracking page (loadTrack) -- a trusted contact opening
+// a shared link. loadTrack replaces its whole body.innerHTML (including #share-map) on
+// every 10s auto-refresh, so the map is always rebuilt fresh rather than reused --
+// the old container node is gone by the time the next refresh runs.
+function initShareMap(ride){
+  const el0=document.getElementById('share-map');if(!el0)return;
+  _initLeaflet().then(()=>{
+    const el=document.getElementById('share-map');if(!el)return;
+    if(_MAP_SHARE){try{_MAP_SHARE.remove();}catch{}}_MAP_SHARE=null;_SHARE_CAR_MARKER=null;
+    const pLat=ride.pickup_lat,pLng=ride.pickup_lng,dLat=ride.destination_lat,dLng=ride.destination_lng;
+    _MAP_SHARE=L.map(el,{zoomControl:false,attributionControl:false}).setView([pLat,pLng],13);
+    _watchTiles(_MAP_SHARE,el);
+    _tileLayer(_MAP_SHARE);
+    const pMk=L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_SHARE).bindPopup('📍 Pickup');
+    const dMk=L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_SHARE).bindPopup('🏁 Destination');
+    _SHARE_CAR_MARKER=L.marker([pLat+(Math.random()-.5)*.02,pLng+(Math.random()-.5)*.02],{icon:_carIcon()}).addTo(_MAP_SHARE);
+    _MAP_SHARE.fitBounds([[pLat,pLng],[dLat,dLng]],{padding:[20,20]});
+    setTimeout(()=>_MAP_SHARE&&_MAP_SHARE.invalidateSize(),300);
+    _fetchAndDrawRoute(()=>_MAP_SHARE,pLat,pLng,dLat,dLng,pMk,dMk);
+  }).catch(()=>{
+    const el=document.getElementById('share-map');
+    if(el)_showMapError(el,()=>initShareMap(ride));
   });
 }
 function moveCarToward(targetLat,targetLng){
@@ -1773,6 +2272,7 @@ function _rerender(){
   if(cur==='rider')renderRiderBook&&renderRiderBook();
   else if(cur==='driver'){S.dp=DB.driver_profiles?.find(d=>d.user_id===S.user?.id)||null;loadDriver&&loadDriver();}
   else if(cur==='admin')loadAdmin&&loadAdmin();
+  _updateNotifDots();
 }
 
 // ── Server DB load ───────────────────────────────────────────────
@@ -1784,6 +2284,7 @@ async function _pttLoadDB(){
     const{db:serverDB,user}=await r.json();
     Object.keys(serverDB).forEach(k=>{if(DB[k]!==undefined)DB[k]=serverDB[k];});
     if(user&&!S.user){S.user=user;save();}
+    _updateNotifDots();
   }catch(e){console.log('DB load error',e);}
 }
 
@@ -1857,10 +2358,63 @@ doRegister=async function(){
     if(!user){toast('Error loading account','err');return;}
     S.user=user;save();_wsConnect();
     toast('Welcome to Pink.TT, '+first+'! 🌸','ok');
-    if(S.regRole==='driver')go('dsetup');else routeUser(user);
+    routeUser(user);
   }catch(e){toast('Network error — is the server running?','err');}
   if(btn){btn.disabled=false;btn.textContent='Create Account 🌸';}
 };
+
+// ── ID verification (photo upload → server-side gender-scan) ──────
+function _fileToCompressedDataURL(file,maxDim=640,quality=0.82){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        let w=img.width,h=img.height;
+        if(w>h&&w>maxDim){h=Math.round(h*maxDim/w);w=maxDim;}
+        else if(h>maxDim){w=Math.round(w*maxDim/h);h=maxDim;}
+        const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg',quality));
+      };
+      img.onerror=()=>reject(new Error('Could not read image'));
+      img.src=reader.result;
+    };
+    reader.onerror=()=>reject(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+}
+function _previewFile(inputId,boxId){
+  const f=document.getElementById(inputId)?.files?.[0];if(!f)return;
+  const reader=new FileReader();
+  reader.onload=()=>{const box=document.getElementById(boxId);if(box)box.innerHTML=`<img src="${reader.result}" style="width:100%;height:100%;object-fit:cover">`;};
+  reader.readAsDataURL(f);
+}
+function renderIdVerify(){
+  const box=document.getElementById('idv-preview-box');
+  if(box)box.innerHTML='<span style="color:#9ca3af;font-size:13px">No photo selected</span>';
+  const inp=document.getElementById('idv-photo');if(inp)inp.value='';
+}
+async function submitIdVerify(){
+  const f=document.getElementById('idv-photo')?.files?.[0];
+  if(!f){toast('Please choose a photo first','err');return;}
+  const btn=document.getElementById('idv-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Verifying...';}
+  try{
+    const dataUrl=await _fileToCompressedDataURL(f,640,0.82);
+    const r=await fetch('/api/verify-id',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_PTT_TOKEN},body:JSON.stringify({image:dataUrl})});
+    const data=await r.json();
+    if(data.ok&&data.verified){
+      toast(data.demo?'Verified (demo mode) 🌸':'Identity verified! 🌸','ok');
+      await _pttLoadDB();
+      const fresh=DB.users.find(u=>u.id===S.user.id);if(fresh)S.user=fresh;save();
+      routeUser(S.user);
+    }else{
+      toast(data.error||'Verification failed — please try again','err');
+    }
+  }catch(e){toast('Network error — please try again','err');}
+  if(btn){btn.disabled=false;btn.textContent='Verify My Identity 🌸';}
+}
 
 // ── Override bookRide to hit server ─────────────────────────────
 const _origBookRide=bookRide;
@@ -1871,7 +2425,15 @@ bookRide=async function(){
   if(pickup===dest){toast('Pickup and destination cannot be the same','err');return;}
   const btn=document.getElementById('book-btn');
   if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Booking...';}
-  const res=await _mutate('book_ride',{pickup_address:pickup,destination_address:dest});
+  const redeemChecked=document.getElementById('ride-redeem-points')?.checked;
+  const pointsToRedeem=redeemChecked?(S.user?.pink_points||0):0;
+  const pickupCoord=S._pickupSuggest,destCoord=S._destSuggest;
+  const res=await _mutate('book_ride',{
+    pickup_address:pickup,destination_address:dest,
+    pickup_lat:pickupCoord?.lat??S.myLat,pickup_lng:pickupCoord?.lng??S.myLng,
+    destination_lat:destCoord?.lat,destination_lng:destCoord?.lng,
+    points_to_redeem:pointsToRedeem
+  });
   if(res.ok){
     toast('🌸 Ride requested! Finding your driver...','ok');
     await _pttLoadDB();
@@ -1884,6 +2446,21 @@ bookRide=async function(){
     _startRidePoll();
   }
   if(btn){btn.disabled=false;btn.textContent='🌸 Book Ride';}
+};
+
+// Base riderCancel() only mutated local demo state and never told the server, so
+// cancelling never actually persisted (same bug class fixed for driver accept earlier).
+riderCancel=async function(){
+  if(!S.activeRide)return;
+  const id=S.activeRide.id;
+  const res=await _mutate('ride_status',{ride_id:id,status:'cancelled'});
+  if(res.ok){
+    clearInterval(_ridePollTimer);_ridePollTimer=null;
+    S.rideStatus=null;S.activeRide=null;S.driverInfo=null;
+    toast('Ride cancelled');
+    await _pttLoadDB();
+    renderRiderBook&&renderRiderBook();
+  }
 };
 
 // ── Poll active ride for updates ─────────────────────────────────
@@ -1919,21 +2496,6 @@ function _startRidePoll(){
   },3000);
 }
 
-// ── Override driver accept ────────────────────────────────────────
-const _origDriverAccept=typeof driverAccept!=='undefined'?driverAccept:null;
-// Intercept accept button at DOM level - patch happens after renderPendingRides
-function _patchAccept(rideId){
-  return async function(){
-    const res=await _mutate('accept_ride',{ride_id:rideId});
-    if(res.ok){
-      toast('✅ Ride accepted! Head to pickup 📍','ok');
-      await _pttLoadDB();
-      loadDriver&&loadDriver();
-      _startRidePoll();
-    }
-  };
-}
-
 // ── Override toggleOnline ─────────────────────────────────────────
 const _origToggle=toggleOnline;
 toggleOnline=async function(){
@@ -1963,8 +2525,11 @@ submitApp=async function(){
     license_number:document.getElementById('ds-lic')?.value.trim()||''
   };
   if(!f.vehicle_make||!f.vehicle_model||!f.vehicle_year||!f.vehicle_color||!f.vehicle_plate||!f.license_number){toast('All fields required','err');return;}
+  const licFile=document.getElementById('ds-lic-photo')?.files?.[0];
+  if(!licFile){toast('Please upload a photo of your driver\'s licence','err');return;}
   const btn=document.getElementById('ds-btn');
   if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Submitting...';}
+  try{f.license_photo=await _fileToCompressedDataURL(licFile,900,0.85);}catch(e){toast('Could not read licence photo — please try another','err');if(btn){btn.disabled=false;btn.textContent='Submit Application 🌸';}return;}
   const res=await _mutate('driver_apply',f);
   if(res.ok){
     toast('Application submitted! Under review within 24 hours 🌸','ok');
@@ -1978,12 +2543,23 @@ submitApp=async function(){
 // ── Override sendSOS ──────────────────────────────────────────────
 const _origSOS=sendSOS;
 sendSOS=async function(){
-  const res=await _mutate('sos',{ride_id:S.activeRide?.id||null,lat:10.6549,lng:-61.5019,message:'Emergency SOS from '+S.user.first_name+' '+S.user.last_name});
+  // Was hardcoded to a fixed Port of Spain coordinate regardless of where the rider
+  // actually was -- a real accuracy problem for a safety feature. Uses the device's
+  // live GPS fix when available (same one the booking map already has), falling back
+  // to the ride's pickup point, and only to the city-center default as a last resort.
+  const lat=(typeof S.myLat==='number'?S.myLat:null)??S.activeRide?.pickup_lat??10.6549;
+  const lng=(typeof S.myLng==='number'?S.myLng:null)??S.activeRide?.pickup_lng??-61.5019;
+  const res=await _mutate('sos',{ride_id:S.activeRide?.id||null,lat,lng,message:'Emergency SOS from '+S.user.first_name+' '+S.user.last_name});
   closeModal('sos-modal');
   if(res.ok){
-    toast('🚔 TTPS POLICE NOTIFIED — Emergency dispatch to your GPS!','err');
-    setTimeout(()=>toast('🛡️ Pink.TT Safety Team responding','err'),900);
-    if(S.user.emergency_contact_name)setTimeout(()=>toast('📱 '+S.user.emergency_contact_name+' called & SMS sent','ok'),1800);
+    if(res.safetyTeamAlerted){
+      toast('🛡️ Pink.TT Safety Team called & texted — they will contact police if needed','err');
+    }else{
+      toast('🚨 SOS logged — Pink.TT Safety Team notified via dashboard','err');
+    }
+    toast('📍 Your location has been recorded with this alert','ok');
+  }else{
+    toast(res.error||'SOS failed to send — please call for help directly if you are in danger','err');
   }
 };
 
@@ -1998,6 +2574,19 @@ rejectDriver=async function(userId){
   const res=await _mutate('reject_driver',{user_id:userId});
   if(res.ok){toast('Driver rejected');await _pttLoadDB();loadAdmin&&loadAdmin();}
 };
+async function suspendDriver(userId){
+  const res=await _mutate('suspend_driver',{user_id:userId});
+  if(res.ok){toast('Driver suspended');await _pttLoadDB();loadAdmin&&loadAdmin();}
+}
+async function viewLicensePhoto(userId){
+  try{
+    const r=await fetch('/api/driver-license-photo/'+userId,{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    const data=await r.json();
+    const box=document.getElementById('license-photo-box');
+    box.innerHTML=data.license_photo?`<img src="${data.license_photo}" style="width:100%;border-radius:14px;display:block">`:`<p style="text-align:center;color:#9ca3af;font-size:13px;padding:30px 0">No licence photo on file for this driver.</p>`;
+    openModal('license-modal');
+  }catch(e){toast('Could not load licence photo','err');}
+}
 
 // ── Override rideStatus changes (for driver progress buttons) ────
 // Wrap declineRide to just remove from pending display
@@ -2014,13 +2603,43 @@ async function _driverRideStatus(rideId, status){
   const res=await _mutate('ride_status',{ride_id:rideId,status});
   if(res.ok){
     await _pttLoadDB();
-    loadDriver&&loadDriver();
-    if(status==='completed'){
+    if(status==='completed'||status==='cancelled'){
+      const ride=DB.rides.find(r=>r.id===rideId);
+      if(status==='completed')toast('Ride completed! '+fmtFare((ride?.final_fare||0)*.8)+' earned 🌸','ok');
+      else toast('Ride cancelled');
       S.currentDriverRide=null;
       clearInterval(_ridePollTimer);_ridePollTimer=null;
+      S.dTab='reqs';
+    }else{
+      S.currentDriverRide=DB.rides.find(r=>r.id===rideId)||null;
+      if(status==='in_progress')toast('Ride started! Safe driving 🌸','ok');
     }
+    loadDriver&&loadDriver();
   }
+  return res;
 }
+
+// ── Override acceptRide/startRide/completeRide/cancelRideDriver to hit server ──
+// (the base functions only mutated the in-memory demo DB and never told the server,
+// so a driver "accepting" a ride never actually persisted -- the rider stayed stuck
+// on "Finding your driver..." forever. These replace them with real API calls.)
+acceptRide=async function(id){
+  const res=await _mutate('accept_ride',{ride_id:id});
+  if(res.ok){
+    toast('Ride accepted! Head to pickup 🌸','ok');
+    await _pttLoadDB();
+    S.currentDriverRide=DB.rides.find(r=>r.id===id)||null;
+    S.dTab='active';
+    loadDriver&&loadDriver();
+    _startRidePoll();
+  }else{
+    await _pttLoadDB();
+    loadDriver&&loadDriver();
+  }
+};
+startRide=async function(){if(S.currentDriverRide)await _driverRideStatus(S.currentDriverRide.id,'in_progress');};
+completeRide=async function(){if(S.currentDriverRide)await _driverRideStatus(S.currentDriverRide.id,'completed');};
+cancelRideDriver=async function(){if(S.currentDriverRide)await _driverRideStatus(S.currentDriverRide.id,'cancelled');};
 
 // ── Override doLogout ────────────────────────────────────────────
 const _origLogout=doLogout;
@@ -2033,12 +2652,18 @@ doLogout=function(){
   _origLogout();
 };
 
-// ── Patch renderPendingRides to use server accept ─────────────────
-const _origRenderPending=typeof renderPendingRides!=='undefined'?renderPendingRides:null;
+// ── Demo accounts panel visibility (server-controlled via SHOW_DEMO_ACCOUNTS) ──
+async function _loadConfig(){
+  let show=true;
+  try{const r=await fetch('/api/config');const data=await r.json();show=!!data.showDemoAccounts;}catch{}
+  const box=document.querySelector('.demo-box');
+  if(box)box.style.display=show?'':'none';
+}
 
 // ── Hook into init ────────────────────────────────────────────────
 const _origInit=init;
 init=async function(){
+  _loadConfig();
   const params=new URLSearchParams(location.search);
   const track=params.get('track');
   if(track){if(typeof loadTrack==='function')loadTrack(track);return;}
@@ -2060,10 +2685,14 @@ renderRiderBook=function(){
   // Init idle map only when no active ride
   if(!S.rideStatus||S.rideStatus==='completed'){
     setTimeout(()=>initIdleMap(),150);
+    _locateRider();
+    _attachAddressSuggest('ride-pickup','ride-pickup-suggest',c=>S._pickupSuggest=c);
+    _attachAddressSuggest('ride-dest','ride-dest-suggest',c=>S._destSuggest=c);
   } else {
     // Init/refresh tracking map
     if(S.activeRide){
       setTimeout(()=>{
+        if(!S.activeRide)return;
         initTrackMap(S.activeRide.pickup_address,S.activeRide.destination_address);
         if(S.rideStatus==='in_progress'&&_MAP_TRACK)moveCarToward(_MAP_TRACK._dLat,_MAP_TRACK._dLng);
         else if(['accepted','arriving'].includes(S.rideStatus)&&_MAP_TRACK)moveCarToward(_MAP_TRACK._pLat,_MAP_TRACK._pLng);
@@ -2072,47 +2701,86 @@ renderRiderBook=function(){
   }
 };
 
-// ── Patch driver renderPending to use server accept ───────────────
-// Intercept accept button clicks via event delegation
-document.addEventListener('click',async function(e){
-  const btn=e.target.closest('[data-accept-ride]');
-  if(btn){
-    e.preventDefault();e.stopPropagation();
-    const rideId=btn.getAttribute('data-accept-ride');
-    btn.disabled=true;btn.innerHTML='<div class="spin"></div>';
-    const res=await _mutate('accept_ride',{ride_id:rideId});
-    if(res.ok){
-      toast('✅ Ride accepted! Head to pickup 📍','ok');
-      await _pttLoadDB();
-      S.currentDriverRide=DB.rides.find(r=>r.id===rideId)||null;
-      loadDriver&&loadDriver();
-      _startRidePoll();
-    }else{btn.disabled=false;btn.innerHTML='✓ Accept';}
-  }
-  // Driver status update buttons
-  const statusBtn=e.target.closest('[data-ride-status]');
-  if(statusBtn){
-    e.preventDefault();e.stopPropagation();
-    const rideId=statusBtn.getAttribute('data-ride-id');
-    const status=statusBtn.getAttribute('data-ride-status');
-    statusBtn.disabled=true;statusBtn.innerHTML='<div class="spin"></div>';
-    await _driverRideStatus(rideId,status);
-  }
-});
-
-// ─── Patch renderPendingRides to add data-accept-ride attrs ──────
-// After any DOM render that includes ride cards, rewrite accept buttons
-const _mutObs=new MutationObserver(()=>{
-  document.querySelectorAll('[data-raw-accept]').forEach(btn=>{
-    const rideId=btn.getAttribute('data-raw-accept');
-    btn.setAttribute('data-accept-ride',rideId);
-    btn.removeAttribute('data-raw-accept');
-    btn.removeAttribute('onclick');
-  });
-});
-_mutObs.observe(document.getElementById('shell')||document.body,{childList:true,subtree:true});
-
 console.log('🌸 Pink.TT Network Bridge loaded');
+
+// PWA: register the service worker so "Add to Home Screen" is installable on Android/Chrome
+// and the app has an offline fallback page. Never blocks app init if it fails.
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/sw.js').catch(e=>console.warn('Service worker registration failed',e));
+  });
+}
+
+// ── Landing page "live wallpaper" ───────────────────────────────────────────
+// A pool of looping video backdrops for the landing hero -- one is picked at
+// random each fresh app open (sessionStorage, so it stays put for the rest of
+// that session/reloads but changes again next time the app is opened) and
+// played behind the hero copy, fading to white toward the bottom via the
+// .hero-bg mask in CSS. Add more clips by dropping matching .mp4/.webm pairs
+// into /public/media/ and adding their base filename here -- nothing else
+// needs to change.
+const WALLPAPER_POOL=['install-banner-bg'];
+function _pickWallpaper(){
+  let name=sessionStorage.getItem('ptt_wallpaper');
+  if(!name||!WALLPAPER_POOL.includes(name)){
+    name=WALLPAPER_POOL[Math.floor(Math.random()*WALLPAPER_POOL.length)];
+    sessionStorage.setItem('ptt_wallpaper',name);
+  }
+  const v=document.getElementById('hero-bg-video');
+  if(!v)return;
+  v.innerHTML=`<source src="/media/${name}.mp4" type="video/mp4"><source src="/media/${name}.webm" type="video/webm">`;
+  v.load();
+}
+_pickWallpaper();
+
+// ── Install-app banner ──────────────────────────────────────────────────────
+// The manifest+service-worker made the app *technically* installable, but
+// nothing ever surfaced that to a user -- Chrome's own install icon is easy to
+// miss and iOS has no install prompt at all. This shows a real, persistent
+// "Install App" banner: a native prompt on Android/Chrome/Edge, and
+// step-by-step instructions on iOS Safari (which has no install API at all).
+// Reappears each new browser session until the app is actually installed.
+let _deferredInstallPrompt=null;
+function _isStandalone(){return window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;}
+function _isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;}
+function showInstallBanner(kind){
+  if(_isStandalone()||sessionStorage.getItem('ptt_install_dismissed'))return;
+  const existing=document.getElementById('install-banner');
+  if(existing){existing.dataset.kind=kind;return;}
+  const el=document.createElement('div');
+  el.id='install-banner';el.dataset.kind=kind;
+  const bg=`<video class="ib-bg" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4" type="video/mp4"><source src="/media/install-banner-bg.webm" type="video/webm"></video>`;
+  const icon=`<div class="ib-icon"><img src="/icons/icon-192.png" alt="Pink.TT"></div>`;
+  el.innerHTML=bg+(kind==='ios'
+    ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap Share <b>⬆️</b>, then "Add to Home Screen"</span></div><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`
+    :`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`);
+  document.body.appendChild(el);
+}
+function dismissInstallBanner(){sessionStorage.setItem('ptt_install_dismissed','1');document.getElementById('install-banner')?.remove();}
+async function triggerInstall(){
+  // Chrome only fires beforeinstallprompt after its own engagement heuristics are met,
+  // so it may not have fired yet even though the app is installable -- pressing Install
+  // must never silently do nothing. Fall back to the manual browser-menu instructions
+  // whenever there's no captured native prompt to trigger.
+  if(!_deferredInstallPrompt){
+    openInstallHelpModal();
+    return;
+  }
+  _deferredInstallPrompt.prompt();
+  const choice=await _deferredInstallPrompt.userChoice;
+  _deferredInstallPrompt=null;
+  if(choice.outcome==='accepted')document.getElementById('install-banner')?.remove();
+  else openInstallHelpModal();
+}
+function openInstallHelpModal(){
+  toast('Open your browser menu (⋮ or ⋯) and tap "Install app" or "Add to Home Screen"');
+}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();_deferredInstallPrompt=e;showInstallBanner('android');});
+window.addEventListener('appinstalled',()=>{document.getElementById('install-banner')?.remove();sessionStorage.setItem('ptt_install_dismissed','1');});
+// Show immediately on load rather than waiting solely for beforeinstallprompt, which may
+// never fire (unsupported browser, or Chrome's engagement heuristics not yet satisfied) --
+// triggerInstall() falls back to manual instructions in that case, so the button always works.
+if(!_isStandalone())setTimeout(()=>showInstallBanner(_isIOS()?'ios':'android'),1500);
 
 init();
 </script>

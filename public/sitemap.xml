@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PLACEHOLDER: replace https://pinktt.example with the real deployed domain once hosting is finalized. -->
+<urlset xmlns="http://www.w3.org/sitemaps/schemas/sitemap/0.9">
+  <url>
+    <loc>https://pinktt.example/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
