@@ -31,7 +31,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-:root{--p:#E91E8C;--pl:#FF6BB5;--pd:#C4006F;--pp:#FFF0F6;--pb:#fce7f3;--g:#22c55e;--y:#f59e0b;--r:#ef4444;--b:#3b82f6;--gray:#f9fafb;--shadow:0 4px 20px rgba(0,0,0,.08);--pink-shadow:0 4px 20px rgba(233,30,140,.25)}
+:root{--p:#E91E8C;--pl:#FF6BB5;--pd:#C4006F;--pp:#FFF0F6;--pb:#fce7f3;--g:#22c55e;--y:#f59e0b;--r:#ef4444;--b:#3b82f6;--gray:#f9fafb;--shadow:0 1px 2px rgba(17,17,17,.04),0 10px 24px -8px rgba(17,17,17,.10);--pink-shadow:0 1px 2px rgba(196,0,111,.15),0 10px 22px -6px rgba(233,30,140,.38)}
 html,body{height:100%;overflow:hidden;font-family:'DM Sans',system-ui,sans-serif;background:#f0f0f0;-webkit-font-smoothing:antialiased}
 @media (min-width:500px){
   html,body{background:linear-gradient(160deg,var(--pp) 0%,#f0f0f0 45%)}
@@ -42,7 +42,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    support dvh. Without this, #shell could be sized taller than what's actually visible
    when the address bar is showing, and with html,body now overflow:hidden that extra
    height was simply inaccessible -- looked exactly like "can't scroll down". */
-#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:430px;margin:0 auto;background:#fff;position:relative;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.15)}
+#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:430px;margin:0 auto;background:#fff;position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(17,17,17,.04),0 30px 70px -20px rgba(17,17,17,.35)}
 .page{display:none;flex-direction:column;height:100%;overflow:hidden}
 .page.active{display:flex}
 .scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
@@ -51,35 +51,35 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* Top bar */
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff;border-bottom:1px solid #f0f0f0;flex-shrink:0;z-index:10}
 .logo{display:flex;align-items:center;gap:8px}
-.logo-dot{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--p),var(--pl));display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;font-family:'Playfair Display',serif;flex-shrink:0}
-.logo-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--p)}
+.logo-dot{width:30px;height:30px;border-radius:9px;background:linear-gradient(150deg,var(--pl),var(--p) 55%,var(--pd));display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;font-family:'Playfair Display',serif;flex-shrink:0;box-shadow:0 3px 8px -2px rgba(196,0,111,.5),inset 0 1px 0 rgba(255,255,255,.35)}
+.logo-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--p);letter-spacing:-.2px}
 /* Buttons */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;font-family:inherit;font-weight:600;border-radius:14px;transition:all .15s;outline:none;font-size:14px;padding:11px 20px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;font-family:inherit;font-weight:700;letter-spacing:.1px;border-radius:11px;transition:transform .15s cubic-bezier(.2,.8,.2,1),box-shadow .15s,background .15s,filter .15s;outline:none;font-size:14px;padding:11px 20px}
 .btn:focus-visible,.tab:focus-visible,.role-o:focus-visible,.tog:focus-visible,a:focus-visible{outline:2px solid var(--p);outline-offset:2px}
-.bp{background:var(--p);color:#fff;box-shadow:var(--pink-shadow)}
-.bp:hover{background:var(--pd);transform:translateY(-1px)}
-.bp:active{transform:none}
+.bp{background:linear-gradient(155deg,var(--pl),var(--p) 60%);color:#fff;box-shadow:var(--pink-shadow)}
+.bp:hover{filter:brightness(1.04);transform:translateY(-1px);box-shadow:0 2px 4px rgba(196,0,111,.2),0 14px 26px -8px rgba(233,30,140,.45)}
+.bp:active{transform:translateY(0) scale(.98);filter:brightness(.97)}
 .bs{background:#fff;color:var(--p);border:1.5px solid var(--pb)}
-.bs:hover{background:var(--pp)}
+.bs:hover{background:var(--pp);border-color:var(--p)}
 .br{background:var(--r);color:#fff}
 .bg2{background:var(--g);color:#fff}
 .bw{width:100%}
-.bsm{padding:7px 14px;font-size:12px;border-radius:10px}
+.bsm{padding:7px 14px;font-size:12px;border-radius:9px}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
 /* Form */
-.inp{width:100%;border:1.5px solid #e5e7eb;border-radius:14px;padding:11px 14px;font-size:14px;font-family:inherit;background:#fff;transition:all .15s;outline:none}
-.inp:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(233,30,140,.08)}
-.addr-suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:50;max-height:220px;overflow-y:auto;display:none}
+.inp{width:100%;border:1.5px solid #e5e7eb;border-radius:11px;padding:11px 14px;font-size:14px;font-family:inherit;background:#fff;transition:all .15s;outline:none}
+.inp:focus{border-color:var(--p);box-shadow:0 0 0 3.5px rgba(233,30,140,.1)}
+.addr-suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid rgba(17,17,17,.06);border-radius:12px;box-shadow:0 1px 2px rgba(17,17,17,.04),0 16px 32px -10px rgba(17,17,17,.22);z-index:50;max-height:220px;overflow-y:auto;display:none}
 .addr-suggest.show{display:block}
 .addr-suggest-item{padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid #f3f4f6}
 .addr-suggest-item:last-child{border-bottom:none}
 .addr-suggest-item:hover,.addr-suggest-item:active{background:var(--pp)}
-.lbl{display:block;font-size:11px;font-weight:700;color:#6b7280;margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
+.lbl{display:block;font-size:10.5px;font-weight:800;color:#6b7280;margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px}
 .fg{margin-bottom:14px}
 /* Cards */
-.card{background:#fff;border-radius:20px;padding:18px;box-shadow:var(--shadow)}
+.card{background:#fff;border-radius:16px;padding:18px;box-shadow:var(--shadow);border:1px solid rgba(17,17,17,.045)}
 /* Badges */
-.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
 .bpink{background:#fce7f3;color:#9d174d}
 .bgrn{background:#dcfce7;color:#166534}
 .byel{background:#fef9c3;color:#854d0e}
@@ -87,24 +87,33 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .bblu{background:#dbeafe;color:#1e40af}
 /* Toast */
 #toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:7px;width:90%;max-width:380px;pointer-events:none}
-.toast{background:#fff;border-radius:14px;padding:11px 15px;font-size:13px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,.18);border-left:4px solid var(--p);animation:tIn .25s ease;display:flex;align-items:center;gap:9px}
+.toast{background:#fff;border-radius:11px;padding:11px 15px;font-size:13px;font-weight:600;box-shadow:0 2px 6px rgba(17,17,17,.06),0 16px 32px -10px rgba(17,17,17,.25);border-left:3px solid var(--p);animation:tIn .25s ease;display:flex;align-items:center;gap:9px}
 .toast.err{border-color:var(--r)}
 .toast.ok{border-color:var(--g)}
 @keyframes tIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
-/* Install banner -- styled after Chrome's classic top install infobar */
-#install-banner{position:fixed;left:0;right:0;top:0;z-index:180;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.12);border-bottom:1px solid #eee;padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;display:flex;align-items:center;gap:10px;animation:tInTop .25s ease}
+/* Install banner -- a continuously-animated psychedelic pink topo/camo backdrop,
+   like Chrome's classic top infobar but a lot more alive. */
+#install-banner{position:fixed;left:0;right:0;top:0;z-index:180;overflow:hidden;color:#fff;background:linear-gradient(120deg,#ff2fa8,#c4006f 30%,#7a1263 55%,#ff6bb5 80%,#ff2fa8);background-size:400% 400%;box-shadow:0 4px 18px rgba(196,0,111,.4);padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;display:flex;align-items:center;gap:10px;animation:tInTop .25s ease,ibFlow 9s ease infinite}
 @keyframes tInTop{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:none}}
-#install-banner .ib-icon{width:28px;height:28px;border-radius:7px;background:var(--p);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+@keyframes ibFlow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+#install-banner::before{content:'';position:absolute;inset:-45%;background-image:repeating-radial-gradient(circle at 20% 30%,transparent 0 10px,rgba(255,255,255,.12) 11px 12px,transparent 13px 24px),repeating-radial-gradient(circle at 75% 65%,transparent 0 16px,rgba(255,255,255,.09) 17px 18px,transparent 19px 34px),repeating-radial-gradient(circle at 45% 90%,transparent 0 8px,rgba(255,255,255,.14) 9px 10px,transparent 11px 22px);animation:ibTopo 18s linear infinite;pointer-events:none}
+@keyframes ibTopo{from{transform:translate(0,0) rotate(0deg)}to{transform:translate(-7%,-9%) rotate(8deg)}}
+#install-banner>*{position:relative;z-index:1}
+#install-banner .ib-icon{width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.4);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
 #install-banner .ib-text{flex:1;min-width:0}
-#install-banner .ib-text b{font-size:12.5px;display:block;color:#111}
-#install-banner .ib-text span{font-size:10.5px;color:#9ca3af}
+#install-banner .ib-text b{font-size:12.5px;display:block;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.25)}
+#install-banner .ib-text span{font-size:10.5px;color:rgba(255,255,255,.88)}
 #install-banner button{flex-shrink:0}
-#install-banner .btn.bp.bsm{padding:6px 12px;font-size:12px}
-#install-banner .ib-close{background:none;border:none;color:#9ca3af;font-size:16px;padding:4px 6px;cursor:pointer;line-height:1}
+#install-banner .btn.bp.bsm{padding:6px 12px;font-size:12px;background:#fff;color:var(--pd);box-shadow:0 2px 8px rgba(0,0,0,.2)}
+#install-banner .btn.bp.bsm:hover{background:#fff;filter:none;color:var(--pd);transform:none}
+#install-banner .ib-close{background:none;border:none;color:rgba(255,255,255,.85);font-size:16px;padding:4px 6px;cursor:pointer;line-height:1}
+#install-banner .ib-close:hover{color:#fff}
+@media (prefers-reduced-motion:reduce){#install-banner,#install-banner::before{animation:none}}
 /* Tabs */
 .tabs{display:flex;border-bottom:1px solid #f0f0f0;flex-shrink:0}
-.tab{flex:1;padding:11px 6px;text-align:center;font-size:12px;font-weight:600;color:#9ca3af;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.tab{flex:1;padding:11px 6px;text-align:center;font-size:12px;font-weight:700;color:#9ca3af;cursor:pointer;border-bottom:2.5px solid transparent;transition:all .15s;white-space:nowrap}
 .tab.on{color:var(--p);border-color:var(--p)}
+.tab:hover:not(.on){color:#6b7280}
 /* Spinners */
 .spin{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:rot .6s linear infinite;display:inline-block}
 .spinp{border-color:rgba(233,30,140,.15);border-top-color:var(--p)}
@@ -126,7 +135,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* Modal */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end}
 .overlay.show{display:flex}
-.sheet{background:#fff;border-radius:28px 28px 0 0;padding:26px 22px 30px;width:100%;max-height:90vh;overflow-y:auto;animation:shU .28s ease}
+.sheet{background:#fff;border-radius:20px 20px 0 0;padding:26px 22px 30px;width:100%;max-height:90vh;overflow-y:auto;animation:shU .28s cubic-bezier(.2,.9,.25,1);box-shadow:0 -1px 0 rgba(17,17,17,.05),0 -20px 50px -10px rgba(17,17,17,.25)}
 @keyframes shU{from{transform:translateY(100%)}to{transform:none}}
 /* Stars */
 .stars{display:flex;gap:5px;justify-content:center}
@@ -2684,9 +2693,10 @@ function _isStandalone(){return window.matchMedia('(display-mode: standalone)').
 function _isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;}
 function showInstallBanner(kind){
   if(_isStandalone()||sessionStorage.getItem('ptt_install_dismissed'))return;
-  if(document.getElementById('install-banner'))return;
+  const existing=document.getElementById('install-banner');
+  if(existing){existing.dataset.kind=kind;return;}
   const el=document.createElement('div');
-  el.id='install-banner';
+  el.id='install-banner';el.dataset.kind=kind;
   el.innerHTML=kind==='ios'
     ?`<div class="ib-icon">📲</div><div class="ib-text"><b>Install Pink.TT</b><span>Tap Share <b>⬆️</b>, then "Add to Home Screen"</span></div><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`
     :`<div class="ib-icon">📲</div><div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`;
@@ -2694,15 +2704,29 @@ function showInstallBanner(kind){
 }
 function dismissInstallBanner(){sessionStorage.setItem('ptt_install_dismissed','1');document.getElementById('install-banner')?.remove();}
 async function triggerInstall(){
-  if(!_deferredInstallPrompt)return;
+  // Chrome only fires beforeinstallprompt after its own engagement heuristics are met,
+  // so it may not have fired yet even though the app is installable -- pressing Install
+  // must never silently do nothing. Fall back to the manual browser-menu instructions
+  // whenever there's no captured native prompt to trigger.
+  if(!_deferredInstallPrompt){
+    openInstallHelpModal();
+    return;
+  }
   _deferredInstallPrompt.prompt();
-  await _deferredInstallPrompt.userChoice;
+  const choice=await _deferredInstallPrompt.userChoice;
   _deferredInstallPrompt=null;
-  document.getElementById('install-banner')?.remove();
+  if(choice.outcome==='accepted')document.getElementById('install-banner')?.remove();
+  else openInstallHelpModal();
+}
+function openInstallHelpModal(){
+  toast('Open your browser menu (⋮ or ⋯) and tap "Install app" or "Add to Home Screen"');
 }
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();_deferredInstallPrompt=e;showInstallBanner('android');});
 window.addEventListener('appinstalled',()=>{document.getElementById('install-banner')?.remove();sessionStorage.setItem('ptt_install_dismissed','1');});
-if(_isIOS()&&!_isStandalone())setTimeout(()=>showInstallBanner('ios'),1500);
+// Show immediately on load rather than waiting solely for beforeinstallprompt, which may
+// never fire (unsupported browser, or Chrome's engagement heuristics not yet satisfied) --
+// triggerInstall() falls back to manual instructions in that case, so the button always works.
+if(!_isStandalone())setTimeout(()=>showInstallBanner(_isIOS()?'ios':'android'),1500);
 
 init();
 </script>
