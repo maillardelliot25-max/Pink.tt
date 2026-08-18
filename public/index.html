@@ -502,6 +502,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
   <div class="topbar">
     <div class="logo"><div class="logo-dot">P</div><div><span class="logo-name" style="font-size:15px">Pink.TT</span><span style="font-size:10px;color:#9ca3af;display:block;font-family:sans-serif;margin-top:-2px">Driver Portal</span></div></div>
     <div style="display:flex;align-items:center;gap:7px">
+      <button class="sosbtn" onclick="openModal('sos-modal')">SOS</button>
       <div id="tog" class="tog" onclick="toggleOnline()"></div>
       <span id="tog-lbl" style="font-size:11px;color:#9ca3af;font-weight:600">Offline</span>
       <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">⎋</button>
@@ -933,6 +934,7 @@ function renderRiderBook(){
               ${S.promoResult?`<span style="color:var(--g);font-weight:700">-${fmtFare(S.promoResult.discount_amount)}</span>`:''}
             </div>
           </div>` : ''}
+        ${S.rideStatus==='searching'?`<button class="btn bs bw" id="reping-btn" style="margin-bottom:8px" onclick="repingDrivers()">🔔 Notify Drivers Again</button>`:''}
         ${['searching','accepted','arriving'].includes(S.rideStatus)?`<button class="btn bsm bw" style="background:#fff5f5;color:var(--r);border:1.5px solid #fecaca" onclick="riderCancel()">Cancel Ride</button>`:''}
         ${S.rideStatus==='completed'?`<button class="btn bp bw" onclick="openRateModal()">⭐ Rate Your Ride</button>`:''}
       </div>
@@ -1137,6 +1139,28 @@ function riderCancel(){
 }
 
 function resetRide(){S.activeRide=null;S.rideStatus=null;S.driverInfo=null;S.promoResult=null;renderRiderBook();}
+
+// Manual "notify drivers again" for a rider stuck waiting -- the server also re-pings
+// automatically on a timer, but letting the rider trigger it on demand (with a cooldown
+// so it can't be spammed into a de-facto flood) gives them something active to do
+// instead of just staring at "Finding your driver...".
+let _repingCooldownUntil=0;
+async function repingDrivers(){
+  if(!S.activeRide)return;
+  const btn=document.getElementById('reping-btn');
+  if(Date.now()<_repingCooldownUntil)return;
+  if(btn){btn.disabled=true;btn.textContent='🔔 Notifying...';}
+  const res=await _mutate('reping_ride',{ride_id:S.activeRide.id});
+  if(res.ok)toast('📣 Nearby drivers notified again','ok');
+  _repingCooldownUntil=Date.now()+20000;
+  let secs=20;
+  const tick=()=>{
+    if(!btn)return;
+    if(secs<=0){btn.disabled=false;btn.textContent='🔔 Notify Drivers Again';return;}
+    btn.textContent=`🔔 Notify Drivers Again (${secs}s)`;secs--;setTimeout(tick,1000);
+  };
+  tick();
+}
 
 // Share trip
 function genShare(){
@@ -1362,7 +1386,7 @@ function dTab(t){
 // (see _startDriverLocationTracking) to compute the actual distance and caps what's
 // shown to a sensible dispatch radius -- generous enough that a driver in a quieter
 // area still sees requests, but not the whole country.
-const DRIVER_MAX_RADIUS_KM=20;
+const DRIVER_MAX_RADIUS_KM=34;
 function renderDriverRequests(body){
   if(!S.isOnline){body.innerHTML=`<div class="empty"><div class="empty-i">💤</div><p style="font-weight:600;margin-bottom:8px">You're Offline</p><p style="font-size:13px;margin-bottom:20px">Toggle online to receive ride requests</p><button class="btn bp" onclick="toggleOnline()">Go Online</button></div>`;return;}
   const haveLoc=typeof S.myLat==='number'&&typeof S.myLng==='number';
@@ -1709,7 +1733,12 @@ function renderAdminSafety(body){
     </div>`;}).join('')}`:''}
   `;
 }
-function resolveSOS(id){const s=DB.sos_events.find(x=>x.id===id);if(!s)return;s.status='resolved';toast('SOS resolved ✓','ok');renderAdminSafety(document.getElementById('admin-body'));}
+// Used to only mutate local state -- an admin's "Resolve" click never reached the
+// server at all, so the alert silently reverted back to "active" on the next refresh.
+async function resolveSOS(id){
+  const res=await _mutate('resolve_sos',{sos_id:id});
+  if(res.ok){toast('SOS resolved ✓','ok');await _pttLoadDB();renderAdminSafety(document.getElementById('admin-body'));}
+}
 
 function renderAdminBiz(body){
   body.innerHTML=`
@@ -2338,6 +2367,15 @@ function _handleWS(msg){
     toast('✅ Your driver account is approved! Go online to start.','ok');_pttLoadDB();
   }else if(msg.type==='driver_location'){
     if(_CAR_MARKER)moveCarToward(msg.lat,msg.lng);
+  }else if(msg.type==='ride_ping'){
+    // A rider's request just got (re-)pinged to this driver -- either brand new, a
+    // manual "notify again" from the rider, or the server's own re-ping sweep for a
+    // ride that's sat unaccepted for a while. Surface it as a real alert, and refresh
+    // the list immediately rather than waiting for the next 3s poll tick.
+    if(S.user?.role==='driver'&&S.isOnline){
+      toast('🔔 New ride request nearby!','ok');
+      if(S.dTab==='reqs')renderDriverRequests(document.getElementById('driver-body'));
+    }
   }else if(msg.type==='sos_alert'){
     if(S.user?.role==='admin'){toast('🚨 SOS from '+msg.user+' — '+msg.phone,'err');_rerender();}
   }
@@ -2669,11 +2707,15 @@ const _origSOS=sendSOS;
 sendSOS=async function(){
   // Was hardcoded to a fixed Port of Spain coordinate regardless of where the rider
   // actually was -- a real accuracy problem for a safety feature. Uses the device's
-  // live GPS fix when available (same one the booking map already has), falling back
-  // to the ride's pickup point, and only to the city-center default as a last resort.
-  const lat=(typeof S.myLat==='number'?S.myLat:null)??S.activeRide?.pickup_lat??10.6549;
-  const lng=(typeof S.myLng==='number'?S.myLng:null)??S.activeRide?.pickup_lng??-61.5019;
-  const res=await _mutate('sos',{ride_id:S.activeRide?.id||null,lat,lng,message:'Emergency SOS from '+S.user.first_name+' '+S.user.last_name});
+  // live GPS fix when available (same one the booking/driver-tracking map already
+  // has), falling back to the active ride's pickup point, and only to the city-center
+  // default as a last resort. SOS is available to drivers too (see the driver topbar
+  // button) -- S.activeRide is rider-only state, S.currentDriverRide is the driver
+  // equivalent, so both are checked here rather than just one.
+  const activeRide=S.activeRide||S.currentDriverRide;
+  const lat=(typeof S.myLat==='number'?S.myLat:null)??activeRide?.pickup_lat??10.6549;
+  const lng=(typeof S.myLng==='number'?S.myLng:null)??activeRide?.pickup_lng??-61.5019;
+  const res=await _mutate('sos',{ride_id:activeRide?.id||null,lat,lng,message:'Emergency SOS from '+S.user.first_name+' '+S.user.last_name});
   closeModal('sos-modal');
   if(res.ok){
     if(res.safetyTeamAlerted){

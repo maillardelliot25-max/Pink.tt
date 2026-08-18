@@ -241,6 +241,26 @@ function clampPointsRedemption(requestedPoints,availablePoints,fare){
 }
 function dist(p,d){const R=6371,dLat=(d[0]-p[0])*Math.PI/180,dLon=(d[1]-p[1])*Math.PI/180,a=Math.sin(dLat/2)**2+Math.cos(p[0]*Math.PI/180)*Math.cos(d[0]*Math.PI/180)*Math.sin(dLon/2)**2;return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*10)/10;}
 
+// Same dispatch radius the driver app filters its own request list to -- kept in sync
+// so a driver is never actively pinged for a ride they wouldn't even see in their list.
+const DRIVER_MAX_RADIUS_KM=34;
+// Pings every online, approved driver within range of a ride's pickup point -- called
+// once immediately on booking, again whenever the rider explicitly re-pings, and on a
+// recurring timer for any ride that's gone unaccepted for a while (see setInterval
+// below). A plain broadcastDBUpdate() alone reaches every connected client but gives a
+// driver no reason to actually notice/look; this sends a distinct, targeted message so
+// the client can surface a real alert instead of a silent background refresh.
+async function pingDriversForRide(ride){
+  if(!ride||!isValidTTCoord(ride.pickup_lat,ride.pickup_lng))return;
+  const drivers=await dbAll("SELECT user_id,current_lat,current_lng FROM driver_profiles WHERE status='approved' AND is_online=1");
+  for(const d of drivers){
+    if(!isValidTTCoord(d.current_lat,d.current_lng))continue;
+    if(dist([ride.pickup_lat,ride.pickup_lng],[d.current_lat,d.current_lng])<=DRIVER_MAX_RADIUS_KM){
+      broadcastTo(d.user_id,{type:'ride_ping',ride_id:ride.id});
+    }
+  }
+}
+
 // Address suggestions as the rider types (Nominatim search, up to 6 candidates) -- so
 // pickup/destination aren't limited to the ~18 hardcoded neighborhood names or a single
 // best-guess match. Free, no API key; same host/policy as geocodeAddress above.
@@ -583,7 +603,16 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const{points,discount}=clampPointsRedemption(data.points_to_redeem,rider?.pink_points||0,fullFare);
       const fare=Math.round((fullFare-discount)*100)/100;
       if(points>0)await dbRun('UPDATE users SET pink_points=pink_points-? WHERE id=?',[points,userId]);
-      await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,points_redeemed,points_discount)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[uuidv4(),userId,'requested',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,points,discount]);
+      const rideId=uuidv4();
+      await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,points_redeemed,points_discount)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[rideId,userId,'requested',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,points,discount]);
+      pingDriversForRide({id:rideId,pickup_lat:p[0],pickup_lng:p[1]});
+    }else if(type==='reping_ride'){
+      // Rider-facing "notify drivers again" -- e.g. tapped from the "Finding your
+      // driver..." screen when nothing's happening. Only re-pings the rider's own
+      // still-unaccepted ride, never anyone else's.
+      const ride=await dbGet("SELECT * FROM rides WHERE id=? AND rider_id=? AND status='requested' AND driver_id IS NULL",[data.ride_id,userId]);
+      if(!ride)return res.json({ok:false,error:'This ride is no longer waiting for a driver'});
+      await pingDriversForRide(ride);
     }else if(type==='accept_ride'){
       const ride=await dbGet("SELECT * FROM rides WHERE id=? AND status='requested'",[data.ride_id]);
       if(!ride)return res.json({ok:false,error:'Ride no longer available'});
@@ -686,6 +715,10 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
         await setSetting(k,String(data[k]??''));
       }
       await logAudit(req.jwt,'update_settings','settings','',Object.keys(data||{}).filter(k=>allowedKeys.includes(k)).join(','));
+    }else if(type==='resolve_sos'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      await dbRun("UPDATE sos_events SET status='resolved' WHERE id=?",[data.sos_id]);
+      await logAudit(req.jwt,'resolve_sos','sos_event',data.sos_id,'');
     }else if(type==='admin_reset_test_data'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       await dbRun('DELETE FROM payments');
@@ -727,6 +760,18 @@ const clients=new Map();
 function broadcastDBUpdate(){buildDB().then(d=>{const m=JSON.stringify({type:'db_update',db:d});clients.forEach(ws=>{if(ws.readyState===WebSocket.OPEN)ws.send(m);});}).catch(console.error);}
 function broadcastAll(data){const m=JSON.stringify(data);clients.forEach(ws=>{if(ws.readyState===WebSocket.OPEN)ws.send(m);});}
 function broadcastTo(uid,data){const ws=clients.get(uid);if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(data));}
+
+// Keeps re-pinging nearby drivers for any ride that's gone unaccepted for a while --
+// previously a request was only ever announced once, at the moment it was booked, so a
+// driver who happened to be mid-ride, looking away, or just out of earshot at that exact
+// instant would never hear about it again even though it sat unclaimed indefinitely.
+setInterval(async()=>{
+  try{
+    const stuck=await dbAll("SELECT * FROM rides WHERE status='requested' AND driver_id IS NULL");
+    for(const ride of stuck)await pingDriversForRide(ride);
+  }catch(e){console.error('Ride re-ping sweep error',e.message);}
+},30000);
+
 wss.on('connection',ws=>{
   let uid=null;
   ws.on('message',raw=>{

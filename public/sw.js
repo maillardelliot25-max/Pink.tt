@@ -1,6 +1,9 @@
-const CACHE_NAME='pinktt-shell-v1';
+const CACHE_NAME='pinktt-shell-v2';
 const OFFLINE_URL='/offline.html';
-const PRECACHE=[OFFLINE_URL,'/favicon.svg','/icons/icon-192.png','/icons/icon-512.png'];
+// The offline page's backdrop video is precached too -- unlike every other use of this
+// clip, this page can genuinely be shown with zero connectivity at all, so the video
+// has to already be on the device rather than fetched fresh or it just won't play.
+const PRECACHE=[OFFLINE_URL,'/favicon.svg','/icons/icon-192.png','/icons/icon-512.png','/media/install-banner-bg.mp4','/media/install-banner-bg.webm'];
 
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(PRECACHE)));

@@ -9,19 +9,24 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--p:#E91E8C;--pp:#FFF0F6}
-html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#f0f0f0}
+html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#7a1263}
 h1{font-family:'Playfair Display',Georgia,serif}
-html,body{background:#fff}
-#shell{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;width:100%;margin:0 auto;background:#fff;padding:32px 24px;text-align:center}
-.logo-dot{width:56px;height:56px;border-radius:16px;background:var(--p);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:26px;margin-bottom:18px}
-h1{font-size:22px;margin-bottom:8px;color:#111}
-p{color:#6b7280;font-size:14px;line-height:1.6;margin-bottom:24px}
-.btn{display:inline-block;background:var(--p);color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 28px;border-radius:16px;border:none;cursor:pointer}
-.btn:focus-visible{outline:2px solid var(--p);outline-offset:3px}
+#shell{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;width:100%;margin:0 auto;padding:32px 24px;text-align:center;position:relative;overflow:hidden}
+.bg-video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:.6}
+.bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,47,168,.35),rgba(122,18,99,.55));pointer-events:none}
+#shell>:not(.bg-video):not(.bg-wash){position:relative;z-index:1}
+.logo-dot{width:56px;height:56px;border-radius:16px;background:#fff;color:var(--p);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:26px;margin-bottom:18px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+h1{font-size:22px;margin-bottom:8px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.25)}
+p{color:rgba(255,255,255,.92);font-size:14px;line-height:1.6;margin-bottom:24px;text-shadow:0 1px 6px rgba(0,0,0,.2)}
+.btn{display:inline-block;background:#fff;color:var(--p);text-decoration:none;font-weight:700;font-size:14px;padding:12px 28px;border-radius:16px;border:none;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.btn:focus-visible{outline:2px solid #fff;outline-offset:3px}
+@media (prefers-reduced-motion:reduce){.bg-video{display:none}}
 </style>
 </head>
 <body>
 <div id="shell">
+  <video class="bg-video" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4" type="video/mp4"><source src="/media/install-banner-bg.webm" type="video/webm"></video>
+  <div class="bg-wash"></div>
   <div class="logo-dot">P</div>
   <h1>You're offline</h1>
   <p>We can't reach Pink.TT right now. Check your connection and try again — your safety features need a live connection to work.</p>
