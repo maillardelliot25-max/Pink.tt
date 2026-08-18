@@ -1664,7 +1664,7 @@ function renderAdminPromos(body){
       </div>
       <div style="display:flex;gap:12px;font-size:11px;color:#9ca3af;margin-bottom:10px">
         <span>💰 ${p.type==='percentage'?p.value+'%':'TTD $'+p.value} off</span>
-        <span>📊 ${p.usage_count}/${p.usage_limit||'∞'} used</span>
+        <span>📊 ${p.usage_count||0}/${p.usage_limit||'∞'} used</span>
         <span>📅 Until ${new Date(p.valid_until).toLocaleDateString()}</span>
       </div>
       <button class="btn bsm" style="background:${p.is_active?'#fee2e2':'#dcfce7'};color:${p.is_active?'var(--r)':'var(--g)'}" onclick="togglePromo('${p.id}')">${p.is_active?'Deactivate':'Activate'}</button>

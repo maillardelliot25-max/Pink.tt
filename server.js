@@ -69,7 +69,8 @@ const MIGRATIONS_SQL=[
   `ALTER TABLE users ADD COLUMN pink_points_lifetime INTEGER DEFAULT 0`,
   `ALTER TABLE rides ADD COLUMN points_redeemed INTEGER DEFAULT 0`,
   `ALTER TABLE rides ADD COLUMN points_discount REAL DEFAULT 0`,
-  `ALTER TABLE rides ADD COLUMN points_earned INTEGER DEFAULT 0`
+  `ALTER TABLE rides ADD COLUMN points_earned INTEGER DEFAULT 0`,
+  `ALTER TABLE driver_profiles ADD COLUMN license_expiry TEXT DEFAULT ''`
 ];
 // Postgres-flavored schema: same tables, but datetime('now') and COLLATE NOCASE
 // aren't valid Postgres syntax. Email case-insensitivity is handled at the app
@@ -82,7 +83,8 @@ const MIGRATIONS_SQL_PG=[
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS pink_points_lifetime INTEGER DEFAULT 0`,
   `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_redeemed INTEGER DEFAULT 0`,
   `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_discount REAL DEFAULT 0`,
-  `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_earned INTEGER DEFAULT 0`
+  `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_earned INTEGER DEFAULT 0`,
+  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS license_expiry TEXT DEFAULT ''`
 ];
 // Both SCHEMA_SQL and the app's query strings use SQLite syntax (`?` placeholders,
 // datetime('now')); translate to Postgres syntax (`$1,$2,...`, now()) at the call
@@ -261,13 +263,13 @@ async function getRoute(pickup,destination){
 
 async function buildDB(){
   const users=(await dbAll('SELECT id,email,first_name,last_name,phone,role,gender,is_verified,is_active,emergency_contact_name,emergency_contact_phone,wallet_balance,total_rides,pink_points,pink_points_lifetime,created_at FROM users')).map(u=>({...u,is_verified:!!u.is_verified,is_active:!!u.is_active,pink_points:u.pink_points||0,pink_points_lifetime:u.pink_points_lifetime||0,pink_points_tier:pinkPointsTier(u.pink_points_lifetime||0).name}));
-  const driver_profiles=(await dbAll('SELECT id,user_id,license_number,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status,is_online,current_lat,current_lng,total_trips,total_earnings,balance,today_earnings,rating,rating_count,created_at FROM driver_profiles')).map(d=>({...d,is_online:!!d.is_online,approved_at:d.status==='approved'?d.created_at:null}));
+  const driver_profiles=(await dbAll('SELECT id,user_id,license_number,license_expiry,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status,is_online,current_lat,current_lng,total_trips,total_earnings,balance,today_earnings,rating,rating_count,created_at FROM driver_profiles')).map(d=>({...d,is_online:!!d.is_online,approved_at:d.status==='approved'?d.created_at:null}));
   const rides=await dbAll('SELECT * FROM rides');
   const payments=await dbAll('SELECT * FROM payments');
   const sos_events=await dbAll('SELECT * FROM sos_events');
   const notifications=await dbAll('SELECT * FROM notifications');
   const promotions=[{id:'p1',code:'WELCOME25',title:'Welcome Discount',description:'25% off your first ride',type:'percentage',value:25,is_active:true,valid_until:'2026-12-31T00:00:00Z'},{id:'p2',code:'PINK10',title:'Pink Loyalty',description:'TTD $10 off any ride over $50',type:'fixed',value:10,is_active:true,valid_until:'2026-12-31T00:00:00Z'},{id:'p3',code:'SAFE20',title:'Safety Bonus',description:'20% off for referring a friend',type:'percentage',value:20,is_active:true,valid_until:'2026-12-31T00:00:00Z'}];
-  const businesses=[{id:'b1',name:'Luxe Nail Lounge',category:'nail_salon',description:'Premium nail care & nail art',address:'Long Circular Road, St. James, POS',phone:'+1 868 222 1001',rating:4.9,rating_count:89,is_featured:true,discount:'Pink.TT Rider Special — 15% OFF',discount_code:'PINK15',lat:10.665,lng:-61.521},{id:'b2',name:'Serenity Spa & Wellness',category:'spa',description:'Full-service day spa & wellness',address:'Ariapita Avenue, Woodbrook, POS',phone:'+1 868 222 1003',rating:4.9,rating_count:223,is_featured:true,discount:'Weekday Special — 10% OFF',discount_code:'WEEKDAY10',lat:10.652,lng:-61.514},{id:'b3',name:'TT Skincare Clinic',category:'skincare',description:'Medical skincare & facial treatments',address:'Trincity Mall, Trincity',phone:'+1 868 222 1008',rating:4.9,rating_count:205,is_featured:true,discount:'New Client Package — 25% OFF',discount_code:'NEWCLIENT25',lat:10.604,lng:-61.350},{id:'b4',name:'The Curl Bar T&T',category:'hair',description:'Natural hair & protective styles',address:'Maraval Road, POS',phone:'+1 868 222 1002',rating:4.8,rating_count:134,is_featured:true,discount:'New Client Welcome — 20% OFF',discount_code:'NEWCURL20',lat:10.672,lng:-61.522}];
+  const businesses=[{id:'b1',name:'Luxe Nail Lounge',category:'nail_salon',description:'Premium nail care & nail art',address:'Long Circular Road, St. James, POS',phone:'+1 868 222 1001',rating:4.9,rating_count:89,is_featured:true,is_active:true,discount:'Pink.TT Rider Special — 15% OFF',discount_code:'PINK15',lat:10.665,lng:-61.521},{id:'b2',name:'Serenity Spa & Wellness',category:'spa',description:'Full-service day spa & wellness',address:'Ariapita Avenue, Woodbrook, POS',phone:'+1 868 222 1003',rating:4.9,rating_count:223,is_featured:true,is_active:true,discount:'Weekday Special — 10% OFF',discount_code:'WEEKDAY10',lat:10.652,lng:-61.514},{id:'b3',name:'TT Skincare Clinic',category:'skincare',description:'Medical skincare & facial treatments',address:'Trincity Mall, Trincity',phone:'+1 868 222 1008',rating:4.9,rating_count:205,is_featured:true,is_active:true,discount:'New Client Package — 25% OFF',discount_code:'NEWCLIENT25',lat:10.604,lng:-61.350},{id:'b4',name:'The Curl Bar T&T',category:'hair',description:'Natural hair & protective styles',address:'Maraval Road, POS',phone:'+1 868 222 1002',rating:4.8,rating_count:134,is_featured:true,is_active:true,discount:'New Client Welcome — 20% OFF',discount_code:'NEWCURL20',lat:10.672,lng:-61.522}];
   const settingsRows=await dbAll('SELECT key,value FROM settings');
   const settings={...DEFAULT_SETTINGS};
   settingsRows.forEach(r=>{settings[r.key]=r.value;});
@@ -522,10 +524,10 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
   const{type,data}=req.body,userId=req.jwt.id;
   try{
     if(type==='driver_apply'){
-      const{vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_photo}=data;
+      const{vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry,license_photo}=data;
       const ex=await dbGet('SELECT id FROM driver_profiles WHERE user_id=?',[userId]);
-      if(ex)await dbRun('UPDATE driver_profiles SET vehicle_make=?,vehicle_model=?,vehicle_year=?,vehicle_color=?,vehicle_plate=?,license_number=?,license_photo=COALESCE(?,license_photo) WHERE user_id=?',[vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_photo||null,userId]);
-      else await dbRun('INSERT INTO driver_profiles(id,user_id,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_photo,status)VALUES(?,?,?,?,?,?,?,?,?,?)',[uuidv4(),userId,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_photo||'','pending']);
+      if(ex)await dbRun('UPDATE driver_profiles SET vehicle_make=?,vehicle_model=?,vehicle_year=?,vehicle_color=?,vehicle_plate=?,license_number=?,license_expiry=?,license_photo=COALESCE(?,license_photo) WHERE user_id=?',[vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry||'',license_photo||null,userId]);
+      else await dbRun('INSERT INTO driver_profiles(id,user_id,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry,license_photo,status)VALUES(?,?,?,?,?,?,?,?,?,?,?)',[uuidv4(),userId,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry||'',license_photo||'','pending']);
     }else if(type==='book_ride'){
       const ex=await dbGet("SELECT id FROM rides WHERE rider_id=? AND status NOT IN('completed','cancelled')",[userId]);
       if(ex)return res.json({ok:false,error:'You already have an active ride'});
