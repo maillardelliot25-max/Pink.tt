@@ -50,7 +50,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    ambient wash on every page -- individual .card elements underneath stay fully opaque
    #fff, so nothing about their own readability changes; only the empty space around
    them (page backgrounds, gaps, empty states) picks up the video/color. */
-#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;max-width:1600px;margin:0 auto;background:rgba(255,255,255,.5);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);position:relative;z-index:1;overflow:hidden}
+#shell{display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;max-width:1600px;margin:0 auto;background:rgba(255,255,255,.32);position:relative;z-index:1;overflow:hidden}
 .page{display:none;flex-direction:column;height:100%;overflow:hidden}
 .page.active{display:flex}
 .scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
@@ -1029,17 +1029,26 @@ function renderRiderBook(){
           I've checked the map — this location is correct
         </label>
       </div>
-      ${S.user?.pink_points>0?`
-      <label style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--pb);border-radius:14px;padding:11px 14px;margin-bottom:14px;cursor:pointer;font-size:12px">
-        <input type="checkbox" id="ride-redeem-points" onchange="showFarePreview(document.getElementById('ride-dest').value)">
-        <span>🌸 ${S.user.pink_points} Bullet Pink Points (${S.user.pink_points_tier||'Bronze'}) — redeem for up to ${fmtFare(Math.min(S.user.pink_points/20,999))} off</span>
-      </label>`:`
-      <div style="background:#fff;border:1.5px solid var(--pb);border-radius:14px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#9ca3af">
-        🌸 0 Bullet Pink Points — earn points on every ride and redeem them for fare discounts
-      </div>`}
-      <div id="promo-row" style="display:flex;gap:8px;margin-bottom:10px">
-        <input class="inp" id="promo-inp" style="flex:1;font-size:16px;padding:9px 12px" placeholder="Promo code (WELCOME25)">
-        <button class="btn bs bsm" onclick="applyPromo()">Apply</button>
+      <div style="background:linear-gradient(135deg,var(--pp),#fff);border:1.5px solid var(--pb);border-radius:16px;padding:14px 16px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:9px">
+            <div style="width:34px;height:34px;flex-shrink:0;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 2px 6px rgba(233,30,140,.18)">🌸</div>
+            <div>
+              <p style="font-size:13px;font-weight:700;color:#111827">${S.user?.pink_points||0} Pink Points</p>
+              <p style="font-size:10px;color:#c2185b;font-weight:700;text-transform:uppercase;letter-spacing:.4px">${S.user?.pink_points_tier||'Bronze'} Tier</p>
+            </div>
+          </div>
+          ${S.user?.pink_points>0?`<label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--p);cursor:pointer;white-space:nowrap">
+            <input type="checkbox" id="ride-redeem-points" onchange="showFarePreview(document.getElementById('ride-dest').value)">
+            Redeem
+          </label>`:''}
+        </div>
+        <p style="font-size:11px;color:${S.user?.pink_points>0?'#6b7280':'#9ca3af'};margin-top:8px">${S.user?.pink_points>0?`Save up to ${fmtFare(Math.min(S.user.pink_points/20,999))} on this ride`:'Earn points on every ride — redeem them for fare discounts'}</p>
+        <div style="border-top:1px solid rgba(233,30,140,.15);margin:12px 0 10px"></div>
+        <div id="promo-row" style="display:flex;gap:8px">
+          <input class="inp" id="promo-inp" style="flex:1;font-size:16px;padding:9px 12px;background:#fff" placeholder="Promo code (WELCOME25)">
+          <button class="btn bs bsm" onclick="applyPromo()">Apply</button>
+        </div>
       </div>
       <button class="btn bp bw" id="book-btn" onclick="bookRide()" style="font-size:15px;padding:13px">🌸 Book Ride</button>
     </div>
