@@ -146,6 +146,13 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .empty-i{font-size:44px;margin-bottom:10px}
 /* Landing */
 .hero{background:linear-gradient(160deg,var(--pp) 0%,#fff 70%);padding:40px 22px 32px;text-align:center;position:relative;overflow:hidden}
+.hero.has-video{background:#7a1263;padding-top:56px;padding-bottom:40px}
+.hero-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%)}
+.hero.has-video .hero-chip{position:relative;z-index:1;background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.4);backdrop-filter:blur(2px)}
+.hero.has-video h1{position:relative;z-index:1;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.3)}
+.hero.has-video h1 em{color:#ffe1f1}
+.hero.has-video p{position:relative;z-index:1;color:rgba(255,255,255,.92);text-shadow:0 1px 6px rgba(0,0,0,.25)}
+.hero.has-video>div:last-child{position:relative;z-index:1}
 .hero h1{font-size:28px;line-height:1.25;margin-bottom:10px}
 .hero h1 em{color:var(--p);font-style:normal}
 .hero p{color:#6b7280;font-size:14px;line-height:1.65;margin-bottom:24px}
@@ -320,7 +327,8 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
         <button class="btn bp bsm" onclick="go('register')">Sign Up</button>
       </div>
     </div>
-    <div class="hero">
+    <div class="hero has-video" id="hero-wallpaper">
+      <video class="hero-bg" id="hero-bg-video" autoplay loop muted playsinline></video>
       <div class="hero-chip">🛡️ Women-Only · Safety Team Alerts · Live GPS</div>
       <h1>Safe Rides for Women,<br><em>By Women</em></h1>
       <p>Pink.TT connects women riders with verified women drivers across T&T. Your safety is our priority — every single ride.</p>
@@ -2701,6 +2709,28 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('/sw.js').catch(e=>console.warn('Service worker registration failed',e));
   });
 }
+
+// ── Landing page "live wallpaper" ───────────────────────────────────────────
+// A pool of looping video backdrops for the landing hero -- one is picked at
+// random each fresh app open (sessionStorage, so it stays put for the rest of
+// that session/reloads but changes again next time the app is opened) and
+// played behind the hero copy, fading to white toward the bottom via the
+// .hero-bg mask in CSS. Add more clips by dropping matching .mp4/.webm pairs
+// into /public/media/ and adding their base filename here -- nothing else
+// needs to change.
+const WALLPAPER_POOL=['install-banner-bg'];
+function _pickWallpaper(){
+  let name=sessionStorage.getItem('ptt_wallpaper');
+  if(!name||!WALLPAPER_POOL.includes(name)){
+    name=WALLPAPER_POOL[Math.floor(Math.random()*WALLPAPER_POOL.length)];
+    sessionStorage.setItem('ptt_wallpaper',name);
+  }
+  const v=document.getElementById('hero-bg-video');
+  if(!v)return;
+  v.innerHTML=`<source src="/media/${name}.mp4" type="video/mp4"><source src="/media/${name}.webm" type="video/webm">`;
+  v.load();
+}
+_pickWallpaper();
 
 // ── Install-app banner ──────────────────────────────────────────────────────
 // The manifest+service-worker made the app *technically* installable, but
