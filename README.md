@@ -30,7 +30,7 @@ can sign up, book rides, and interact with real drivers in real time.
 - **WebSocket** — riders and drivers communicate in real time (no refresh needed)
 - **JWT auth** — secure tokens, 30-day sessions (set `JWT_SECRET` in production)
 - **Live map** — CARTO/OpenStreetMap tiles, Leaflet.js, animated GPS tracking
-- **ID verification** — riders and drivers upload a photo after registering; `POST /api/verify-id` calls the Anthropic API server-side (key never reaches the browser) to confirm the account is eligible for this women-only platform. Without `ANTHROPIC_API_KEY` set, this runs in **demo mode** (auto-approves, logs a warning) so local dev doesn't require a key.
+- **ID verification** — riders and drivers upload a photo after registering; `POST /api/verify-id` calls a vision AI server-side (key never reaches the browser) to confirm the account is eligible for this women-only platform. Tries `ANTHROPIC_API_KEY` first, falls back to `GEMINI_API_KEY` if that's unset or the Anthropic call fails (e.g. no credit balance). Without either set, this runs in **demo mode** (auto-approves, logs a warning) so local dev doesn't require a key.
 - **Rate limiting** — `/api/register`, `/api/login` (20 req/15min), `/api/mutation` (60 req/min), `/api/verify-id` (10 req/15min); plus a per-account login lockout (5 failed attempts = 15 min lock) independent of the per-IP limiter
 - **SOS safety alert** — logs the event, notifies the admin panel, and — if Twilio env vars + a safety-team phone number (set in-app under Admin → Settings) are configured — places an automated call and SMS to that number. **This never contacts real police directly** — a human on the safety team decides whether to call the Trinidad & Tobago Police Service. No formal TTPS dispatch integration exists; see `/terms.html` and `/privacy.html` for the exact wording shown to users.
 - **Admin panel → Settings tab** — editable safety/support contact numbers, staff/admin account management (create, promote, demote, cannot remove the last admin), and an audit log of sensitive admin actions
@@ -44,7 +44,9 @@ See `.env.example`. Notable ones:
 | `DATABASE_URL` | Postgres connection string (e.g. Supabase) — takes priority over Turso if both are set |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Hosted Turso DB — used if `DATABASE_URL` isn't set |
 | `JWT_SECRET` | Signs auth tokens — **set a long random value in production**, otherwise an insecure default is used (with a startup warning) |
-| `ANTHROPIC_API_KEY` | Powers `/api/verify-id`. Without it, verification auto-approves in demo mode |
+| `ANTHROPIC_API_KEY` | Primary provider for `/api/verify-id`. Requires billing set up on console.anthropic.com — no free tier for API usage |
+| `GEMINI_API_KEY` | Fallback provider for `/api/verify-id`, used if Anthropic is unset or fails. Genuinely free, no credit card required — get one at aistudio.google.com |
+| `GEMINI_MODEL` | Optional, defaults to `gemini-2.0-flash` |
 | `SHOW_DEMO_ACCOUNTS` | `true`/`false`. Controls the tap-to-fill demo accounts panel on the login screen. Defaults to visible outside production, hidden when `NODE_ENV=production` |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | Powers the automated SOS call/SMS. Omit any of the three and SOS falls back to logging + admin-panel notification only |
 | `PUBLIC_URL` | Your deployed URL (e.g. `https://pinktt.onrender.com`) — Twilio calls this back to fetch what to say during the SOS call |

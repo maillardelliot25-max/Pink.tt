@@ -3,7 +3,7 @@ const express=require('express'),http=require('http'),WebSocket=require('ws'),bc
 const PORT=process.env.PORT||3000;
 const JWT_SECRET=process.env.JWT_SECRET||'pinktt_2025_secure';
 if(!process.env.JWT_SECRET)console.warn('⚠️  JWT_SECRET not set — using an insecure default. Set JWT_SECRET in production.');
-if(!process.env.ANTHROPIC_API_KEY)console.warn('⚠️  ANTHROPIC_API_KEY not set — ID verification will run in DEMO MODE (auto-approves).');
+if(!process.env.ANTHROPIC_API_KEY&&!process.env.GEMINI_API_KEY)console.warn('⚠️  No ID verification key set (ANTHROPIC_API_KEY or GEMINI_API_KEY) — ID verification will run in DEMO MODE (auto-approves).');
 const TWILIO_READY=!!(process.env.TWILIO_ACCOUNT_SID&&process.env.TWILIO_AUTH_TOKEN&&process.env.TWILIO_FROM_NUMBER);
 if(!TWILIO_READY)console.warn('⚠️  Twilio not configured (TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER) — SOS will log to the database and notify the admin panel only, no real call/SMS will be sent.');
 const SHOW_DEMO_ACCOUNTS=process.env.SHOW_DEMO_ACCOUNTS==='true'||(process.env.NODE_ENV!=='production'&&process.env.SHOW_DEMO_ACCOUNTS!=='false');
@@ -204,20 +204,11 @@ app.post('/api/fare',(req,res)=>{
 });
 
 // ── ID verification (server-side, key never reaches the client) ──────────────
-app.post('/api/verify-id',verifyLimiter,authMW,async(req,res)=>{
-  const{image}=req.body;
-  if(!image||typeof image!=='string')return res.status(400).json({ok:false,error:'No photo provided'});
-  const m=image.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-  if(!m)return res.status(400).json({ok:false,error:'Invalid image format — please upload a JPEG, PNG, or WebP photo'});
-  const[,mediaType,base64Data]=m;
+const ID_VERIFY_PROMPT='This photo was submitted for identity verification on a women-only rideshare platform. Respond with exactly one lowercase word and nothing else: "female", "male", or "unclear" — describing the apparent gender presentation of the person in the photo.';
 
-  if(!process.env.ANTHROPIC_API_KEY){
-    console.warn(`⚠️  DEMO MODE: ANTHROPIC_API_KEY not set — auto-approving ID verification for ${req.jwt.email}`);
-    await dbRun('UPDATE users SET is_verified=1 WHERE id=?',[req.jwt.id]);
-    broadcastDBUpdate();
-    return res.json({ok:true,verified:true,demo:true});
-  }
-
+// Returns the model's lowercase answer, or null if this provider couldn't be reached/failed
+// (caller falls back to the next configured provider rather than failing the request outright).
+async function classifyWithAnthropic(mediaType,base64Data){
   try{
     const apiRes=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
@@ -227,17 +218,56 @@ app.post('/api/verify-id',verifyLimiter,authMW,async(req,res)=>{
         max_tokens:10,
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:mediaType,data:base64Data}},
-          {type:'text',text:'This photo was submitted for identity verification on a women-only rideshare platform. Respond with exactly one lowercase word and nothing else: "female", "male", or "unclear" — describing the apparent gender presentation of the person in the photo.'}
+          {type:'text',text:ID_VERIFY_PROMPT}
         ]}]
       })
     });
-    if(!apiRes.ok){
-      const errText=await apiRes.text();
-      console.error('Anthropic API error',apiRes.status,errText);
-      return res.status(502).json({ok:false,error:'Verification service is temporarily unavailable — please try again shortly'});
-    }
+    if(!apiRes.ok){console.error('Anthropic verify-id error',apiRes.status,await apiRes.text());return null;}
     const apiData=await apiRes.json();
-    const answer=(apiData.content?.[0]?.text||'').trim().toLowerCase();
+    return(apiData.content?.[0]?.text||'').trim().toLowerCase();
+  }catch(e){console.error('Anthropic verify-id error',e.message);return null;}
+}
+
+async function classifyWithGemini(mediaType,base64Data){
+  const model=process.env.GEMINI_MODEL||'gemini-2.0-flash';
+  try{
+    const apiRes=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contents:[{parts:[
+          {inline_data:{mime_type:mediaType,data:base64Data}},
+          {text:ID_VERIFY_PROMPT}
+        ]}],
+        generationConfig:{maxOutputTokens:10}
+      })
+    });
+    if(!apiRes.ok){console.error('Gemini verify-id error',apiRes.status,await apiRes.text());return null;}
+    const apiData=await apiRes.json();
+    return(apiData.candidates?.[0]?.content?.parts?.[0]?.text||'').trim().toLowerCase();
+  }catch(e){console.error('Gemini verify-id error',e.message);return null;}
+}
+
+app.post('/api/verify-id',verifyLimiter,authMW,async(req,res)=>{
+  const{image}=req.body;
+  if(!image||typeof image!=='string')return res.status(400).json({ok:false,error:'No photo provided'});
+  const m=image.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if(!m)return res.status(400).json({ok:false,error:'Invalid image format — please upload a JPEG, PNG, or WebP photo'});
+  const[,mediaType,base64Data]=m;
+
+  if(!process.env.ANTHROPIC_API_KEY&&!process.env.GEMINI_API_KEY){
+    console.warn(`⚠️  DEMO MODE: no verification key set — auto-approving ID verification for ${req.jwt.email}`);
+    await dbRun('UPDATE users SET is_verified=1 WHERE id=?',[req.jwt.id]);
+    broadcastDBUpdate();
+    return res.json({ok:true,verified:true,demo:true});
+  }
+
+  try{
+    let answer=null;
+    if(process.env.ANTHROPIC_API_KEY)answer=await classifyWithAnthropic(mediaType,base64Data);
+    if(answer===null&&process.env.GEMINI_API_KEY)answer=await classifyWithGemini(mediaType,base64Data);
+    if(answer===null)return res.status(502).json({ok:false,error:'Verification service is temporarily unavailable — please try again shortly'});
+
     if(answer.includes('female')){
       await dbRun('UPDATE users SET is_verified=1 WHERE id=?',[req.jwt.id]);
       broadcastDBUpdate();
