@@ -1705,14 +1705,26 @@ function renderAdminSettings(body){
         <button class="btn bs bw" onclick="createStaffAccount()">+ Create Staff Account</button>
       </div>
     </div>
-    <div class="card">
+    <div class="card" style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h4 style="font-size:14px">📜 Audit Log</h4>
         <button class="btn bs bsm" onclick="loadAuditLog()">Refresh</button>
       </div>
       <div id="audit-log-box"><p style="font-size:12px;color:#9ca3af">Tap Refresh to load recent admin actions.</p></div>
     </div>
+    <div class="card" style="border:1px solid #fecaca">
+      <h4 style="font-size:14px;margin-bottom:6px;color:var(--r)">⚠️ Reset Test Data</h4>
+      <p style="font-size:11px;color:#9ca3af;margin-bottom:12px">Permanently deletes every ride and payment on the platform, and resets rider Pink Points / driver earnings back to zero. Use this once before launch to clear out development/testing data. This cannot be undone.</p>
+      <button class="btn bw" style="background:#fee2e2;color:var(--r)" onclick="resetTestData()">Delete All Ride &amp; Payment History</button>
+    </div>
   `;
+}
+async function resetTestData(){
+  if(!confirm('This permanently deletes ALL rides and payments on the platform and resets earnings/points to zero. This cannot be undone. Continue?'))return;
+  if(!confirm('Are you absolutely sure? Type OK to confirm this cannot be reversed.'))return;
+  const res=await _mutate('admin_reset_test_data',{});
+  if(res.ok){toast('Test data cleared','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
+  else toast(res.error||'Could not reset data','err');
 }
 async function saveAdminSettings(){
   const data={

@@ -642,6 +642,13 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
         await setSetting(k,String(data[k]??''));
       }
       await logAudit(req.jwt,'update_settings','settings','',Object.keys(data||{}).filter(k=>allowedKeys.includes(k)).join(','));
+    }else if(type==='admin_reset_test_data'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      await dbRun('DELETE FROM payments');
+      await dbRun('DELETE FROM rides');
+      await dbRun('UPDATE users SET total_rides=0,pink_points=0,pink_points_lifetime=0,wallet_balance=0');
+      await dbRun('UPDATE driver_profiles SET total_trips=0,total_earnings=0,today_earnings=0,balance=0');
+      await logAudit(req.jwt,'reset_test_data','platform','','Cleared all ride/payment history and reset earnings/points counters');
     }else if(type==='rate_ride'){
       await dbRun('UPDATE rides SET rider_rating=? WHERE id=?',[data.score,data.ride_id]);
       const ride=await dbGet('SELECT driver_id FROM rides WHERE id=?',[data.ride_id]);
