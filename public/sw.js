@@ -1,9 +1,16 @@
-const CACHE_NAME='pinktt-shell-v2';
+// Bumped (v2->v3) specifically because the video URL below gained a ?v=4 query string
+// -- activate() below deletes any cache bucket whose name doesn't match CACHE_NAME, so
+// this forces every existing installed service worker to throw away whatever old
+// (possibly blurrier, pre-re-encode) copy of the video it had already cached under the
+// old un-versioned URL, and fetch the current one fresh instead of serving stale bytes
+// forever. Bump this again alongside VIDEO_VERSION in index.html any time the video
+// changes in the future.
+const CACHE_NAME='pinktt-shell-v3';
 const OFFLINE_URL='/offline.html';
 // The offline page's backdrop video is precached too -- unlike every other use of this
 // clip, this page can genuinely be shown with zero connectivity at all, so the video
 // has to already be on the device rather than fetched fresh or it just won't play.
-const PRECACHE=[OFFLINE_URL,'/favicon.svg','/icons/icon-192.png','/icons/icon-512.png','/media/install-banner-bg.mp4','/media/install-banner-bg.webm'];
+const PRECACHE=[OFFLINE_URL,'/favicon.svg','/icons/icon-192.png','/icons/icon-512.png','/media/install-banner-bg.mp4?v=4','/media/install-banner-bg.webm?v=4'];
 
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(PRECACHE)));
@@ -32,8 +39,19 @@ async function _navigateWithRetry(request){
   }
   return caches.match(OFFLINE_URL);
 }
+// The video was in PRECACHE but nothing ever read it back out -- only navigate
+// requests were intercepted, so the offline page's own <video><source> fetch had no
+// network and no cache fallback, and just failed silently (blank background, no loop).
+// Network-first so online visitors always get the current file, falling back to the
+// precached copy only when the network fetch genuinely fails.
+async function _mediaNetworkFirst(request){
+  try{return await fetch(request);}
+  catch(e){return (await caches.match(request))||Response.error();}
+}
 self.addEventListener('fetch',e=>{
   if(e.request.mode==='navigate'){
     e.respondWith(_navigateWithRetry(e.request));
+  }else if(new URL(e.request.url).pathname.startsWith('/media/install-banner-bg')){
+    e.respondWith(_mediaNetworkFirst(e.request));
   }
 });

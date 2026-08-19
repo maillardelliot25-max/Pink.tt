@@ -64,7 +64,13 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 #shell{display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;max-width:1600px;margin:0 auto;background:transparent;position:relative;z-index:1;overflow:hidden}
 .page{display:none;flex-direction:column;height:100%;overflow:hidden}
 .page.active{display:flex}
-.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
+/* Every scrollable content area needs clearance for the device's bottom safe area
+   (iOS home indicator, Android gesture bar) or the last row of content sits flush
+   against it -- reads as cut off/overlapping. !important is deliberate: individual
+   screens set their own padding inline (e.g. style="padding:14px"), and this has to
+   win over that shorthand's bottom value without needing every single one edited by
+   hand, now or for any future screen added the same way. */
+.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))!important}
 .scroll::-webkit-scrollbar{width:2px}
 .scroll::-webkit-scrollbar-thumb{background:var(--pb);border-radius:2px}
 /* Top bar */
@@ -157,7 +163,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .onb-dots{position:absolute;bottom:100px;left:0;right:0;display:flex;justify-content:center;gap:7px;z-index:5;pointer-events:none}
 .onb-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.4);transition:all .25s}
 .onb-dot.on{width:22px;border-radius:4px;background:#fff}
-.onb-bottom{position:absolute;bottom:24px;left:24px;right:24px;z-index:5}
+.onb-bottom{position:absolute;bottom:calc(24px + env(safe-area-inset-bottom,0px));left:24px;right:24px;z-index:5}
 #pg-login .topbar .logo-name,#pg-register .topbar .logo-name{color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.2)}
 #pg-login .topbar button,#pg-register .topbar button{color:#fff!important}
 .onb-logo{position:absolute;top:18px;left:18px;z-index:5;display:flex;align-items:center;gap:8px}
@@ -191,7 +197,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* Modal */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end}
 .overlay.show{display:flex}
-.sheet{background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid rgba(255,255,255,.6);border-bottom:none;border-radius:20px 20px 0 0;padding:26px 22px 30px;width:100%;max-height:90vh;overflow-y:auto;animation:shU .28s cubic-bezier(.2,.9,.25,1);box-shadow:0 -1px 0 rgba(17,17,17,.05),0 -20px 50px -10px rgba(17,17,17,.25)}
+.sheet{background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid rgba(255,255,255,.6);border-bottom:none;border-radius:20px 20px 0 0;padding:26px 22px calc(30px + env(safe-area-inset-bottom,0px));width:100%;max-height:90vh;overflow-y:auto;animation:shU .28s cubic-bezier(.2,.9,.25,1);box-shadow:0 -1px 0 rgba(17,17,17,.05),0 -20px 50px -10px rgba(17,17,17,.25)}
 @keyframes shU{from{transform:translateY(100%)}to{transform:none}}
 /* Fullscreen map pin picker */
 .map-picker{position:fixed;inset:0;z-index:400;background:#fff;display:none;flex-direction:column}
@@ -294,9 +300,14 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
      wash everywhere; pages that already have their own dedicated, more vivid video
      treatment (landing hero, login, register) simply sit visually on top of this one,
      covering it, so there's no double-video conflict there. -->
+<!-- ?v=4 cache-busts this asset -- bump it (here and everywhere else this filename
+     appears: hero-bg-video below, the install-banner template, offline.html, and
+     sw.js's PRECACHE list + CACHE_NAME) any time install-banner-bg.mp4/webm is
+     re-encoded, or browsers/service-workers that already cached the old bytes under
+     this exact URL will keep serving them indefinitely. -->
 <video class="app-bg-video" id="app-bg-video" data-clip="install-banner-bg" autoplay loop muted playsinline preload="auto">
-  <source src="/media/install-banner-bg.mp4" type="video/mp4">
-  <source src="/media/install-banner-bg.webm" type="video/webm">
+  <source src="/media/install-banner-bg.mp4?v=4" type="video/mp4">
+  <source src="/media/install-banner-bg.webm?v=4" type="video/webm">
 </video>
 <div class="app-bg-wash"></div>
 <div id="toasts"></div>
@@ -431,8 +442,8 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     </div>
     <div class="hero has-video" id="hero-wallpaper">
       <video class="hero-bg" id="hero-bg-video" data-clip="install-banner-bg" autoplay loop muted playsinline preload="auto">
-        <source src="/media/install-banner-bg.mp4" type="video/mp4">
-        <source src="/media/install-banner-bg.webm" type="video/webm">
+        <source src="/media/install-banner-bg.mp4?v=4" type="video/mp4">
+        <source src="/media/install-banner-bg.webm?v=4" type="video/webm">
       </video>
       <div class="hero-chip">🛡️ Women-Only · Safety Team Alerts · Live GPS</div>
       <h1>Safe Rides for Women,<br><em>By Women</em></h1>
@@ -3237,6 +3248,10 @@ if('serviceWorker' in navigator){
 // into /public/media/ and adding their base filename here -- nothing else
 // needs to change.
 const WALLPAPER_POOL=['install-banner-bg'];
+// Bump this whenever any file in WALLPAPER_POOL is re-encoded -- see the cache-busting
+// comment above the app-bg-video tag near the top of <body> for the full list of
+// places this same version number has to be kept in sync.
+const VIDEO_VERSION='4';
 function _pickWallpaper(){
   let name=sessionStorage.getItem('ptt_wallpaper');
   if(!name||!WALLPAPER_POOL.includes(name)){
@@ -3259,7 +3274,7 @@ function _pickWallpaper(){
     const v=document.getElementById(id);
     if(!v||v.dataset.clip===name)return;
     v.dataset.clip=name;
-    v.innerHTML=`<source src="/media/${name}.mp4" type="video/mp4"><source src="/media/${name}.webm" type="video/webm">`;
+    v.innerHTML=`<source src="/media/${name}.mp4?v=${VIDEO_VERSION}" type="video/mp4"><source src="/media/${name}.webm?v=${VIDEO_VERSION}" type="video/webm">`;
     v.load();
   });
 }
@@ -3281,7 +3296,7 @@ function showInstallBanner(kind){
   if(existing){existing.dataset.kind=kind;return;}
   const el=document.createElement('div');
   el.id='install-banner';el.dataset.kind=kind;
-  const bg=`<video class="ib-bg" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4" type="video/mp4"><source src="/media/install-banner-bg.webm" type="video/webm"></video>`;
+  const bg=`<video class="ib-bg" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4?v=${VIDEO_VERSION}" type="video/mp4"><source src="/media/install-banner-bg.webm?v=${VIDEO_VERSION}" type="video/webm"></video>`;
   const icon=`<div class="ib-icon"><img src="/icons/icon-192.png" alt="Pink.TT"></div>`;
   el.innerHTML=bg+(kind==='ios'
     ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap ⬆️ Share, then "Add to Home Screen"</span></div><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`
