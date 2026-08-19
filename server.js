@@ -15,10 +15,15 @@ const ADMIN_EMAIL=process.env.ADMIN_NOTIFICATION_EMAIL||'Maillardelliot25@gmail.
 const EMAIL_READY=!!(process.env.GMAIL_USER&&process.env.GMAIL_APP_PASSWORD);
 if(!EMAIL_READY)console.warn('⚠️  Email not configured (GMAIL_USER/GMAIL_APP_PASSWORD) — admin notifications will show in the dashboard only, no email will be sent.');
 const mailer=EMAIL_READY?nodemailer.createTransport({service:'gmail',auth:{user:process.env.GMAIL_USER,pass:process.env.GMAIL_APP_PASSWORD}}):null;
+// Goes to the owner's inbox AND the Pink.TT account itself (the address we send from),
+// so there is always a copy in the business mailbox rather than only in one person's
+// personal mail. Deduped so a single-address setup doesn't get two copies.
+const PINK_INBOX=process.env.PINK_INBOX_EMAIL||process.env.GMAIL_USER||'Pinktt868@gmail.com';
+const ADMIN_EMAIL_LIST=[...new Set([ADMIN_EMAIL,PINK_INBOX].filter(Boolean).map(a=>a.trim()))];
 async function sendAdminEmail(subject,text){
   if(!mailer)return{sent:false,reason:'not_configured'};
   try{
-    await mailer.sendMail({from:`Pink.TT <${process.env.GMAIL_USER}>`,to:ADMIN_EMAIL,subject,text});
+    await mailer.sendMail({from:`Pink.TT <${process.env.GMAIL_USER}>`,to:ADMIN_EMAIL_LIST.join(', '),subject,text});
     return{sent:true};
   }catch(e){console.error('Admin email error',e.message);return{sent:false,reason:'send_error'};}
 }
@@ -765,11 +770,20 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const cid=uuidv4();
       await dbRun('INSERT INTO complaints(id,user_id,user_role,category,subject,message,ride_id,about_user_id)VALUES(?,?,?,?,?,?,?,?)',
         [cid,userId,me?.role||'',category,String(data.subject||'').slice(0,140),message,data.ride_id||null,data.about_user_id||null]);
+      // Everything past this point is best-effort notification of a complaint that is
+      // already safely stored. It used to run unguarded, so a failure here (the bad
+      // notifications column, a mail outage) surfaced to the user as "could not send"
+      // even though their complaint had been saved -- the worst possible outcome, since
+      // they would reasonably submit it again or give up.
+      try{
       // Live badge for whoever is in the admin console right now...
       const admins=await dbAll("SELECT id FROM users WHERE role='admin'");
       for(const a of admins){
-        await dbRun('INSERT INTO notifications(id,user_id,title,body,type)VALUES(?,?,?,?,?)',
-          [uuidv4(),a.id,'New complaint',`${category} — from ${me?.first_name||'a user'} ${me?.last_name||''}`.trim(),'complaint']);
+        // notifications is (id,user_id,type,message) -- it has no title/body columns.
+        // Using them threw "column \"title\" ... does not exist" on Postgres and failed
+        // the whole submission after the complaint row had already been written.
+        await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',
+          [uuidv4(),a.id,'complaint',`📮 New complaint (${category}) from ${me?.first_name||'a user'} ${me?.last_name||''}`.trim()]);
         broadcastTo(a.id,{type:'complaint_received',complaint_id:cid});
       }
       // ...and an email to the Pink.TT inbox, so nothing depends on someone happening to
@@ -785,6 +799,7 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
          'Message:',message,'',
          `Complaint ID: ${cid}`].filter(Boolean).join('\n')
       ).catch(()=>{}); // fire-and-forget: a mail outage must never fail the submission
+      }catch(e){console.error('Complaint notify error (complaint itself was saved)',e.message);}
     }else if(type==='resolve_complaint'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       await dbRun("UPDATE complaints SET status='resolved',resolved_at=datetime('now'),admin_notes=? WHERE id=?",[String(data.notes||'').slice(0,2000),data.complaint_id]);
