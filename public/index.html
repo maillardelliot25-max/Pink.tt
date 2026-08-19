@@ -137,6 +137,11 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 #pg-login,#pg-register{position:relative}
 #pg-login .topbar,#pg-login .scroll,#pg-register .topbar,#pg-register .scroll{position:relative;z-index:1}
 #pg-login .topbar,#pg-register .topbar{background:transparent;border-bottom-color:rgba(255,255,255,.25)}
+/* Landing page keeps its original "half topo" look -- the video only in the hero
+   banner (which has its own fade-to-solid mask), plain white below it -- rather than
+   the full-page backdrop every other screen now has. It's the one page opened by
+   people who've never seen the app before signing up, so it stays its own thing. */
+#pg-land .scroll{background:#fff;position:relative;z-index:1}
 #pg-login .topbar .logo-name,#pg-register .topbar .logo-name{color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.2)}
 #pg-login .topbar button,#pg-register .topbar button{color:#fff!important}
 .auth-wrap{max-width:440px;margin:0 auto;width:100%}
@@ -189,7 +194,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .hero{background:linear-gradient(160deg,var(--pp) 0%,#fff 70%);padding:40px 22px 32px;text-align:center;position:relative;overflow:hidden}
 .hero.has-video{background:#7a1263;padding-top:56px;padding-bottom:40px}
 .hero-bg{position:absolute;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%)}
-.hero.has-video .hero-chip{position:relative;z-index:1;background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.4);backdrop-filter:blur(2px)}
+.hero.has-video .hero-chip{position:relative;z-index:1;background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.4);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 .hero.has-video h1{position:relative;z-index:1;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.3)}
 .hero.has-video h1 em{color:#ffe1f1}
 .hero.has-video p{position:relative;z-index:1;color:rgba(255,255,255,.92);text-shadow:0 1px 6px rgba(0,0,0,.25)}
@@ -250,6 +255,18 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* Progress bar for tracking */
 .progress-track{height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden}
 .progress-fill{height:100%;background:linear-gradient(90deg,var(--p),var(--pl));border-radius:3px;transition:width .5s ease}
+/* Devices/browsers with no backdrop-filter support at all (older Android WebViews,
+   some in-app browsers) would otherwise render every glass surface as a flat
+   translucent panel with the *unblurred* backdrop pattern showing straight through --
+   visibly different (and less legible) from everywhere backdrop-filter works. Bump
+   every surface close to solid instead, so it still reads clean and consistent even
+   without the blur effect itself. Placed last in the stylesheet so it actually wins
+   the cascade over the component rules above at matching specificity. */
+@supports (not (backdrop-filter:blur(1px))) and (not (-webkit-backdrop-filter:blur(1px))){
+  :root{--glass-bg:rgba(255,255,255,.95)!important;--glass-bg-strong:rgba(255,255,255,.98)!important}
+  .inp,.demo-box,.role-sw,.badge{background:rgba(255,255,255,.95)!important}
+  .bpink,.bgrn,.byel,.bred,.bblu{background:#fff!important}
+}
 </style>
 </head>
 <body>
