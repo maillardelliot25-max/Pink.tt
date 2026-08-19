@@ -149,7 +149,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 @media (prefers-reduced-motion:reduce){#install-banner{animation:none}#install-banner .ib-bg{display:none}}
 /* Tabs */
 .tabs{display:flex;background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-bottom:1px solid rgba(255,255,255,.5);flex-shrink:0}
-.tab{flex:1;padding:11px 6px;text-align:center;font-size:12px;font-weight:700;color:#9ca3af;cursor:pointer;border-bottom:2.5px solid transparent;transition:all .15s;white-space:nowrap}
+.tab{flex:1;min-width:0;padding:11px 4px;text-align:center;font-size:11.5px;font-weight:700;color:#9ca3af;cursor:pointer;border-bottom:2.5px solid transparent;transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tab.on{color:var(--p);border-color:var(--p)}
 .tab:hover:not(.on){color:#6b7280}
 /* Spinners */
@@ -560,6 +560,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <div class="tab on" id="rt-book" onclick="rTab('book')">🚗 Book Ride</div>
     <div class="tab" id="rt-hist" onclick="rTab('hist')">📋 History</div>
     <div class="tab" id="rt-pay" onclick="rTab('pay')">💳 Payments</div>
+    <div class="tab" id="rt-promo" onclick="rTab('promo')">🎁 Promo</div>
   </div>
   <div class="scroll" id="rider-body" style="padding:14px"></div>
 </div>
@@ -947,11 +948,12 @@ function _updateNotifDots(){
 // ─── RIDER DASHBOARD ────────────────────────────────────────────
 function rTab(t){
   S.rTab=t;
-  ['book','hist','pay'].forEach(x=>{const el=document.getElementById('rt-'+x);if(el)el.classList.toggle('on',x===t);});
+  ['book','hist','pay','promo'].forEach(x=>{const el=document.getElementById('rt-'+x);if(el)el.classList.toggle('on',x===t);});
   const body=document.getElementById('rider-body');
   if(t==='book')renderRiderBook();
   else if(t==='hist')renderRiderHistory(body);
-  else renderRiderPay(body);
+  else if(t==='pay')renderRiderPay(body);
+  else renderRiderPromo(body);
 }
 
 function renderRiderBook(){
@@ -1327,19 +1329,6 @@ function renderRiderPay(body){
       <div class="card" style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--g)">${pays.filter(p=>p.status==='completed').length}</div><div style="font-size:10px;color:#9ca3af">Paid</div></div>
       <div class="card" style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--y)">${pays.filter(p=>p.status==='pending').length}</div><div style="font-size:10px;color:#9ca3af">Pending</div></div>
     </div>
-    <div class="card" style="margin-bottom:14px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="font-size:18px">🎁</span><h3 style="font-size:15px">Promo Codes</h3></div>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <input class="inp" id="pay-promo" style="flex:1;font-size:16px;padding:9px 12px" placeholder="Enter promo code">
-        <input class="inp" id="pay-amt" type="number" style="width:90px;font-size:16px;padding:9px 10px" placeholder="Fare $">
-        <button class="btn bp bsm" onclick="checkPromo()">Check</button>
-      </div>
-      <div id="promo-result" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:12px;margin-bottom:10px"></div>
-      <p style="font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:8px">Active Codes:</p>
-      <div style="display:flex;flex-wrap:wrap;gap:7px">
-        ${DB.promotions.filter(p=>p.is_active).map(p=>`<button onclick="document.getElementById('pay-promo').value='${p.code}'" style="font-size:11px;background:var(--pp);color:var(--p);border:1px solid var(--pb);padding:5px 10px;border-radius:20px;cursor:pointer;font-family:monospace;font-weight:600">${p.code}</button>`).join('')}
-      </div>
-    </div>
     <h3 style="font-size:14px;font-weight:700;color:#111827;margin-bottom:10px">Payment History</h3>
     ${!pays.length?'<div class="card" style="text-align:center;padding:32px"><div style="font-size:32px;margin-bottom:8px">💳</div><p style="color:#9ca3af">No payments yet</p></div>':
       pays.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(p=>{
@@ -1356,6 +1345,24 @@ function renderRiderPay(body){
         </div>`;
       }).join('')
     }
+  `;
+}
+function renderRiderPromo(body){
+  body.innerHTML=`
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:20px">🎁</span><h3 style="font-size:16px">Promo Codes</h3></div>
+      <p style="font-size:12px;color:#6b7280;margin-bottom:14px">Check a code before you book to see exactly how much it saves.</p>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="inp" id="pay-promo" style="flex:1;font-size:16px;padding:9px 12px" placeholder="Enter promo code">
+        <input class="inp" id="pay-amt" type="number" style="width:90px;font-size:16px;padding:9px 10px" placeholder="Fare $">
+        <button class="btn bp bsm" onclick="checkPromo()">Check</button>
+      </div>
+      <div id="promo-result" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:12px;margin-bottom:10px"></div>
+      <p style="font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:8px">Active Codes:</p>
+      <div style="display:flex;flex-wrap:wrap;gap:7px">
+        ${DB.promotions.filter(p=>p.is_active).map(p=>`<button onclick="document.getElementById('pay-promo').value='${p.code}'" style="font-size:11px;background:var(--pp);color:var(--p);border:1px solid var(--pb);padding:5px 10px;border-radius:20px;cursor:pointer;font-family:monospace;font-weight:600">${p.code}</button>`).join('')}
+      </div>
+    </div>
   `;
 }
 function checkPromo(){
