@@ -449,8 +449,20 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     <h3 style="font-size:18px;margin-bottom:4px">🔁 Recurring Commute</h3>
     <p style="font-size:12px;color:#6b7280;margin-bottom:14px">Same trip, same time, the days you pick — booked automatically.</p>
     <div class="fg"><label class="lbl">Name</label><input class="inp" id="rec-label" placeholder="Morning Commute"></div>
-    <div class="fg"><label class="lbl">Pickup</label><input class="inp" id="rec-pickup" placeholder="Where we collect you"></div>
-    <div class="fg"><label class="lbl">Destination</label><input class="inp" id="rec-dropoff" placeholder="Where you're going"></div>
+    <div class="fg"><label class="lbl">Pickup</label>
+      <div style="position:relative">
+        <input class="inp" id="rec-pickup" style="padding-right:38px" placeholder="Where we collect you" autocomplete="off">
+        <button type="button" title="Pin on map" onclick="openMapPicker('rec-pickup')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:none;background:transparent;font-size:15px;cursor:pointer">📍</button>
+        <div id="rec-pickup-suggest" class="addr-suggest"></div>
+      </div>
+    </div>
+    <div class="fg"><label class="lbl">Destination</label>
+      <div style="position:relative">
+        <input class="inp" id="rec-dropoff" style="padding-right:38px" placeholder="Where you're going" autocomplete="off">
+        <button type="button" title="Pin on map" onclick="openMapPicker('rec-dropoff')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:none;background:transparent;font-size:15px;cursor:pointer">📍</button>
+        <div id="rec-dropoff-suggest" class="addr-suggest"></div>
+      </div>
+    </div>
     <div class="fg"><label class="lbl">Pickup time</label><input class="inp" type="time" id="rec-time" value="07:30"></div>
     <div class="fg">
       <label class="lbl">Days</label>
@@ -2670,6 +2682,15 @@ function confirmMapPicker(){
   if(!_mapPickerCoord)return;
   const addr=document.getElementById('map-picker-addr').textContent;
   const coord={lat:_mapPickerCoord.lat,lng:_mapPickerCoord.lng,precise:true};
+  // The recurring-commute form reuses this exact picker (and the same address
+  // autocomplete) rather than plain text fields, so a commute is pinned with the same
+  // precision as a one-off booking.
+  if(_mapPickerTarget==='rec-pickup'||_mapPickerTarget==='rec-dropoff'){
+    const inp=document.getElementById(_mapPickerTarget);if(inp)inp.value=addr;
+    if(_mapPickerTarget==='rec-pickup')S._recPickupSuggest=coord;else S._recDropoffSuggest=coord;
+    closeMapPicker();
+    return;
+  }
   if(_mapPickerTarget==='dest'){
     S._destSuggest=coord;
     const inp=document.getElementById('ride-dest');if(inp)inp.value=addr;
@@ -3063,6 +3084,17 @@ function openRecurringForm(){
   const dest=document.getElementById('ride-dest')?.value.trim()||'';
   document.getElementById('rec-pickup').value=pickup;
   document.getElementById('rec-dropoff').value=dest;
+  // Carry over any precise coordinate already pinned on Book Ride, so prefilled text
+  // isn't silently downgraded to a fresh geocode of the same string.
+  S._recPickupSuggest=S._pickupSuggest||null;
+  S._recDropoffSuggest=S._destSuggest||null;
+  // Attach the same live address autocomplete Book Ride uses. Guarded so reopening the
+  // modal doesn't stack duplicate listeners on the same inputs.
+  if(!S._recSuggestWired){
+    _attachAddressSuggest('rec-pickup','rec-pickup-suggest',c=>S._recPickupSuggest=c);
+    _attachAddressSuggest('rec-dropoff','rec-dropoff-suggest',c=>S._recDropoffSuggest=c);
+    S._recSuggestWired=true;
+  }
   openModal('recurring-modal');
 }
 async function saveRecurring(){
@@ -3074,7 +3106,11 @@ async function saveRecurring(){
   if(!pickup||!dropoff){toast('Enter pickup and destination','err');return;}
   if(!time){toast('Pick a pickup time','err');return;}
   if(!days.length){toast('Pick at least one day','err');return;}
-  const res=await _mutate('create_recurring_schedule',{label,pickup_address:pickup,dropoff_address:dropoff,pickup_time:time,days_of_week:days});
+  const res=await _mutate('create_recurring_schedule',{
+    label,pickup_address:pickup,dropoff_address:dropoff,pickup_time:time,days_of_week:days,
+    pickup_lat:S._recPickupSuggest?.lat,pickup_lng:S._recPickupSuggest?.lng,
+    dropoff_lat:S._recDropoffSuggest?.lat,dropoff_lng:S._recDropoffSuggest?.lng
+  });
   if(res.ok){
     toast('🔁 Recurring commute created','ok');
     closeModal('recurring-modal');
