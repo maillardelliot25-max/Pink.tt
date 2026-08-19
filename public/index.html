@@ -339,14 +339,14 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
      wash everywhere; pages that already have their own dedicated, more vivid video
      treatment (landing hero, login, register) simply sit visually on top of this one,
      covering it, so there's no double-video conflict there. -->
-<!-- ?v=4 cache-busts this asset -- bump it (here and everywhere else this filename
+<!-- ?v=5 cache-busts this asset -- bump it (here and everywhere else this filename
      appears: hero-bg-video below, the install-banner template, offline.html, and
      sw.js's PRECACHE list + CACHE_NAME) any time install-banner-bg.mp4/webm is
      re-encoded, or browsers/service-workers that already cached the old bytes under
      this exact URL will keep serving them indefinitely. -->
 <video class="app-bg-video" id="app-bg-video" data-clip="install-banner-bg" autoplay loop muted playsinline preload="auto">
-  <source src="/media/install-banner-bg.mp4?v=4" type="video/mp4">
-  <source src="/media/install-banner-bg.webm?v=4" type="video/webm">
+  <source src="/media/install-banner-bg.mp4?v=5" type="video/mp4">
+  <source src="/media/install-banner-bg.webm?v=5" type="video/webm">
 </video>
 <div class="app-bg-wash"></div>
 <div id="toasts"></div>
@@ -546,8 +546,8 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
     </div>
     <div class="hero has-video" id="hero-wallpaper">
       <video class="hero-bg" id="hero-bg-video" data-clip="install-banner-bg" autoplay loop muted playsinline preload="auto">
-        <source src="/media/install-banner-bg.mp4?v=4" type="video/mp4">
-        <source src="/media/install-banner-bg.webm?v=4" type="video/webm">
+        <source src="/media/install-banner-bg.mp4?v=5" type="video/mp4">
+        <source src="/media/install-banner-bg.webm?v=5" type="video/webm">
       </video>
       <div class="hero-logo"><div class="hero-logo-mark">P</div><span class="hero-logo-name">Pink.TT</span></div>
     </div>
@@ -3564,7 +3564,7 @@ const WALLPAPER_POOL=['install-banner-bg'];
 // Bump this whenever any file in WALLPAPER_POOL is re-encoded -- see the cache-busting
 // comment above the app-bg-video tag near the top of <body> for the full list of
 // places this same version number has to be kept in sync.
-const VIDEO_VERSION='4';
+const VIDEO_VERSION='5';
 function _pickWallpaper(){
   let name=sessionStorage.getItem('ptt_wallpaper');
   if(!name||!WALLPAPER_POOL.includes(name)){

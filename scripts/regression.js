@@ -99,7 +99,10 @@ async function main() {
       const el = document.getElementById('app-bg-video');
       return { readyState: el.readyState, w: el.videoWidth, h: el.videoHeight, paused: el.paused };
     });
-    record('backdrop video loads and plays on rider page', v.readyState === 4 && v.w === 1280 && v.h === 720 && !v.paused, JSON.stringify(v));
+    // Assert behaviour (decoded, has real dimensions, actually playing) rather than a
+    // specific resolution -- pinning 1280x720 here meant swapping the clip failed the
+    // suite even though the backdrop was working perfectly.
+    record('backdrop video loads and plays on rider page', v.readyState === 4 && v.w > 0 && v.h > 0 && !v.paused, JSON.stringify(v));
     await page.close();
   }
 

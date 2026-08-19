@@ -1,16 +1,16 @@
-// Bumped (v2->v3) specifically because the video URL below gained a ?v=4 query string
+// Bumped whenever the backdrop video changes (now v4, video at ?v=5)
 // -- activate() below deletes any cache bucket whose name doesn't match CACHE_NAME, so
 // this forces every existing installed service worker to throw away whatever old
 // (possibly blurrier, pre-re-encode) copy of the video it had already cached under the
 // old un-versioned URL, and fetch the current one fresh instead of serving stale bytes
 // forever. Bump this again alongside VIDEO_VERSION in index.html any time the video
 // changes in the future.
-const CACHE_NAME='pinktt-shell-v3';
+const CACHE_NAME='pinktt-shell-v4';
 const OFFLINE_URL='/offline.html';
 // The offline page's backdrop video is precached too -- unlike every other use of this
 // clip, this page can genuinely be shown with zero connectivity at all, so the video
 // has to already be on the device rather than fetched fresh or it just won't play.
-const PRECACHE=[OFFLINE_URL,'/favicon.svg','/icons/icon-192.png','/icons/icon-512.png','/media/install-banner-bg.mp4?v=4','/media/install-banner-bg.webm?v=4'];
+const PRECACHE=[OFFLINE_URL,'/favicon.svg','/icons/icon-192.png','/icons/icon-512.png','/media/install-banner-bg.mp4?v=5','/media/install-banner-bg.webm?v=5'];
 
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(PRECACHE)));
