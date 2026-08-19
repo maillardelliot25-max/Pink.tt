@@ -247,9 +247,6 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    thing on screen at first, with the pitch a scroll away. dvh (with a vh fallback) keeps
    it honest when a mobile address bar shows/hides. */
 .hero.has-video{background:#7a1263;padding-top:56px;padding-bottom:40px;min-height:calc(100vh - 58px);min-height:calc(100dvh - 58px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
-.hero-scroll-cue{position:relative;z-index:1;margin-top:28px;font-size:26px;line-height:1;color:rgba(255,255,255,.85);text-shadow:0 2px 8px rgba(0,0,0,.3);animation:heroCue 1.8s ease-in-out infinite}
-@keyframes heroCue{0%,100%{transform:translateY(0);opacity:.75}50%{transform:translateY(5px);opacity:1}}
-@media (prefers-reduced-motion:reduce){.hero-scroll-cue{animation:none}}
 .hero-intro{background:linear-gradient(160deg,var(--pp) 0%,#fff 70%);padding:34px 22px 32px;text-align:center}
 .hero-intro h1{font-size:28px;line-height:1.25;margin-bottom:10px}
 .hero-intro h1 em{color:var(--p);font-style:normal}
@@ -446,6 +443,32 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
   </div>
 </div>
 
+<!-- Recurring commute (multi-leg schedule) -->
+<div class="overlay" id="recurring-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:4px">🔁 Recurring Commute</h3>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:14px">Same trip, same time, the days you pick — booked automatically.</p>
+    <div class="fg"><label class="lbl">Name</label><input class="inp" id="rec-label" placeholder="Morning Commute"></div>
+    <div class="fg"><label class="lbl">Pickup</label><input class="inp" id="rec-pickup" placeholder="Where we collect you"></div>
+    <div class="fg"><label class="lbl">Destination</label><input class="inp" id="rec-dropoff" placeholder="Where you're going"></div>
+    <div class="fg"><label class="lbl">Pickup time</label><input class="inp" type="time" id="rec-time" value="07:30"></div>
+    <div class="fg">
+      <label class="lbl">Days</label>
+      <div style="display:flex;flex-wrap:wrap;gap:7px">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600"><input class="rec-day" type="checkbox" value="1" checked>Mon</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600"><input class="rec-day" type="checkbox" value="2" checked>Tue</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600"><input class="rec-day" type="checkbox" value="3" checked>Wed</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600"><input class="rec-day" type="checkbox" value="4" checked>Thu</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600"><input class="rec-day" type="checkbox" value="5" checked>Fri</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600"><input class="rec-day" type="checkbox" value="6">Sat</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600"><input class="rec-day" type="checkbox" value="0">Sun</label>
+      </div>
+    </div>
+    <button class="btn bp bw" onclick="saveRecurring()">Create Commute</button>
+    <button class="btn bs bw" style="margin-top:8px" onclick="closeModal('recurring-modal')">Cancel</button>
+  </div>
+</div>
+
 <!-- Fullscreen Map Pin Picker -->
 <div class="map-picker" id="map-picker">
   <div class="map-picker-top">
@@ -488,7 +511,6 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
         <source src="/media/install-banner-bg.webm?v=4" type="video/webm">
       </video>
       <div class="hero-logo"><div class="hero-logo-mark">P</div><span class="hero-logo-name">Pink.TT</span></div>
-      <div class="hero-scroll-cue" aria-hidden="true">⌄</div>
     </div>
     <!-- Everything below the cover: the wallpaper section above is deliberately just the
          brand mark, so the first thing anyone sees is the logo over the video. The pitch
@@ -885,7 +907,7 @@ function _minScheduleDatetime(){
 // NOTE: _pttLoadDB() only copies server keys that already exist here (`if(DB[k]!==undefined)`),
 // so any new table exposed by buildDB must be declared in this literal too or it is
 // silently dropped client-side.
-const DB = { users:[], driver_tiers:[], driver_profiles:[], rides:[], sos_events:[], trip_shares:[], reports:[], payments:[], businesses:[], business_services:[], business_discounts:[], promotions:[], notifications:[], settings:{} };
+const DB = { users:[], driver_tiers:[], recurring_schedules:[], scheduled_ride_legs:[], driver_profiles:[], rides:[], sos_events:[], trip_shares:[], reports:[], payments:[], businesses:[], business_services:[], business_discounts:[], promotions:[], notifications:[], settings:{} };
 
 // ─── SEED DATA ──────────────────────────────────────────────────
 const ADMIN_ID=uid(),RIDER1_ID=uid(),RIDER2_ID=uid(),DRIVER1_ID=uid(),DRIVER2_ID=uid(),DP1_ID=uid(),DP2_ID=uid();
@@ -1227,6 +1249,7 @@ function renderRiderBook(){
         </div>
       `).join('')}
     </div>`:''}
+    ${renderRecurringCard()}
     <div style="position:relative;margin-bottom:14px">
       <div id="idle-map" style="height:170px;border-radius:20px;overflow:hidden;border:1.5px solid var(--pb);background:#f0f0f0;cursor:pointer" onclick="openMapPicker('pickup')"></div>
       <div style="position:absolute;right:9px;bottom:9px;background:rgba(17,17,17,.72);color:#fff;font-size:10px;font-weight:600;padding:5px 10px;border-radius:20px;pointer-events:none;display:flex;align-items:center;gap:4px">📍 Tap to pin exact location</div>
@@ -3005,6 +3028,63 @@ bookRide=async function(){
 function toggleScheduleMode(on){
   S._scheduleMode=on;
   renderRiderBook();
+}
+// ── Recurring commutes (multi-leg schedule manager) ──────────────
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function renderRecurringCard(){
+  const mine=(DB.recurring_schedules||[]).filter(s=>s.rider_id===S.user?.id&&s.status!=='cancelled');
+  const legs=DB.scheduled_ride_legs||[];
+  return `
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:${mine.length?'12px':'8px'}">
+        <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px">🔁 Recurring Commutes</p>
+        <button class="btn bs bsm" onclick="openRecurringForm()">+ Add</button>
+      </div>
+      ${mine.length?mine.map(s=>{
+        const upcoming=legs.filter(l=>l.schedule_id===s.id&&l.status==='queued').slice(0,3);
+        const drv=DB.users.find(u=>u.id===s.primary_driver_id);
+        return `<div style="padding:10px 0;border-top:1px solid rgba(17,17,17,.06)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+            <div style="min-width:0">
+              <p style="font-size:13px;font-weight:700;color:#111827">${s.label||'Recurring ride'}</p>
+              <p style="font-size:11px;color:var(--p);font-weight:700">${s.pickup_time} · ${(s.days_of_week||[]).map(d=>DOW[d]).join(', ')}</p>
+              <p style="font-size:11.5px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.pickup_address} → ${s.dropoff_address}</p>
+              <p style="font-size:11px;color:#6b7280;margin-top:4px">${drv?`Driver: <strong>${drv.first_name} ${drv.last_name}</strong>`:`<span class="badge byel">Finding a driver</span>`}</p>
+            </div>
+            <button class="btn bs bsm" style="flex-shrink:0;color:var(--r);border-color:#fecaca" onclick="cancelRecurring('${s.id}')">Cancel</button>
+          </div>
+          ${upcoming.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${upcoming.map(l=>`<span class="badge bpink">${fmtScheduleTime(l.scheduled_timestamp)}</span>`).join('')}</div>`:''}
+        </div>`;
+      }).join(''):`<p style="font-size:12px;color:#9ca3af">Set up a commute once — same pickup, same time, the days you choose — and Pink.TT books it for you automatically.</p>`}
+    </div>`;
+}
+function openRecurringForm(){
+  const pickup=document.getElementById('ride-pickup')?.value.trim()||'';
+  const dest=document.getElementById('ride-dest')?.value.trim()||'';
+  document.getElementById('rec-pickup').value=pickup;
+  document.getElementById('rec-dropoff').value=dest;
+  openModal('recurring-modal');
+}
+async function saveRecurring(){
+  const label=document.getElementById('rec-label').value.trim()||'Recurring ride';
+  const pickup=document.getElementById('rec-pickup').value.trim();
+  const dropoff=document.getElementById('rec-dropoff').value.trim();
+  const time=document.getElementById('rec-time').value;
+  const days=[...document.querySelectorAll('.rec-day:checked')].map(c=>+c.value);
+  if(!pickup||!dropoff){toast('Enter pickup and destination','err');return;}
+  if(!time){toast('Pick a pickup time','err');return;}
+  if(!days.length){toast('Pick at least one day','err');return;}
+  const res=await _mutate('create_recurring_schedule',{label,pickup_address:pickup,dropoff_address:dropoff,pickup_time:time,days_of_week:days});
+  if(res.ok){
+    toast('🔁 Recurring commute created','ok');
+    closeModal('recurring-modal');
+    await _pttLoadDB();
+    renderRiderBook&&renderRiderBook();
+  }else toast(res.error||'Could not create schedule','err');
+}
+async function cancelRecurring(id){
+  const res=await _mutate('cancel_recurring_schedule',{schedule_id:id});
+  if(res.ok){toast('Recurring commute cancelled');await _pttLoadDB();renderRiderBook&&renderRiderBook();}
 }
 async function scheduleRide(){
   const pickup=document.getElementById('ride-pickup')?.value.trim();

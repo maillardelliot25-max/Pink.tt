@@ -305,6 +305,46 @@ async function pingDriversForRide(ride){
   }
 }
 
+// ── Recurring schedules ───────────────────────────────────────────────────────
+// Picks a primary + backup driver for a recurring commute. Only drivers whose tier
+// grants can_accept_recurring are eligible at all (that's the whole point of the tier
+// perk); among those, nearest-to-pickup wins, with rating breaking ties. Unlike
+// one-off dispatch this deliberately ignores is_online -- a commute three mornings
+// from now shouldn't only match whoever happens to be driving at the moment it's booked.
+async function matchRecurringDrivers(lat,lng){
+  const rows=await dbAll("SELECT dp.user_id,dp.current_lat,dp.current_lng,dp.rating,dp.total_trips,dp.active_recurring_slots FROM driver_profiles dp WHERE dp.status='approved'");
+  const tiers=await dbAll('SELECT * FROM driver_tiers ORDER BY sort_order');
+  const eligible=rows
+    .filter(d=>resolveDriverTier(tiers,d).can_accept_recurring)
+    .map(d=>({...d,_km:isValidTTCoord(d.current_lat,d.current_lng)?dist([lat,lng],[d.current_lat,d.current_lng]):Infinity}))
+    .sort((a,b)=>(a._km-b._km)||((b.rating||0)-(a.rating||0)));
+  return{primary:eligible[0]?.user_id||null,backup:eligible[1]?.user_id||null};
+}
+
+// Materialises the individual daily legs for a schedule, two weeks out. Re-runnable:
+// it skips any timestamp that already has a leg, so the top-up sweep can call it
+// repeatedly without ever duplicating a leg.
+const RECURRING_HORIZON_DAYS=14;
+async function generateLegsForSchedule(scheduleId){
+  const s=await dbGet('SELECT * FROM recurring_schedules WHERE id=?',[scheduleId]);
+  if(!s||s.status==='cancelled'||s.status==='paused')return;
+  const days=String(s.days_of_week||'').split(',').filter(x=>x!=='').map(Number);
+  if(!days.length)return;
+  const[hh,mm]=String(s.pickup_time||'').split(':').map(Number);
+  if(isNaN(hh)||isNaN(mm))return;
+  const existing=new Set((await dbAll('SELECT scheduled_timestamp FROM scheduled_ride_legs WHERE schedule_id=?',[scheduleId])).map(r=>r.scheduled_timestamp));
+  const endDate=s.end_date?new Date(s.end_date+'T23:59:59') : null;
+  for(let i=0;i<RECURRING_HORIZON_DAYS;i++){
+    const day=new Date();day.setDate(day.getDate()+i);day.setHours(hh,mm,0,0);
+    if(!days.includes(day.getDay()))continue;
+    if(day.getTime()<Date.now())continue;          // don't backfill today's already-passed slot
+    if(endDate&&day.getTime()>endDate.getTime())break;
+    const ts=day.toISOString();
+    if(existing.has(ts))continue;
+    await dbRun('INSERT INTO scheduled_ride_legs(id,schedule_id,assigned_driver_id,scheduled_timestamp,status)VALUES(?,?,?,?,?)',[uuidv4(),scheduleId,s.primary_driver_id||null,ts,'queued']);
+  }
+}
+
 // Address suggestions as the rider types (Nominatim search, up to 6 candidates) -- so
 // pickup/destination aren't limited to the ~18 hardcoded neighborhood names or a single
 // best-guess match. Free, no API key; same host/policy as geocodeAddress above.
@@ -391,7 +431,9 @@ async function buildDB(){
   const settingsRows=await dbAll('SELECT key,value FROM settings');
   const settings={...DEFAULT_SETTINGS};
   settingsRows.forEach(r=>{settings[r.key]=r.value;});
-  return{users,driver_tiers,driver_profiles,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings};
+  const recurring_schedules=(await dbAll('SELECT * FROM recurring_schedules')).map(s=>({...s,days_of_week:String(s.days_of_week||'').split(',').filter(x=>x!=='').map(Number)}));
+  const scheduled_ride_legs=await dbAll('SELECT * FROM scheduled_ride_legs ORDER BY scheduled_timestamp');
+  return{users,driver_tiers,driver_profiles,recurring_schedules,scheduled_ride_legs,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings};
 }
 
 async function setSetting(key,value){
@@ -703,6 +745,34 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const km=route.km,min=route.min,fare=calcFare(km,min);
       const rideId=uuidv4();
       await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,scheduled_for)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',[rideId,userId,'scheduled',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,when.toISOString()]);
+    }else if(type==='create_recurring_schedule'){
+      // A repeating commute (e.g. Mon-Fri 07:30). Stores the pattern, matches a primary
+      // + backup driver from the recurring-eligible pool, then materialises the next
+      // fortnight of individual legs so both sides can see exactly what's coming.
+      const days=(Array.isArray(data.days_of_week)?data.days_of_week:[]).map(Number).filter(n=>n>=0&&n<=6);
+      if(!days.length)return res.json({ok:false,error:'Pick at least one day of the week'});
+      if(!/^\d{2}:\d{2}$/.test(data.pickup_time||''))return res.json({ok:false,error:'Pick a valid pickup time'});
+      if(!data.pickup_address||!data.dropoff_address)return res.json({ok:false,error:'Enter pickup and destination'});
+      const p=isValidTTCoord(data.pickup_lat,data.pickup_lng)?[data.pickup_lat,data.pickup_lng]:(await resolveCoord(data.pickup_address)).coord;
+      const d=isValidTTCoord(data.dropoff_lat,data.dropoff_lng)?[data.dropoff_lat,data.dropoff_lng]:(await resolveCoord(data.dropoff_address)).coord;
+      const matched=await matchRecurringDrivers(p[0],p[1]);
+      const schedId=uuidv4();
+      const startDate=data.start_date||new Date().toISOString().slice(0,10);
+      await dbRun('INSERT INTO recurring_schedules(id,rider_id,primary_driver_id,backup_driver_id,label,pickup_address,pickup_lat,pickup_lng,dropoff_address,dropoff_lat,dropoff_lng,pickup_time,days_of_week,status,start_date,end_date)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [schedId,userId,matched.primary||null,matched.backup||null,data.label||'Recurring ride',data.pickup_address,p[0],p[1],data.dropoff_address,d[0],d[1],data.pickup_time,days.join(','),matched.primary?'active':'pending_match',startDate,data.end_date||null]);
+      // Reserving a slot on the matched driver is what makes active_recurring_slots
+      // meaningful -- it's the count the Driver Console surfaces as committed work.
+      if(matched.primary)await dbRun('UPDATE driver_profiles SET active_recurring_slots=COALESCE(active_recurring_slots,0)+1 WHERE user_id=?',[matched.primary]);
+      await generateLegsForSchedule(schedId);
+      if(matched.primary)broadcastTo(matched.primary,{type:'recurring_assigned',schedule_id:schedId});
+    }else if(type==='cancel_recurring_schedule'){
+      const sched=await dbGet('SELECT * FROM recurring_schedules WHERE id=? AND rider_id=?',[data.schedule_id,userId]);
+      if(!sched)return res.json({ok:false,error:'Schedule not found'});
+      await dbRun("UPDATE recurring_schedules SET status='cancelled' WHERE id=?",[sched.id]);
+      // Only future queued legs die with it -- anything already dispatched or completed
+      // stays as history.
+      await dbRun("DELETE FROM scheduled_ride_legs WHERE schedule_id=? AND status='queued'",[sched.id]);
+      if(sched.primary_driver_id)await dbRun('UPDATE driver_profiles SET active_recurring_slots=MAX(COALESCE(active_recurring_slots,1)-1,0) WHERE user_id=?',[sched.primary_driver_id]);
     }else if(type==='reping_ride'){
       // Rider-facing "notify drivers again" -- e.g. tapped from the "Finding your
       // driver..." screen when nothing's happening. Only re-pings the rider's own
@@ -897,6 +967,41 @@ setInterval(async()=>{
     for(const ride of stuck)await pingDriversForRide(ride);
   }catch(e){console.error('Ride re-ping sweep error',e.message);}
 },30000);
+
+// Recurring-leg dispatcher. Every leg whose pickup time falls inside the next 30
+// minutes becomes a real ride and gets pushed at its assigned driver (falling back to
+// the normal nearby-driver broadcast if the assigned driver isn't reachable), then tops
+// the horizon back up so schedules never run dry. This is the Edge-Function-on-a-cron
+// from the spec, implemented as an in-process interval because that's how the rest of
+// this server already schedules work -- there is no Supabase Edge runtime here.
+const RECURRING_DISPATCH_WINDOW_MS=30*60*1000;
+async function dispatchRecurringLegs(){
+  const now=Date.now();
+  const due=await dbAll("SELECT * FROM scheduled_ride_legs WHERE status='queued' ORDER BY scheduled_timestamp");
+  for(const leg of due){
+    const t=new Date(leg.scheduled_timestamp).getTime();
+    if(isNaN(t)||t-now>RECURRING_DISPATCH_WINDOW_MS)continue;
+    const s=await dbGet('SELECT * FROM recurring_schedules WHERE id=?',[leg.schedule_id]);
+    if(!s||s.status==='cancelled'||s.status==='paused'){await dbRun("UPDATE scheduled_ride_legs SET status='missed' WHERE id=?",[leg.id]);continue;}
+    const route=await getRoute([s.pickup_lat,s.pickup_lng],[s.dropoff_lat,s.dropoff_lng]);
+    const fare=calcFare(route.km,route.min);
+    const rideId=uuidv4();
+    await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes)VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+      [rideId,s.rider_id,'requested',s.pickup_address,s.pickup_lat,s.pickup_lng,s.dropoff_address,s.dropoff_lat,s.dropoff_lng,fare,route.km,route.min]);
+    await dbRun("UPDATE scheduled_ride_legs SET status='dispatching',ride_id=? WHERE id=?",[rideId,leg.id]);
+    const assigned=leg.assigned_driver_id||s.primary_driver_id||s.backup_driver_id;
+    if(assigned)broadcastTo(assigned,{type:'ride_ping',ride_id:rideId,recurring:true});
+    // Always also broadcast to the normal nearby pool -- the assigned driver may be
+    // offline or unreachable, and a commute must not silently go unserved.
+    await pingDriversForRide({id:rideId,pickup_lat:s.pickup_lat,pickup_lng:s.pickup_lng});
+    broadcastTo(s.rider_id,{type:'scheduled_ride_dispatched',ride_id:rideId});
+  }
+  const active=await dbAll("SELECT id FROM recurring_schedules WHERE status IN('active','pending_match')");
+  for(const s of active)await generateLegsForSchedule(s.id);
+  if(due.length)broadcastDBUpdate();
+}
+setInterval(()=>{dispatchRecurringLegs().catch(e=>console.error('Recurring dispatch error',e.message));},15*60*1000);
+setTimeout(()=>{dispatchRecurringLegs().catch(()=>{});},8000); // catch anything already due at boot
 
 // Promotes scheduled rides to a live dispatch the moment their time arrives -- a
 // scheduled ride sits as status='scheduled' with no driver pinged at all until this
