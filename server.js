@@ -1143,7 +1143,15 @@ setTimeout(()=>{dispatchRecurringLegs().catch(()=>{});},8000); // catch anything
 // through the exact same pingDriversForRide path as booking one right now.
 setInterval(async()=>{
   try{
-    const due=await dbAll("SELECT * FROM rides WHERE status='scheduled' AND scheduled_for<=datetime('now')");
+    // scheduled_for is stored as a TEXT ISO-8601 string on both engines (set from
+    // when.toISOString() at booking time), so it's compared here as a plain string
+    // against another ISO string computed in JS -- lexical order matches chronological
+    // order for same-format-same-timezone ISO strings. Comparing it with datetime('now')
+    // used to work locally (SQLite is loosely typed) but broke on Postgres in production:
+    // that translates to now(), a timestamptz, and Postgres has no text<=timestamptz
+    // operator, so this sweep threw on every single run and no scheduled ride was ever
+    // promoted to dispatch.
+    const due=await dbAll("SELECT * FROM rides WHERE status='scheduled' AND scheduled_for<=?",[new Date().toISOString()]);
     for(const ride of due){
       await dbRun("UPDATE rides SET status='requested',requested_at=datetime('now') WHERE id=?",[ride.id]);
       broadcastTo(ride.rider_id,{type:'scheduled_ride_dispatched',ride_id:ride.id});
