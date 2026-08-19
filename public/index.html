@@ -31,15 +31,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-:root{--p:#E91E8C;--pl:#FF6BB5;--pd:#C4006F;--pp:#FFF0F6;--pb:#fce7f3;--g:#22c55e;--y:#f59e0b;--r:#ef4444;--b:#3b82f6;--gray:#f9fafb;--shadow:0 1px 2px rgba(17,17,17,.04),0 10px 24px -8px rgba(17,17,17,.10);--pink-shadow:0 1px 2px rgba(196,0,111,.15),0 10px 22px -6px rgba(233,30,140,.38);
+/* Hot pink is the brand colour: --p is the primary, --pl/--pd are the same hue lifted
+   and deepened for gradients, and --pp/--pb are the faint tints used for chip and card
+   fills. Everything pink in the app derives from these five, so the hue moves together
+   rather than drifting per-component. */
+:root{--p:#FF69B4;--pl:#FF9AD0;--pd:#E0479A;--acc:#FF1493;--pp:#FFF0F7;--pb:#ffd9ec;--g:#22c55e;--y:#f59e0b;--r:#ef4444;--b:#3b82f6;--gray:#f9fafb;--shadow:0 1px 2px rgba(17,17,17,.04),0 10px 24px -8px rgba(17,17,17,.10);--pink-shadow:0 1px 2px rgba(196,0,111,.15),0 10px 22px -6px rgba(233,30,140,.38);
   /* "Liquid glass" surfaces: a translucent frosted panel (blur+saturate the backdrop
      video behind it) with a soft top-left specular sheen and a bright hairline border,
      same formula the login/register glass-card already proved out -- generalized here
      so every surface in the app (cards, topbar, tabs, modals, toasts, inputs) reads as
      one consistent material instead of opaque white panels sitting on top of it. */
-  --glass-bg:linear-gradient(165deg,rgba(255,255,255,.9),rgba(255,255,255,.74) 65%);
-  --glass-bg-strong:linear-gradient(165deg,rgba(255,255,255,.96),rgba(255,255,255,.86) 65%);
-  --glass-blur:blur(38px) saturate(160%);
+  /* Deliberately see-through: the wallpaper has to stay visible *through* the bubbles,
+     not just around them. Legibility is preserved by heavy blur + saturation rather than
+     by opacity, so what shows through is soft colour and movement instead of competing
+     detail. -strong is for surfaces sitting over dense text (sheets, dropdowns, inputs). */
+  --glass-bg:linear-gradient(165deg,rgba(255,255,255,.74),rgba(255,255,255,.58) 65%);
+  --glass-bg-strong:linear-gradient(165deg,rgba(255,255,255,.88),rgba(255,255,255,.76) 65%);
+  --glass-blur:blur(30px) saturate(180%);
   --glass-border:1px solid rgba(255,255,255,.75);
   /* Layered for real depth rather than one flat drop-shadow: a bright inset highlight
      along the top edge and a soft inset shade along the bottom make the surface read as
@@ -60,14 +68,23 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    gray bars on either side on any tablet/wide-screen/desktop browser. Now fills the
    full viewport everywhere; a soft width cap only kicks in on genuinely huge desktop
    monitors so text doesn't stretch into unreadably long lines. */
-.app-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:.85}
-.app-bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,47,168,.35),rgba(122,18,99,.5));pointer-events:none}
+.app-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:1}
+/* Light hot-pink tint that unifies whatever clip is playing into one brand look, kept
+   weak on purpose so the wallpaper itself stays the thing you see rather than the tint. */
+.app-bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,20,147,.16),rgba(199,0,105,.24));pointer-events:none}
 @media (prefers-reduced-motion:reduce){.app-bg-video{display:none}}
 /* Translucent + blurred rather than solid #fff so the app-bg-video shows through as an
    ambient wash on every page -- individual .card elements underneath stay fully opaque
    #fff, so nothing about their own readability changes; only the empty space around
    them (page backgrounds, gaps, empty states) picks up the video/color. */
 #shell{display:flex;flex-direction:column;height:100vh;height:100dvh;width:100%;max-width:1600px;margin:0 auto;background:transparent;position:relative;z-index:1;overflow:hidden}
+/* The install banner is position:fixed at the top, so it sat *over* the app's own top
+   bar -- which hid the login/register back arrow completely (measured: button at y16-39
+   under a banner reaching y50). Now that the banner is permanent rather than
+   dismissable, the shell is shortened and pushed down by exactly the banner's measured
+   height instead of being covered by it. --ib-h is set from JS since the height varies
+   with the safe-area inset and text wrapping. */
+body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:var(--ib-h,0px)}
 .page{display:none;flex-direction:column;height:100%;overflow:hidden}
 .page.active{display:flex}
 /* Every scrollable content area needs clearance for the device's bottom safe area
@@ -3574,12 +3591,16 @@ const WALLPAPER_POOL=['install-banner-bg'];
 // comment above the app-bg-video tag near the top of <body> for the full list of
 // places this same version number has to be kept in sync.
 const VIDEO_VERSION='5';
+// A fresh wallpaper on every app open. It used to be pinned per browser session, so the
+// same clip came back for hours; now it re-rolls each load and, once there is more than
+// one clip, deliberately avoids repeating the one shown last (remembered in
+// localStorage) so consecutive opens actually look different rather than landing on the
+// same clip by chance.
 function _pickWallpaper(){
-  let name=sessionStorage.getItem('ptt_wallpaper');
-  if(!name||!WALLPAPER_POOL.includes(name)){
-    name=WALLPAPER_POOL[Math.floor(Math.random()*WALLPAPER_POOL.length)];
-    sessionStorage.setItem('ptt_wallpaper',name);
-  }
+  const last=localStorage.getItem('ptt_last_wallpaper');
+  const choices=WALLPAPER_POOL.length>1?WALLPAPER_POOL.filter(n=>n!==last):WALLPAPER_POOL;
+  const name=choices[Math.floor(Math.random()*choices.length)];
+  localStorage.setItem('ptt_last_wallpaper',name);
   // Same picked wallpaper feeds every backdrop video on the page (the one global
   // app-bg-video behind #shell, plus the landing hero's own copy) so it's consistent
   // everywhere rather than a different random clip per screen.
@@ -3601,6 +3622,25 @@ function _pickWallpaper(){
   });
 }
 _pickWallpaper();
+
+// Keeps the wallpaper actually moving. Mobile browsers routinely pause background video
+// on screen lock, tab switch or low-power mode, and `loop` alone does not resume a video
+// that was paused externally -- that is what shows up as a frozen or "stuck" backdrop.
+// Re-assert play() whenever the page becomes visible again, and immediately if a video
+// reports paused while the page is visible. play() is promise-rejecting on some browsers
+// (autoplay policy), hence the catch.
+function _keepWallpapersPlaying(){
+  if(document.visibilityState!=='visible')return;
+  ['app-bg-video','hero-bg-video'].forEach(id=>{
+    const v=document.getElementById(id);
+    if(v&&v.paused)v.play().catch(()=>{});
+  });
+}
+document.addEventListener('visibilitychange',_keepWallpapersPlaying);
+window.addEventListener('pageshow',_keepWallpapersPlaying);
+['app-bg-video','hero-bg-video'].forEach(id=>{
+  document.getElementById(id)?.addEventListener('pause',_keepWallpapersPlaying);
+});
 
 // ── Install-app banner ──────────────────────────────────────────────────────
 // The manifest+service-worker made the app *technically* installable, but
@@ -3628,7 +3668,19 @@ function showInstallBanner(kind){
     ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap ⬆️ Share, then "Add to Home Screen"</span></div>`
     :`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button>`);
   document.body.appendChild(el);
+  _syncInstallBannerOffset();
 }
+// Measures the banner and hands its height to CSS so the app shell sits below it rather
+// than underneath it. Re-measured on resize/orientation change because the height moves
+// with the safe-area inset and with text wrapping at narrow widths.
+function _syncInstallBannerOffset(){
+  const el=document.getElementById('install-banner');
+  if(!el){document.body.classList.remove('has-install-banner');return;}
+  document.body.classList.add('has-install-banner');
+  document.documentElement.style.setProperty('--ib-h',el.offsetHeight+'px');
+}
+window.addEventListener('resize',_syncInstallBannerOffset);
+window.addEventListener('orientationchange',()=>setTimeout(_syncInstallBannerOffset,150));
 async function triggerInstall(){
   // Chrome only fires beforeinstallprompt after its own engagement heuristics are met,
   // so it may not have fired yet even though the app is installable -- pressing Install
@@ -3648,7 +3700,7 @@ function openInstallHelpModal(){
   toast('Open your browser menu (⋮ or ⋯) and tap "Install app" or "Add to Home Screen"');
 }
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();_deferredInstallPrompt=e;showInstallBanner('android');});
-window.addEventListener('appinstalled',()=>{document.getElementById('install-banner')?.remove();});
+window.addEventListener('appinstalled',()=>{document.getElementById('install-banner')?.remove();_syncInstallBannerOffset();});
 // Show immediately on load rather than waiting solely for beforeinstallprompt, which may
 // never fire (unsupported browser, or Chrome's engagement heuristics not yet satisfied) --
 // triggerInstall() falls back to manual instructions in that case, so the button always works.
