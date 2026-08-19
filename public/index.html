@@ -477,23 +477,23 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
   <div class="onb-slides" id="onb-slides">
     <div class="onb-slide">
       <div class="onb-ico">🌸</div>
-      <h1>Safe Rides for Women,<br>By Women</h1>
-      <p>Trinidad &amp; Tobago's women-only rideshare — every driver verified, every ride tracked.</p>
+      <h1>Welcome to Pink.TT</h1>
+      <p>A safe, reliable rideshare built by and for women across Trinidad &amp; Tobago — from Port of Spain to San Fernando and everywhere between.</p>
     </div>
     <div class="onb-slide">
       <div class="onb-ico">✅</div>
-      <h1>Verified Women Drivers</h1>
-      <p>Every driver is ID-checked and reviewed by our team before they ever pick anyone up.</p>
+      <h1>Every Driver, Verified</h1>
+      <p>Every woman behind the wheel is ID-checked and personally reviewed by our team, so you always know exactly who's picking you up.</p>
     </div>
     <div class="onb-slide">
       <div class="onb-ico">🆘</div>
-      <h1>One-Tap SOS</h1>
-      <p>Alert our Safety Team and your emergency contact instantly, with your live location attached.</p>
+      <h1>Help Is One Tap Away</h1>
+      <p>Our Safety Team and your emergency contact are alerted instantly, with your exact location — any time, day or night.</p>
     </div>
     <div class="onb-slide">
       <div class="onb-ico">📍</div>
-      <h1>Share Every Ride, Live</h1>
-      <p>Send loved ones a real-time link to follow your trip from pickup to drop-off.</p>
+      <h1>Someone Always Knows Where You Are</h1>
+      <p>Share a live link of your ride with the people who love you, from pickup all the way home.</p>
     </div>
   </div>
   <div class="onb-dots" id="onb-dots"></div>
@@ -793,6 +793,15 @@ const haversine = (la1,lo1,la2,lo2) => {
 const calcFare = (km,min) => { const h=new Date().getHours(),raw=25+km*3.5+min*1.5,s=(h>=22||h<5)?1.25:((h>=6&&h<9)||(h>=16&&h<19))?1.20:1; return Math.round(raw*s*100)/100; };
 const fmtFare = n => 'TTD $' + parseFloat(n).toFixed(2);
 const fmtDate = d => new Date(d).toLocaleString('en-TT');
+const fmtScheduleTime = d => new Date(d).toLocaleString('en-TT',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+// datetime-local's min attribute needs local (not UTC) "YYYY-MM-DDTHH:mm" -- toISOString
+// is UTC, so build it from the local field getters instead. 20min gives a small buffer
+// over the server's 15min minimum so a slow submit doesn't land right on the boundary.
+function _minScheduleDatetime(){
+  const d=new Date(Date.now()+20*60*1000);
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 // ─── IN-MEMORY DATABASE ─────────────────────────────────────────
 const DB = { users:[], driver_profiles:[], rides:[], sos_events:[], trip_shares:[], reports:[], payments:[], businesses:[], business_services:[], business_discounts:[], promotions:[], notifications:[], settings:{} };
@@ -1104,7 +1113,21 @@ function renderRiderBook(){
     return;
   }
 
+  const myScheduled=DB.rides.filter(r=>r.rider_id===S.user.id&&r.status==='scheduled').sort((a,b)=>new Date(a.scheduled_for)-new Date(b.scheduled_for));
   body.innerHTML=`
+    ${myScheduled.length?`
+    <div class="card" style="margin-bottom:14px">
+      <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">🕐 Your Scheduled Rides</p>
+      ${myScheduled.map(r=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(17,17,17,.06)">
+          <div style="min-width:0">
+            <p style="font-size:12px;font-weight:700;color:var(--p)">${fmtScheduleTime(r.scheduled_for)}</p>
+            <p style="font-size:12px;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.pickup_address} → ${r.destination_address}</p>
+          </div>
+          <button class="btn bs bsm" style="flex-shrink:0;color:var(--r);border-color:#fecaca" onclick="cancelScheduledRide('${r.id}')">Cancel</button>
+        </div>
+      `).join('')}
+    </div>`:''}
     <div style="position:relative;margin-bottom:14px">
       <div id="idle-map" style="height:170px;border-radius:20px;overflow:hidden;border:1.5px solid var(--pb);background:#f0f0f0;cursor:pointer" onclick="openMapPicker('pickup')"></div>
       <div style="position:absolute;right:9px;bottom:9px;background:rgba(17,17,17,.72);color:#fff;font-size:10px;font-weight:600;padding:5px 10px;border-radius:20px;pointer-events:none;display:flex;align-items:center;gap:4px">📍 Tap to pin exact location</div>
@@ -1161,7 +1184,14 @@ function renderRiderBook(){
           <button class="btn bs bsm" onclick="applyPromo()">Apply</button>
         </div>
       </div>
-      <button class="btn bp bw" id="book-btn" onclick="bookRide()" style="font-size:15px;padding:13px">🌸 Book Ride</button>
+      <label style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--pb);border-radius:14px;padding:11px 14px;margin-bottom:10px;cursor:pointer;font-size:12px;font-weight:600">
+        <input type="checkbox" id="schedule-toggle" ${S._scheduleMode?'checked':''} onchange="toggleScheduleMode(this.checked)">
+        🕐 Schedule for later instead
+      </label>
+      ${S._scheduleMode?`<div class="fg" style="margin-bottom:10px"><input class="inp" type="datetime-local" id="schedule-time" min="${_minScheduleDatetime()}" value="${S._scheduleTimeVal||''}"></div>`:''}
+      ${S._scheduleMode
+        ?`<button class="btn bp bw" id="book-btn" onclick="scheduleRide()" style="font-size:15px;padding:13px">🕐 Schedule Ride</button>`
+        :`<button class="btn bp bw" id="book-btn" onclick="bookRide()" style="font-size:15px;padding:13px">🌸 Book Ride</button>`}
     </div>
     <div class="card" style="margin-top:0">
       <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Quick Destinations</p>
@@ -2621,6 +2651,16 @@ function _handleWS(msg){
       toast('🔔 New ride request nearby!','ok');
       if(S.dTab==='reqs')renderDriverRequests(document.getElementById('driver-body'));
     }
+  }else if(msg.type==='scheduled_ride_dispatched'){
+    // A scheduled ride's time arrived and the server just promoted it to a live
+    // dispatch -- refresh so it moves from "Your Scheduled Rides" into the normal
+    // "Finding your driver..." tracking view without the rider having to do anything.
+    toast('🕐 Your scheduled ride is now finding a driver...','ok');
+    _pttLoadDB().then(()=>{
+      const ride=DB.rides.find(r=>r.id===msg.ride_id);
+      if(ride){S.activeRide=ride;S.rideStatus='searching';S.driverInfo=null;_startRidePoll();}
+      if(S.user?.role==='rider'&&S.rTab==='book')renderRiderBook&&renderRiderBook();
+    });
   }else if(msg.type==='sos_alert'){
     if(S.user?.role==='admin'){toast('🚨 SOS from '+msg.user+' — '+msg.phone,'err');_rerender();}
   }
@@ -2829,6 +2869,49 @@ bookRide=async function(){
   }
   if(btn){btn.disabled=false;btn.textContent='🌸 Book Ride';}
 };
+
+// ── Scheduled rides ──────────────────────────────────────────────
+function toggleScheduleMode(on){
+  S._scheduleMode=on;
+  renderRiderBook();
+}
+async function scheduleRide(){
+  const pickup=document.getElementById('ride-pickup')?.value.trim();
+  const dest=document.getElementById('ride-dest')?.value.trim();
+  const whenLocal=document.getElementById('schedule-time')?.value;
+  if(!pickup||!dest){toast('Enter pickup and destination','err');return;}
+  if(pickup===dest){toast('Pickup and destination cannot be the same','err');return;}
+  if(!whenLocal){toast('Pick a date and time','err');return;}
+  const whenDate=new Date(whenLocal);
+  if(whenDate.getTime()<Date.now()+15*60*1000){toast('Pick a time at least 15 minutes from now','err');return;}
+  S._scheduleTimeVal=whenLocal;
+  const btn=document.getElementById('book-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Scheduling...';}
+  const pickupCoord=S._pickupSuggest,destCoord=S._destSuggest;
+  const res=await _mutate('schedule_ride',{
+    pickup_address:pickup,destination_address:dest,
+    pickup_lat:pickupCoord?.lat??S.myLat,pickup_lng:pickupCoord?.lng??S.myLng,
+    destination_lat:destCoord?.lat,destination_lng:destCoord?.lng,
+    scheduled_for:whenDate.toISOString()
+  });
+  if(res.ok){
+    toast('🕐 Ride scheduled for '+fmtScheduleTime(whenDate)+' 🌸','ok');
+    S._scheduleMode=false;S._scheduleTimeVal=null;
+    await _pttLoadDB();
+    renderRiderBook&&renderRiderBook();
+  }else{
+    toast(res.error||'Could not schedule ride','err');
+    if(btn){btn.disabled=false;btn.textContent='🕐 Schedule Ride';}
+  }
+}
+async function cancelScheduledRide(id){
+  const res=await _mutate('ride_status',{ride_id:id,status:'cancelled'});
+  if(res.ok){
+    toast('Scheduled ride cancelled');
+    await _pttLoadDB();
+    renderRiderBook&&renderRiderBook();
+  }
+}
 
 // Base riderCancel() only mutated local demo state and never told the server, so
 // cancelling never actually persisted (same bug class fixed for driver accept earlier).

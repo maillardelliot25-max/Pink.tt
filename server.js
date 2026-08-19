@@ -72,7 +72,8 @@ const MIGRATIONS_SQL=[
   `ALTER TABLE rides ADD COLUMN points_discount REAL DEFAULT 0`,
   `ALTER TABLE rides ADD COLUMN points_earned INTEGER DEFAULT 0`,
   `ALTER TABLE driver_profiles ADD COLUMN license_expiry TEXT DEFAULT ''`,
-  `ALTER TABLE rides ADD COLUMN driver_review TEXT DEFAULT ''`
+  `ALTER TABLE rides ADD COLUMN driver_review TEXT DEFAULT ''`,
+  `ALTER TABLE rides ADD COLUMN scheduled_for TEXT`
 ];
 // Postgres-flavored schema: same tables, but datetime('now') and COLLATE NOCASE
 // aren't valid Postgres syntax. Email case-insensitivity is handled at the app
@@ -87,7 +88,8 @@ const MIGRATIONS_SQL_PG=[
   `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_discount REAL DEFAULT 0`,
   `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_earned INTEGER DEFAULT 0`,
   `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS license_expiry TEXT DEFAULT ''`,
-  `ALTER TABLE rides ADD COLUMN IF NOT EXISTS driver_review TEXT DEFAULT ''`
+  `ALTER TABLE rides ADD COLUMN IF NOT EXISTS driver_review TEXT DEFAULT ''`,
+  `ALTER TABLE rides ADD COLUMN IF NOT EXISTS scheduled_for TEXT`
 ];
 // Both SCHEMA_SQL and the app's query strings use SQLite syntax (`?` placeholders,
 // datetime('now')); translate to Postgres syntax (`$1,$2,...`, now()) at the call
@@ -622,7 +624,10 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       if(ex)await dbRun('UPDATE driver_profiles SET vehicle_make=?,vehicle_model=?,vehicle_year=?,vehicle_color=?,vehicle_plate=?,license_number=?,license_expiry=?,license_photo=COALESCE(?,license_photo) WHERE user_id=?',[vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry||'',license_photo||null,userId]);
       else await dbRun('INSERT INTO driver_profiles(id,user_id,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry,license_photo,status)VALUES(?,?,?,?,?,?,?,?,?,?,?)',[uuidv4(),userId,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry||'',license_photo||'','pending']);
     }else if(type==='book_ride'){
-      const ex=await dbGet("SELECT id FROM rides WHERE rider_id=? AND status NOT IN('completed','cancelled')",[userId]);
+      // Deliberately excludes 'scheduled' -- a future scheduled ride shouldn't block
+      // booking an immediate one right now, only another ride that's actually in
+      // motion should.
+      const ex=await dbGet("SELECT id FROM rides WHERE rider_id=? AND status IN('requested','accepted','arriving','in_progress')",[userId]);
       if(ex)return res.json({ok:false,error:'You already have an active ride'});
       const p=isValidTTCoord(data.pickup_lat,data.pickup_lng)?[data.pickup_lat,data.pickup_lng]:(await resolveCoord(data.pickup_address)).coord;
       const d=isValidTTCoord(data.destination_lat,data.destination_lng)?[data.destination_lat,data.destination_lng]:(await resolveCoord(data.destination_address)).coord;
@@ -635,6 +640,21 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const rideId=uuidv4();
       await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,points_redeemed,points_discount)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[rideId,userId,'requested',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,points,discount]);
       pingDriversForRide({id:rideId,pickup_lat:p[0],pickup_lng:p[1]});
+    }else if(type==='schedule_ride'){
+      // Books a ride for a future time instead of dispatching immediately. Doesn't
+      // touch the "already have an active ride" check at all -- an ongoing immediate
+      // ride and a future scheduled one are unrelated, and someone can stack up
+      // several scheduled rides (e.g. same commute every day this week).
+      const when=new Date(data.scheduled_for);
+      const now=Date.now();
+      if(isNaN(when.getTime())||when.getTime()<now+15*60*1000)return res.json({ok:false,error:'Pick a time at least 15 minutes from now'});
+      if(when.getTime()>now+30*24*60*60*1000)return res.json({ok:false,error:'Can only schedule up to 30 days ahead'});
+      const p=isValidTTCoord(data.pickup_lat,data.pickup_lng)?[data.pickup_lat,data.pickup_lng]:(await resolveCoord(data.pickup_address)).coord;
+      const d=isValidTTCoord(data.destination_lat,data.destination_lng)?[data.destination_lat,data.destination_lng]:(await resolveCoord(data.destination_address)).coord;
+      const route=await getRoute(p,d);
+      const km=route.km,min=route.min,fare=calcFare(km,min);
+      const rideId=uuidv4();
+      await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,scheduled_for)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',[rideId,userId,'scheduled',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,when.toISOString()]);
     }else if(type==='reping_ride'){
       // Rider-facing "notify drivers again" -- e.g. tapped from the "Finding your
       // driver..." screen when nothing's happening. Only re-pings the rider's own
@@ -826,6 +846,22 @@ setInterval(async()=>{
     for(const ride of stuck)await pingDriversForRide(ride);
   }catch(e){console.error('Ride re-ping sweep error',e.message);}
 },30000);
+
+// Promotes scheduled rides to a live dispatch the moment their time arrives -- a
+// scheduled ride sits as status='scheduled' with no driver pinged at all until this
+// sweep catches it, at which point it becomes a normal 'requested' ride and goes
+// through the exact same pingDriversForRide path as booking one right now.
+setInterval(async()=>{
+  try{
+    const due=await dbAll("SELECT * FROM rides WHERE status='scheduled' AND scheduled_for<=datetime('now')");
+    for(const ride of due){
+      await dbRun("UPDATE rides SET status='requested',requested_at=datetime('now') WHERE id=?",[ride.id]);
+      broadcastTo(ride.rider_id,{type:'scheduled_ride_dispatched',ride_id:ride.id});
+      await pingDriversForRide(ride);
+    }
+    if(due.length)broadcastDBUpdate();
+  }catch(e){console.error('Scheduled ride dispatch sweep error',e.message);}
+},60000);
 
 wss.on('connection',ws=>{
   let uid=null;
