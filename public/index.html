@@ -3651,17 +3651,35 @@ function _pickWallpaper(){
 }
 _pickWallpaper();
 
-// Keeps the wallpaper actually moving. Mobile browsers routinely pause background video
-// on screen lock, tab switch or low-power mode, and `loop` alone does not resume a video
-// that was paused externally -- that is what shows up as a frozen or "stuck" backdrop.
-// Re-assert play() whenever the page becomes visible again, and immediately if a video
-// reports paused while the page is visible. play() is promise-rejecting on some browsers
-// (autoplay policy), hence the catch.
+// Keeps the wallpaper actually moving. Two distinct ways it gets stuck, both covered:
+//
+// 1. Mobile browsers routinely pause background video on screen lock, tab switch or
+//    low-power mode, and `loop` alone does not resume a video that was paused externally.
+//    Re-assert play() whenever the page becomes visible again, and immediately if a video
+//    reports paused while the page is visible. play() is promise-rejecting on some
+//    browsers (autoplay policy), hence the catch.
+// 2. The sneakier one: the video can stay technically playing -- paused stays false,
+//    currentTime keeps advancing -- while the *visual* frame never updates. This is a
+//    known browser bug where a backdrop-filter blur layer (this app uses it heavily --
+//    every card/tab/sheet sits blurred over the video) stops re-sampling a moving layer
+//    underneath it, freezing what's on screen even though playback never actually
+//    stopped. play() is a no-op against that, since nothing was paused, so it's never
+//    caught by check #1. The fix is a tiny forced seek: nudging currentTime forward makes
+//    the decoder render a fresh frame and forces the compositor to repaint, which clears
+//    the stale frame. One frame's worth of nudge is imperceptible on a looping backdrop.
+//    Runs on the same visibility/pageshow triggers as #1 (that's when a paused-tab-switch
+//    freeze would have happened) plus a standing interval, since this failure mode can
+//    also occur without any visibility change at all.
 function _keepWallpapersPlaying(){
   if(document.visibilityState!=='visible')return;
   ['app-bg-video','hero-bg-video'].forEach(id=>{
     const v=document.getElementById(id);
-    if(v&&v.paused)v.play().catch(()=>{});
+    if(!v)return;
+    if(v.paused){v.play().catch(()=>{});return;}
+    if(v.readyState>=2&&v.duration>0){
+      const nudged=v.currentTime+0.033;
+      v.currentTime=nudged<v.duration?nudged:0;
+    }
   });
 }
 document.addEventListener('visibilitychange',_keepWallpapersPlaying);
@@ -3669,6 +3687,7 @@ window.addEventListener('pageshow',_keepWallpapersPlaying);
 ['app-bg-video','hero-bg-video'].forEach(id=>{
   document.getElementById(id)?.addEventListener('pause',_keepWallpapersPlaying);
 });
+setInterval(_keepWallpapersPlaying,10000);
 
 // ── Install-app banner ──────────────────────────────────────────────────────
 // The manifest+service-worker made the app *technically* installable, but
