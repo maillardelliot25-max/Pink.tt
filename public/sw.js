@@ -46,7 +46,16 @@ async function _navigateWithRetry(request){
 // precached copy only when the network fetch genuinely fails.
 async function _mediaNetworkFirst(request){
   try{return await fetch(request);}
-  catch(e){return (await caches.match(request))||Response.error();}
+  catch(e){
+    // ignoreSearch is essential, not a nicety: the video URL carries a ?v=N cache-buster
+    // that gets bumped whenever the file is re-encoded. A device still holding an older
+    // cache (precached under a different ?v=, or none at all) would otherwise match
+    // nothing and show a blank backdrop -- exactly when it matters most, with no network
+    // to fall back on. Serving a slightly older copy of a decorative loop beats serving
+    // nothing, and the moment connectivity returns the fetch above wins again.
+    const hit=await caches.match(request,{ignoreSearch:true});
+    return hit||Response.error();
+  }
 }
 self.addEventListener('fetch',e=>{
   if(e.request.mode==='navigate'){
