@@ -31,7 +31,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-:root{--p:#E91E8C;--pl:#FF6BB5;--pd:#C4006F;--pp:#FFF0F6;--pb:#fce7f3;--g:#22c55e;--y:#f59e0b;--r:#ef4444;--b:#3b82f6;--gray:#f9fafb;--shadow:0 1px 2px rgba(17,17,17,.04),0 10px 24px -8px rgba(17,17,17,.10);--pink-shadow:0 1px 2px rgba(196,0,111,.15),0 10px 22px -6px rgba(233,30,140,.38)}
+:root{--p:#E91E8C;--pl:#FF6BB5;--pd:#C4006F;--pp:#FFF0F6;--pb:#fce7f3;--g:#22c55e;--y:#f59e0b;--r:#ef4444;--b:#3b82f6;--gray:#f9fafb;--shadow:0 1px 2px rgba(17,17,17,.04),0 10px 24px -8px rgba(17,17,17,.10);--pink-shadow:0 1px 2px rgba(196,0,111,.15),0 10px 22px -6px rgba(233,30,140,.38);
+  /* "Liquid glass" surfaces: a translucent frosted panel (blur+saturate the backdrop
+     video behind it) with a soft top-left specular sheen and a bright hairline border,
+     same formula the login/register glass-card already proved out -- generalized here
+     so every surface in the app (cards, topbar, tabs, modals, toasts, inputs) reads as
+     one consistent material instead of opaque white panels sitting on top of it. */
+  --glass-bg:linear-gradient(165deg,rgba(255,255,255,.86),rgba(255,255,255,.62) 65%);
+  --glass-bg-strong:linear-gradient(165deg,rgba(255,255,255,.94),rgba(255,255,255,.8) 65%);
+  --glass-blur:blur(20px) saturate(180%);
+  --glass-border:1px solid rgba(255,255,255,.75);
+  --glass-shadow:0 8px 28px -10px rgba(90,8,65,.28);
+}
 html,body{height:100%;overflow:hidden;font-family:'DM Sans',system-ui,sans-serif;background:#fff;-webkit-font-smoothing:antialiased}
 h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* height:100dvh (dynamic viewport height) accounts for the mobile browser address bar
@@ -57,29 +68,29 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .scroll::-webkit-scrollbar{width:2px}
 .scroll::-webkit-scrollbar-thumb{background:var(--pb);border-radius:2px}
 /* Top bar */
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff;border-bottom:1px solid #f0f0f0;flex-shrink:0;z-index:10}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-bottom:1px solid rgba(255,255,255,.55);flex-shrink:0;z-index:10}
 .logo{display:flex;align-items:center;gap:8px}
 .logo-dot{width:30px;height:30px;border-radius:9px;background:linear-gradient(150deg,var(--pl),var(--p) 55%,var(--pd));display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;font-family:'Playfair Display',serif;flex-shrink:0;box-shadow:0 3px 8px -2px rgba(196,0,111,.5),inset 0 1px 0 rgba(255,255,255,.35)}
 .logo-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--p);letter-spacing:-.2px}
 /* Buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;font-family:inherit;font-weight:700;letter-spacing:.1px;border-radius:11px;transition:transform .15s cubic-bezier(.2,.8,.2,1),box-shadow .15s,background .15s,filter .15s;outline:none;font-size:14px;padding:11px 20px}
 .btn:focus-visible,.tab:focus-visible,.role-o:focus-visible,.tog:focus-visible,a:focus-visible{outline:2px solid var(--p);outline-offset:2px}
-.bp{background:linear-gradient(155deg,var(--pl),var(--p) 60%);color:#fff;box-shadow:var(--pink-shadow)}
+.bp{background:linear-gradient(155deg,rgba(255,255,255,.4),rgba(255,255,255,0) 45%),linear-gradient(155deg,var(--pl),var(--p) 60%);color:#fff;box-shadow:var(--pink-shadow),inset 0 1px 0 rgba(255,255,255,.4)}
 .bp:hover{filter:brightness(1.04);transform:translateY(-1px);box-shadow:0 2px 4px rgba(196,0,111,.2),0 14px 26px -8px rgba(233,30,140,.45)}
 .bp:active{transform:translateY(0) scale(.98);filter:brightness(.97)}
-.bs{background:#fff;color:var(--p);border:1.5px solid var(--pb)}
-.bs:hover{background:var(--pp);border-color:var(--p)}
-.br{background:var(--r);color:#fff}
-.bg2{background:var(--g);color:#fff}
+.bs{background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);color:var(--p);border:1.5px solid rgba(255,255,255,.75)}
+.bs:hover{background:linear-gradient(165deg,rgba(255,240,246,.92),rgba(255,240,246,.72) 65%);border-color:var(--p)}
+.br{background:linear-gradient(155deg,rgba(255,255,255,.4),rgba(255,255,255,0) 45%),var(--r);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+.bg2{background:linear-gradient(155deg,rgba(255,255,255,.4),rgba(255,255,255,0) 45%),var(--g);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
 .bw{width:100%}
 .bsm{padding:7px 14px;font-size:12px;border-radius:9px}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
 /* Form */
 /* font-size must be >=16px -- iOS Safari auto-zooms the whole page on focus for any
    input smaller than that, which then has to be manually zoomed back out. */
-.inp{width:100%;border:1.5px solid #e5e7eb;border-radius:11px;padding:11px 14px;font-size:16px;font-family:inherit;background:#fff;transition:all .15s;outline:none}
+.inp{width:100%;border:1.5px solid rgba(255,255,255,.8);border-radius:11px;padding:11px 14px;font-size:16px;font-family:inherit;background:rgba(255,255,255,.65);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:all .15s;outline:none}
 .inp:focus{border-color:var(--p);box-shadow:0 0 0 3.5px rgba(233,30,140,.1)}
-.addr-suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid rgba(17,17,17,.06);border-radius:12px;box-shadow:0 1px 2px rgba(17,17,17,.04),0 16px 32px -10px rgba(17,17,17,.22);z-index:50;max-height:220px;overflow-y:auto;display:none}
+.addr-suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 1px 2px rgba(17,17,17,.04),0 16px 32px -10px rgba(17,17,17,.22);z-index:50;max-height:220px;overflow-y:auto;display:none}
 .addr-suggest.show{display:block}
 .addr-suggest-item{padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid #f3f4f6}
 .addr-suggest-item:last-child{border-bottom:none}
@@ -87,17 +98,17 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .lbl{display:block;font-size:10.5px;font-weight:800;color:#6b7280;margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px}
 .fg{margin-bottom:14px}
 /* Cards */
-.card{background:#fff;border-radius:16px;padding:18px;box-shadow:var(--shadow);border:1px solid rgba(17,17,17,.045)}
+.card{background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-radius:18px;padding:18px;box-shadow:var(--glass-shadow);border:var(--glass-border)}
 /* Badges */
-.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
-.bpink{background:#fce7f3;color:#9d174d}
-.bgrn{background:#dcfce7;color:#166534}
-.byel{background:#fef9c3;color:#854d0e}
-.bred{background:#fee2e2;color:#991b1b}
-.bblu{background:#dbeafe;color:#1e40af}
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.5)}
+.bpink{background:rgba(252,231,243,.75);color:#9d174d}
+.bgrn{background:rgba(220,252,231,.75);color:#166534}
+.byel{background:rgba(254,249,195,.75);color:#854d0e}
+.bred{background:rgba(254,226,226,.75);color:#991b1b}
+.bblu{background:rgba(219,234,254,.75);color:#1e40af}
 /* Toast */
 #toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:7px;width:90%;max-width:380px;pointer-events:none}
-.toast{background:#fff;border-radius:11px;padding:11px 15px;font-size:13px;font-weight:600;box-shadow:0 2px 6px rgba(17,17,17,.06),0 16px 32px -10px rgba(17,17,17,.25);border-left:3px solid var(--p);animation:tIn .25s ease;display:flex;align-items:center;gap:9px}
+.toast{background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid rgba(255,255,255,.7);border-radius:11px;padding:11px 15px;font-size:13px;font-weight:600;box-shadow:0 2px 6px rgba(17,17,17,.06),0 16px 32px -10px rgba(17,17,17,.25);border-left:3px solid var(--p);animation:tIn .25s ease;display:flex;align-items:center;gap:9px}
 .toast.err{border-color:var(--r)}
 .toast.ok{border-color:var(--g)}
 @keyframes tIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
@@ -132,7 +143,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .glass-card{background:rgba(255,255,255,.82);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.7);border-radius:20px;padding:22px 20px;box-shadow:0 12px 36px rgba(90,8,65,.35)}
 @media (prefers-reduced-motion:reduce){#install-banner{animation:none}#install-banner .ib-bg{display:none}}
 /* Tabs */
-.tabs{display:flex;border-bottom:1px solid #f0f0f0;flex-shrink:0}
+.tabs{display:flex;background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-bottom:1px solid rgba(255,255,255,.5);flex-shrink:0}
 .tab{flex:1;padding:11px 6px;text-align:center;font-size:12px;font-weight:700;color:#9ca3af;cursor:pointer;border-bottom:2.5px solid transparent;transition:all .15s;white-space:nowrap}
 .tab.on{color:var(--p);border-color:var(--p)}
 .tab:hover:not(.on){color:#6b7280}
@@ -157,7 +168,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* Modal */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end}
 .overlay.show{display:flex}
-.sheet{background:#fff;border-radius:20px 20px 0 0;padding:26px 22px 30px;width:100%;max-height:90vh;overflow-y:auto;animation:shU .28s cubic-bezier(.2,.9,.25,1);box-shadow:0 -1px 0 rgba(17,17,17,.05),0 -20px 50px -10px rgba(17,17,17,.25)}
+.sheet{background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid rgba(255,255,255,.6);border-bottom:none;border-radius:20px 20px 0 0;padding:26px 22px 30px;width:100%;max-height:90vh;overflow-y:auto;animation:shU .28s cubic-bezier(.2,.9,.25,1);box-shadow:0 -1px 0 rgba(17,17,17,.05),0 -20px 50px -10px rgba(17,17,17,.25)}
 @keyframes shU{from{transform:translateY(100%)}to{transform:none}}
 /* Fullscreen map pin picker */
 .map-picker{position:fixed;inset:0;z-index:400;background:#fff;display:none;flex-direction:column}
@@ -172,7 +183,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .star{font-size:30px;cursor:pointer;color:#e5e7eb;transition:color .1s}
 .star.on{color:var(--y)}
 /* Empty */
-.empty{text-align:center;padding:40px 20px;color:#6b7280;background:#fff;border-radius:16px;box-shadow:var(--shadow);border:1px solid rgba(17,17,17,.045)}
+.empty{text-align:center;padding:40px 20px;color:#374151;background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-radius:18px;box-shadow:var(--glass-shadow);border:var(--glass-border)}
 .empty-i{font-size:44px;margin-bottom:10px}
 /* Landing */
 .hero{background:linear-gradient(160deg,var(--pp) 0%,#fff 70%);padding:40px 22px 32px;text-align:center;position:relative;overflow:hidden}
@@ -201,11 +212,11 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .cta p{font-size:13px;opacity:.88;margin-bottom:18px}
 .footer-bar{background:#111827;padding:18px;text-align:center;color:#9ca3af;font-size:11px}
 /* Role switch */
-.role-sw{display:flex;background:#f3f4f6;border-radius:14px;padding:3px;margin-bottom:18px}
+.role-sw{display:flex;background:rgba(255,255,255,.4);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid rgba(255,255,255,.6);border-radius:14px;padding:3px;margin-bottom:18px}
 .role-o{flex:1;text-align:center;padding:8px 6px;border-radius:11px;font-size:13px;font-weight:600;color:#6b7280;cursor:pointer;transition:all .15s}
-.role-o.on{background:#fff;color:var(--p);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.role-o.on{background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);color:var(--p);box-shadow:0 1px 4px rgba(0,0,0,.08)}
 /* Demo box */
-.demo-box{background:var(--pp);border-radius:14px;padding:12px 14px;margin-top:14px}
+.demo-box{background:rgba(255,240,246,.7);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.6);border-radius:14px;padding:12px 14px;margin-top:14px}
 .demo-box p{font-size:11px;font-weight:700;color:var(--p);text-align:center;margin-bottom:8px}
 .demo-row{display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:3px;flex-wrap:wrap;gap:4px}
 .demo-btns{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
@@ -213,7 +224,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .req-card{border:2px solid var(--pb);border-radius:20px;padding:14px;margin-bottom:10px;background:#fff}
 /* Earn grid */
 .earn-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.earn-card{background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.earn-card{background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-radius:14px;padding:14px;box-shadow:var(--glass-shadow);border:var(--glass-border)}
 /* Admin overview */
 .ov-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
 .ov-card{background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
@@ -248,7 +259,10 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
      wash everywhere; pages that already have their own dedicated, more vivid video
      treatment (landing hero, login, register) simply sit visually on top of this one,
      covering it, so there's no double-video conflict there. -->
-<video class="app-bg-video" id="app-bg-video" autoplay loop muted playsinline></video>
+<video class="app-bg-video" id="app-bg-video" data-clip="install-banner-bg" autoplay loop muted playsinline preload="auto">
+  <source src="/media/install-banner-bg.mp4" type="video/mp4">
+  <source src="/media/install-banner-bg.webm" type="video/webm">
+</video>
 <div class="app-bg-wash"></div>
 <div id="toasts"></div>
 
@@ -381,7 +395,10 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
       </div>
     </div>
     <div class="hero has-video" id="hero-wallpaper">
-      <video class="hero-bg" id="hero-bg-video" autoplay loop muted playsinline></video>
+      <video class="hero-bg" id="hero-bg-video" data-clip="install-banner-bg" autoplay loop muted playsinline preload="auto">
+        <source src="/media/install-banner-bg.mp4" type="video/mp4">
+        <source src="/media/install-banner-bg.webm" type="video/webm">
+      </video>
       <div class="hero-chip">🛡️ Women-Only · Safety Team Alerts · Live GPS</div>
       <h1>Safe Rides for Women,<br><em>By Women</em></h1>
       <p>Pink.TT connects women riders with verified women drivers across T&T. Your safety is our priority — every single ride.</p>
@@ -3021,9 +3038,19 @@ function _pickWallpaper(){
   // Same picked wallpaper feeds every backdrop video on the page (the one global
   // app-bg-video behind #shell, plus the landing hero's own copy) so it's consistent
   // everywhere rather than a different random clip per screen.
+  //
+  // Both video tags already ship with the default clip hardcoded as real <source>
+  // elements in the HTML (not injected here), so the browser can start fetching/
+  // buffering it the instant the page parses instead of waiting for this script to run
+  // and call .load() -- that used to force a full re-buffer-from-zero on every single
+  // page open, which is exactly what showed up as a ~2s freeze before the backdrop
+  // started moving. Only touch the element (and eat that reload cost) when the picked
+  // clip genuinely differs from what's already loaded -- the common case, with a single
+  // clip in the pool, is a same-clip no-op that never restarts playback.
   ['app-bg-video','hero-bg-video'].forEach(id=>{
     const v=document.getElementById(id);
-    if(!v)return;
+    if(!v||v.dataset.clip===name)return;
+    v.dataset.clip=name;
     v.innerHTML=`<source src="/media/${name}.mp4" type="video/mp4"><source src="/media/${name}.webm" type="video/webm">`;
     v.load();
   });
