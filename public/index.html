@@ -41,7 +41,13 @@
   --glass-bg-strong:linear-gradient(165deg,rgba(255,255,255,.96),rgba(255,255,255,.86) 65%);
   --glass-blur:blur(38px) saturate(160%);
   --glass-border:1px solid rgba(255,255,255,.75);
-  --glass-shadow:0 8px 28px -10px rgba(90,8,65,.28);
+  /* Layered for real depth rather than one flat drop-shadow: a bright inset highlight
+     along the top edge and a soft inset shade along the bottom make the surface read as
+     a raised, rounded bubble; the tight contact shadow plus two progressively wider,
+     softer ambient shadows sit it above the backdrop instead of pasting it flat on top.
+     All of it is box-shadow only -- no extra elements, no filters, nothing that forces
+     layout or repaints while scrolling. */
+  --glass-shadow:inset 0 1px 0 rgba(255,255,255,.92),inset 0 -2px 3px -1px rgba(90,8,65,.07),0 1px 2px rgba(90,8,65,.10),0 8px 20px -8px rgba(90,8,65,.26),0 20px 44px -22px rgba(90,8,65,.38);
 }
 html,body{height:100%;overflow:hidden;font-family:'DM Sans',system-ui,sans-serif;background:#fff;-webkit-font-smoothing:antialiased}
 h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
@@ -124,7 +130,12 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 @keyframes tInTop{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:none}}
 #install-banner .ib-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.8}
 #install-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(100deg,rgba(122,10,80,.78),rgba(90,8,65,.68));pointer-events:none}
-#install-banner>*{position:relative;z-index:1}
+/* :not(.ib-bg) is load-bearing -- this rule's ID specificity beats .ib-bg's own
+   position:absolute, so without the exclusion the backdrop video gets forced to
+   position:relative, collapses into the flex row as a zero-ish sized child, and the
+   banner renders as flat purple with no video at all. (Same specificity trap that
+   previously broke offline.html's backdrop.) */
+#install-banner>:not(.ib-bg){position:relative;z-index:1}
 #install-banner .ib-icon{width:30px;height:30px;border-radius:8px;background:#fff;border:1px solid rgba(255,255,255,.6);box-shadow:0 2px 8px rgba(0,0,0,.25);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:3px}
 #install-banner .ib-icon img{width:100%;height:100%;object-fit:contain}
 #install-banner .ib-text{flex:1;min-width:0}
@@ -133,8 +144,6 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 #install-banner button{flex-shrink:0}
 #install-banner .btn.bp.bsm{padding:6px 12px;font-size:12px;background:#fff;color:var(--pd);box-shadow:0 2px 8px rgba(0,0,0,.2)}
 #install-banner .btn.bp.bsm:hover{background:#fff;filter:none;color:var(--pd);transform:none}
-#install-banner .ib-close{background:none;border:none;color:rgba(255,255,255,.85);font-size:16px;padding:4px 6px;cursor:pointer;line-height:1}
-#install-banner .ib-close:hover{color:#fff}
 /* Auth pages (login/register) -- no backdrop of their own anymore. They sit inside
    #shell like every other page, so the one global app-bg-video/app-bg-wash (below)
    shows through identically here too -- one backdrop, one set of opacity values,
@@ -158,8 +167,12 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .onb-slides::-webkit-scrollbar{display:none}
 .onb-slide{flex:0 0 100%;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px 30px 150px}
 .onb-ico{font-size:60px;margin-bottom:18px;filter:drop-shadow(0 6px 16px rgba(0,0,0,.25))}
-.onb-slide h1{font-size:27px;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.3);margin-bottom:12px;line-height:1.25}
-.onb-slide p{font-size:15px;color:rgba(255,255,255,.92);text-shadow:0 1px 6px rgba(0,0,0,.25);line-height:1.6;max-width:340px}
+/* Frosted 3D bubble holding each slide's copy -- same material as the app's cards, so
+   the onboarding reads as part of the product rather than a separate splash screen, and
+   the text sits on a real surface instead of floating on the busy backdrop. */
+.onb-bubble{max-width:360px;padding:22px 22px 24px;border-radius:24px;background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:var(--glass-border);box-shadow:var(--glass-shadow)}
+.onb-slide h1{font-size:25px;color:#111827;margin-bottom:10px;line-height:1.25}
+.onb-slide p{font-size:14.5px;color:#4b5563;line-height:1.6}
 .onb-dots{position:absolute;bottom:100px;left:0;right:0;display:flex;justify-content:center;gap:7px;z-index:5;pointer-events:none}
 .onb-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.4);transition:all .25s}
 .onb-dot.on{width:22px;border-radius:4px;background:#fff}
@@ -501,23 +514,38 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
   <div class="onb-slides" id="onb-slides">
     <div class="onb-slide">
       <div class="onb-ico">🌸</div>
-      <h1>Safe Rides for Women,<br>By Women</h1>
-      <p>Pink.TT is a rideshare built by and for women across Trinidad &amp; Tobago — from Port of Spain to San Fernando and everywhere between.</p>
+      <div class="onb-bubble">
+        <h1>Safe Rides for Women,<br>By Women</h1>
+        <p>Pink.TT is a rideshare built by and for women across Trinidad &amp; Tobago — from Port of Spain to San Fernando and everywhere between.</p>
+      </div>
     </div>
     <div class="onb-slide">
       <div class="onb-ico">✅</div>
-      <h1>Every Driver, Verified</h1>
-      <p>Every woman behind the wheel is ID-checked and personally reviewed by our team, so you always know exactly who's picking you up.</p>
+      <div class="onb-bubble">
+        <h1>Every Driver, Verified</h1>
+        <p>Every woman behind the wheel is ID-checked and personally reviewed by our team, so you always know exactly who's picking you up.</p>
+      </div>
     </div>
     <div class="onb-slide">
       <div class="onb-ico">🆘</div>
-      <h1>Help Is One Tap Away</h1>
-      <p>Our Safety Team and your emergency contact are alerted instantly, with your exact location — any time, day or night.</p>
+      <div class="onb-bubble">
+        <h1>Help Is One Tap Away</h1>
+        <p>Our Safety Team and your emergency contact are alerted instantly, with your exact location — any time, day or night.</p>
+      </div>
     </div>
     <div class="onb-slide">
       <div class="onb-ico">📍</div>
-      <h1>Someone Always Knows Where You Are</h1>
-      <p>Share a live link of your ride with the people who love you, from pickup all the way home.</p>
+      <div class="onb-bubble">
+        <h1>Someone Always Knows Where You Are</h1>
+        <p>Share a live link of your ride with the people who love you, from pickup all the way home.</p>
+      </div>
+    </div>
+    <div class="onb-slide">
+      <div class="onb-ico">🕐</div>
+      <div class="onb-bubble">
+        <h1>Book Now or Schedule Ahead</h1>
+        <p>Set up your daily commute once and Pink.TT handles the rest — or book a ride the moment you need one.</p>
+      </div>
     </div>
   </div>
   <div class="onb-dots" id="onb-dots"></div>
@@ -3331,12 +3359,16 @@ _pickWallpaper();
 // miss and iOS has no install prompt at all. This shows a real, persistent
 // "Install App" banner: a native prompt on Android/Chrome/Edge, and
 // step-by-step instructions on iOS Safari (which has no install API at all).
-// Reappears each new browser session until the app is actually installed.
+// Stays up permanently until the app is genuinely installed -- there is deliberately
+// no dismiss control. It used to carry an ✕ that set a sessionStorage flag, which meant
+// one stray tap hid the only prompt some users will ever see (iOS has no install API,
+// so this banner is the entire discovery path there). The single condition for it going
+// away is _isStandalone() returning true, i.e. the app actually is installed.
 let _deferredInstallPrompt=null;
 function _isStandalone(){return window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;}
 function _isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;}
 function showInstallBanner(kind){
-  if(_isStandalone()||sessionStorage.getItem('ptt_install_dismissed'))return;
+  if(_isStandalone())return;
   const existing=document.getElementById('install-banner');
   if(existing){existing.dataset.kind=kind;return;}
   const el=document.createElement('div');
@@ -3344,11 +3376,10 @@ function showInstallBanner(kind){
   const bg=`<video class="ib-bg" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4?v=${VIDEO_VERSION}" type="video/mp4"><source src="/media/install-banner-bg.webm?v=${VIDEO_VERSION}" type="video/webm"></video>`;
   const icon=`<div class="ib-icon"><img src="/icons/icon-192.png" alt="Pink.TT"></div>`;
   el.innerHTML=bg+(kind==='ios'
-    ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap ⬆️ Share, then "Add to Home Screen"</span></div><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`
-    :`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button><button class="ib-close" onclick="dismissInstallBanner()">✕</button>`);
+    ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap ⬆️ Share, then "Add to Home Screen"</span></div>`
+    :`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button>`);
   document.body.appendChild(el);
 }
-function dismissInstallBanner(){sessionStorage.setItem('ptt_install_dismissed','1');document.getElementById('install-banner')?.remove();}
 async function triggerInstall(){
   // Chrome only fires beforeinstallprompt after its own engagement heuristics are met,
   // so it may not have fired yet even though the app is installable -- pressing Install
@@ -3368,7 +3399,7 @@ function openInstallHelpModal(){
   toast('Open your browser menu (⋮ or ⋯) and tap "Install app" or "Add to Home Screen"');
 }
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();_deferredInstallPrompt=e;showInstallBanner('android');});
-window.addEventListener('appinstalled',()=>{document.getElementById('install-banner')?.remove();sessionStorage.setItem('ptt_install_dismissed','1');});
+window.addEventListener('appinstalled',()=>{document.getElementById('install-banner')?.remove();});
 // Show immediately on load rather than waiting solely for beforeinstallprompt, which may
 // never fire (unsupported browser, or Chrome's engagement heuristics not yet satisfied) --
 // triggerInstall() falls back to manual instructions in that case, so the button always works.

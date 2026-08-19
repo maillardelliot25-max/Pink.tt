@@ -114,7 +114,10 @@ async function main() {
     await page.waitForTimeout(500);
     const onOnboard = await page.evaluate(() => document.querySelector('.page.active')?.id === 'pg-onboard');
     record('onboarding: first-time Sign Up shows carousel', onOnboard);
-    for (let i = 0; i < 3; i++) { await page.click('#onb-next'); await page.waitForTimeout(300); }
+    // Derive the advance count from the actual slide count -- hardcoding it meant adding
+    // a slide silently broke this test rather than testing the new reality.
+    const slideCount = await page.evaluate(() => document.querySelectorAll('#onb-slides .onb-slide').length);
+    for (let i = 0; i < slideCount - 1; i++) { await page.click('#onb-next'); await page.waitForTimeout(300); }
     const lastLabel = await page.textContent('#onb-next');
     record('onboarding: last slide shows Get Started', lastLabel.trim() === 'Get Started', lastLabel);
     await page.click('#onb-next');
