@@ -37,9 +37,9 @@
      same formula the login/register glass-card already proved out -- generalized here
      so every surface in the app (cards, topbar, tabs, modals, toasts, inputs) reads as
      one consistent material instead of opaque white panels sitting on top of it. */
-  --glass-bg:linear-gradient(165deg,rgba(255,255,255,.86),rgba(255,255,255,.62) 65%);
-  --glass-bg-strong:linear-gradient(165deg,rgba(255,255,255,.94),rgba(255,255,255,.8) 65%);
-  --glass-blur:blur(20px) saturate(180%);
+  --glass-bg:linear-gradient(165deg,rgba(255,255,255,.9),rgba(255,255,255,.74) 65%);
+  --glass-bg-strong:linear-gradient(165deg,rgba(255,255,255,.96),rgba(255,255,255,.86) 65%);
+  --glass-blur:blur(38px) saturate(160%);
   --glass-border:1px solid rgba(255,255,255,.75);
   --glass-shadow:0 8px 28px -10px rgba(90,8,65,.28);
 }
@@ -88,7 +88,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* Form */
 /* font-size must be >=16px -- iOS Safari auto-zooms the whole page on focus for any
    input smaller than that, which then has to be manually zoomed back out. */
-.inp{width:100%;border:1.5px solid rgba(255,255,255,.8);border-radius:11px;padding:11px 14px;font-size:16px;font-family:inherit;background:rgba(255,255,255,.65);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:all .15s;outline:none}
+.inp{width:100%;border:1.5px solid rgba(255,255,255,.8);border-radius:11px;padding:11px 14px;font-size:16px;font-family:inherit;background:rgba(255,255,255,.8);-webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);transition:all .15s;outline:none}
 .inp:focus{border-color:var(--p);box-shadow:0 0 0 3.5px rgba(233,30,140,.1)}
 .addr-suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid rgba(255,255,255,.7);border-radius:12px;box-shadow:0 1px 2px rgba(17,17,17,.04),0 16px 32px -10px rgba(17,17,17,.22);z-index:50;max-height:220px;overflow-y:auto;display:none}
 .addr-suggest.show{display:block}
@@ -100,7 +100,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* Cards */
 .card{background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-radius:18px;padding:18px;box-shadow:var(--glass-shadow);border:var(--glass-border)}
 /* Badges */
-.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.5)}
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;-webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%);border:1px solid rgba(255,255,255,.5)}
 .bpink{background:rgba(252,231,243,.75);color:#9d174d}
 .bgrn{background:rgba(220,252,231,.75);color:#166534}
 .byel{background:rgba(254,249,195,.75);color:#854d0e}
@@ -216,7 +216,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .role-o{flex:1;text-align:center;padding:8px 6px;border-radius:11px;font-size:13px;font-weight:600;color:#6b7280;cursor:pointer;transition:all .15s}
 .role-o.on{background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);color:var(--p);box-shadow:0 1px 4px rgba(0,0,0,.08)}
 /* Demo box */
-.demo-box{background:rgba(255,240,246,.7);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.6);border-radius:14px;padding:12px 14px;margin-top:14px}
+.demo-box{background:rgba(255,240,246,.75);-webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);border:1px solid rgba(255,255,255,.6);border-radius:14px;padding:12px 14px;margin-top:14px}
 .demo-box p{font-size:11px;font-weight:700;color:var(--p);text-align:center;margin-bottom:8px}
 .demo-row{display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:3px;flex-wrap:wrap;gap:4px}
 .demo-btns{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
