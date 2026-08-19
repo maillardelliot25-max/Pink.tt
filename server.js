@@ -566,17 +566,71 @@ app.post('/api/login',authLimiter,async(req,res)=>{
   res.json({ok:true,token,user_id:user.id});
 });
 
+// buildDB() assembles the whole platform; this decides how much of it any one viewer is
+// allowed to receive. Previously the entire object went to every authenticated user,
+// which meant any rider could read every other user's email, phone and emergency
+// contacts, every ride's pickup/drop-off addresses, every SOS location, and every
+// driver's licence number and live GPS. Admins still get everything (that's the console);
+// everyone else gets their own records plus the minimum about other people needed for
+// the app to function.
+function scopeDBFor(db,viewerId,role){
+  if(role==='admin')return db;
+  const isDriver=role==='driver';
+  const mine=r=>r.rider_id===viewerId||r.driver_id===viewerId;
+  const myRides=db.rides.filter(mine);
+  // A driver has to see unclaimed requests to be able to accept one. Deliberately only
+  // rides still waiting for a driver -- never anyone else's accepted or completed trips.
+  const openRequests=isDriver?db.rides.filter(r=>r.status==='requested'&&!r.driver_id):[];
+  const rides=[...new Map([...myRides,...openRequests].map(r=>[r.id,r])).values()];
+
+  // People I'm actually riding with: I get their phone number so the in-app call button
+  // works. Everyone else is reduced to a display name.
+  const counterparties=new Set();
+  myRides.forEach(r=>{
+    if(r.rider_id&&r.rider_id!==viewerId)counterparties.add(r.rider_id);
+    if(r.driver_id&&r.driver_id!==viewerId)counterparties.add(r.driver_id);
+  });
+  const users=db.users.map(u=>{
+    if(u.id===viewerId)return u;
+    const pub={id:u.id,first_name:u.first_name,last_name:u.last_name,role:u.role,
+      is_verified:u.is_verified,is_active:u.is_active,pink_points_tier:u.pink_points_tier};
+    if(counterparties.has(u.id))pub.phone=u.phone;
+    return pub;
+  });
+
+  const driver_profiles=db.driver_profiles.map(d=>{
+    if(d.user_id===viewerId)return d;
+    // Vehicle, rating and tier are what a rider legitimately needs to identify their
+    // car. Licence number/expiry never leave the admin console, and live coordinates
+    // are shared only for the driver actually assigned to one of my rides.
+    const pub={id:d.id,user_id:d.user_id,vehicle_make:d.vehicle_make,vehicle_model:d.vehicle_model,
+      vehicle_year:d.vehicle_year,vehicle_color:d.vehicle_color,vehicle_plate:d.vehicle_plate,
+      status:d.status,is_online:d.is_online,rating:d.rating,rating_count:d.rating_count,
+      total_trips:d.total_trips,tier:d.tier};
+    if(counterparties.has(d.user_id)){pub.current_lat=d.current_lat;pub.current_lng=d.current_lng;}
+    return pub;
+  });
+
+  const rideIds=new Set(rides.map(r=>r.id));
+  const schedules=db.recurring_schedules.filter(s=>s.rider_id===viewerId||s.primary_driver_id===viewerId||s.backup_driver_id===viewerId);
+  const schedIds=new Set(schedules.map(s=>s.id));
+  return{...db,
+    users,driver_profiles,rides,
+    payments:db.payments.filter(p=>p.rider_id===viewerId||p.driver_id===viewerId),
+    sos_events:db.sos_events.filter(s=>s.user_id===viewerId||rideIds.has(s.ride_id)),
+    notifications:db.notifications.filter(n=>n.user_id===viewerId),
+    complaints:db.complaints.filter(c=>c.user_id===viewerId),
+    recurring_schedules:schedules,
+    scheduled_ride_legs:db.scheduled_ride_legs.filter(l=>schedIds.has(l.schedule_id)),
+  };
+}
+
 app.get('/api/db',authMW,async(req,res)=>{
-  const dbObj=await buildDB();
-  const user=dbObj.users.find(u=>u.id===req.jwt.id)||null;
-  // Complaints are free text that routinely names other people ("my driver did X"), so
-  // unlike the rest of this payload they are scoped: an admin sees the queue, everyone
-  // else sees only what they themselves submitted. Done here rather than in buildDB so
-  // the admin console and the websocket broadcast keep using one shared builder.
-  if(req.jwt.role!=='admin'){
-    dbObj.complaints=(dbObj.complaints||[]).filter(c=>c.user_id===req.jwt.id);
-  }
-  res.json({db:dbObj,user});
+  const full=await buildDB();
+  // The viewer's own record is taken from the unscoped copy so it always carries their
+  // complete profile, whatever the scoping does to everyone else's.
+  const user=full.users.find(u=>u.id===req.jwt.id)||null;
+  res.json({db:scopeDBFor(full,req.jwt.id,req.jwt.role),user});
 });
 
 app.post('/api/fare',async(req,res)=>{
@@ -1017,12 +1071,13 @@ const clients=new Map();
 // the full complaint queue and quietly undo that restriction.
 function broadcastDBUpdate(){
   buildDB().then(async d=>{
-    const admins=new Set((await dbAll("SELECT id FROM users WHERE role='admin'")).map(r=>r.id));
-    const allComplaints=d.complaints||[];
+    // Same scoping as /api/db -- the websocket is just the push version of that payload,
+    // so it has to apply identical rules or a live update would quietly hand out
+    // everything the HTTP route withholds.
+    const roles=new Map((await dbAll('SELECT id,role FROM users')).map(r=>[r.id,r.role]));
     for(const[uid,ws]of clients.entries()){
       if(ws.readyState!==WebSocket.OPEN)continue;
-      const scoped={...d,complaints:admins.has(uid)?allComplaints:allComplaints.filter(c=>c.user_id===uid)};
-      ws.send(JSON.stringify({type:'db_update',db:scoped}));
+      ws.send(JSON.stringify({type:'db_update',db:scopeDBFor(d,uid,roles.get(uid))}));
     }
   }).catch(console.error);
 }

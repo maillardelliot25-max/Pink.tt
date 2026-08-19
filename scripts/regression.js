@@ -138,6 +138,31 @@ async function main() {
     await page.close();
   }
 
+  // 5b. Payload scoping. This is a security check, not a UI one: /api/db used to return
+  // the entire platform to every authenticated user. Asserted here so the leak cannot
+  // quietly come back the next time buildDB gains a table.
+  {
+    const api = async (path, opts) => (await fetch('http://localhost:3000' + path, opts)).json();
+    const login = async (email, password) => (await api('/api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }) })).token;
+    const dbFor = async t => (await api('/api/db', { headers: { Authorization: 'Bearer ' + t } })).db;
+
+    const riderTok = await login('sarah@demo.pink.tt', 'Rider@2024');
+    const adminTok = await login('admin@pink.tt', 'Admin@PinkTT2024');
+    const rd = await dbFor(riderTok), ad = await dbFor(adminTok);
+
+    const foreignEmails = rd.users.filter(u => u.email && u.email !== 'sarah@demo.pink.tt').length;
+    const foreignEC = rd.users.filter(u => u.emergency_contact_phone && u.email !== 'sarah@demo.pink.tt').length;
+    const licences = rd.driver_profiles.filter(d => d.license_number).length;
+    record('privacy: rider gets no other users\' emails', foreignEmails === 0, 'found ' + foreignEmails);
+    record('privacy: rider gets no other emergency contacts', foreignEC === 0, 'found ' + foreignEC);
+    record('privacy: rider gets no driver licence numbers', licences === 0, 'found ' + licences);
+    record('privacy: rider keeps own full record', !!rd.users.find(u => u.email === 'sarah@demo.pink.tt'));
+    record('privacy: admin still sees full data', ad.users.filter(u => u.email).length > 0 && ad.driver_profiles.filter(d => d.license_number).length > 0);
+    record('app still works: driver profiles present for rider UI', rd.driver_profiles.length > 0, 'count=' + rd.driver_profiles.length);
+  }
+
   // 6. Admin dashboard loads
   {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
