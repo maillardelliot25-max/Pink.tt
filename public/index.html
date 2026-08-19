@@ -898,31 +898,49 @@ function goRole(role){ S.regRole=role; setRole(role); onbGoto('register'); }
 function onbGoto(target){
   if(localStorage.getItem('ptt_onboarded')){go(target);return;}
   S._onbTarget=target;
+  S._onbIndex=0;
   go('onboard');
   const wrap=document.getElementById('onb-slides');
   wrap.scrollTo({left:0});
-  _onbSync();
+  _onbSync(0);
 }
+// Advancing used to derive "which slide are we on" purely from wrap.scrollLeft, which
+// is unreliable mid-animation -- tapping Next again before the previous smooth-scroll
+// settled could read a fractional scroll position and round to the wrong slide (found
+// via the regression suite tapping through fast). Now tracks the index explicitly and
+// updates the button/dots synchronously with the tap, instead of waiting on a scroll
+// event that may not have fired yet.
 function onbNext(){
   const wrap=document.getElementById('onb-slides');
   const slides=wrap.querySelectorAll('.onb-slide');
-  const i=Math.round(wrap.scrollLeft/wrap.clientWidth);
-  if(i>=slides.length-1){onbFinish();return;}
-  wrap.scrollTo({left:wrap.clientWidth*(i+1),behavior:'smooth'});
+  const next=(S._onbIndex||0)+1;
+  if(next>=slides.length){onbFinish();return;}
+  S._onbIndex=next;
+  wrap.scrollTo({left:wrap.clientWidth*next,behavior:'smooth'});
+  _onbSync(next);
 }
 function onbFinish(){
   localStorage.setItem('ptt_onboarded','1');
   go(S._onbTarget||'land');
 }
-function _onbSync(){
+// indexOverride: pass the known target index right after a programmatic scrollTo (Next
+// button) so the UI updates immediately. Omitted for the scroll listener below, which
+// handles manual swiping -- there the settled wrap.scrollLeft is the only source of truth.
+function _onbSync(indexOverride){
   const wrap=document.getElementById('onb-slides');
   const slides=wrap.querySelectorAll('.onb-slide');
-  const i=Math.min(slides.length-1,Math.round(wrap.scrollLeft/(wrap.clientWidth||1)));
+  const i=indexOverride!==undefined?indexOverride:Math.min(slides.length-1,Math.round(wrap.scrollLeft/(wrap.clientWidth||1)));
+  S._onbIndex=i;
   const dots=document.getElementById('onb-dots');
   dots.innerHTML=Array.from(slides).map((_,d)=>`<div class="onb-dot${d===i?' on':''}"></div>`).join('');
   document.getElementById('onb-next').textContent=(i>=slides.length-1)?'Get Started':'Next';
 }
-document.getElementById('onb-slides')?.addEventListener('scroll',()=>{clearTimeout(S._onbScrollT);S._onbScrollT=setTimeout(_onbSync,50);},{passive:true});
+// scrollend (not a debounced 'scroll') -- fires exactly once when scrolling actually
+// stops, so it can't race with onbNext()'s synchronous _onbSync(next) call and stomp
+// it with a stale mid-animation scrollLeft reading (a debounced 'scroll' listener did
+// exactly that under fast taps -- caught by the regression suite). This still handles
+// manual swiping correctly since scrollend also fires once swipe momentum settles.
+document.getElementById('onb-slides')?.addEventListener('scrollend',()=>_onbSync(),{passive:true});
 function routeUser(user){
   if(user.role==='admin'){go('admin');loadAdmin();return;}
   if(!user.is_verified){go('idverify');renderIdVerify&&renderIdVerify();return;}
