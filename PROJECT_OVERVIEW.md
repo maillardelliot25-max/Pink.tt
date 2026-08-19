@@ -212,10 +212,16 @@ the pitch and calls to action are one scroll below.
 
 ## 5. Testing
 
-`scripts/regression.js` is a Playwright suite of **17 checks** covering login for all four
+`scripts/regression.js` is a Playwright suite of **23 checks** covering login for all four
 demo accounts, every rider tab with narrow-screen overflow checks, the backdrop video, the
-full onboarding carousel including returning-visitor behaviour, and the admin dashboard.
-It runs against a fresh local database before every push.
+full onboarding carousel including returning-visitor behaviour, `/api/db` payload scoping
+(each role only ever sees its own data), and the admin dashboard. Run it against a fresh
+local database before every push: `rm -f pinktt.db*; node server.js &` then
+`node scripts/regression.js` (set `PW_CHROMIUM_PATH` to pin a specific browser binary if
+Playwright can't find one on its own).
+
+The same suite now also runs in CI (`.github/workflows/regression.yml`) on every push and
+pull request, against a freshly seeded local SQLite database — no secrets required.
 
 A mutation cross-check verifies that **every client-side action has a matching server
 handler** — this catches a specific recurring bug class in this codebase where UI existed
@@ -227,17 +233,17 @@ and appeared functional but only ever mutated local state without reaching the s
 
 | # | Gap | Blocked by |
 |---|---|---|
-| 1 | **Cold starts** — Render's free tier sleeps after ~15 min idle, then takes 30–60s to wake | Needs a free external pinger (cron-job.org, every 10 min). Owner action, ~2 minutes |
+| 1 | ~~Cold starts~~ — **resolved**: `.github/workflows/keepalive.yml` pings the live app every 10 min via GitHub Actions (free, no external signup needed) | Done |
 | 2 | **Demo accounts still enabled** (`SHOW_DEMO_ACCOUNTS=true`) | One env var change — **must** be off before real customers |
 | 3 | **Domain** — still `pinktt.onrender.com`, not `pink.tt` | Registration/payment |
 | 4 | **Card payments** — cash only today | Requires a paid processor (Stripe et al.) |
 | 5 | **Push notifications** when the app is closed | Requires a paid/registered push service |
 | 6 | **SMS** limited to TextBelt's free quota | Requires Twilio or equivalent |
-| 7 | **No automated CI** — tests run locally before each push, not on the server | Setup time only |
+| 7 | ~~No automated CI~~ — **resolved**: `.github/workflows/regression.yml` runs the full regression suite on every push/PR | Done |
 
 Items 4–6 are blocked by the no-paid-services constraint rather than by engineering
-effort. **Items 1 and 2 are the two things standing between the current build and a real
-public launch**, and both are minutes of work.
+effort. **Item 2 is the one thing standing between the current build and a real
+public launch**, and it is minutes of work.
 
 ---
 

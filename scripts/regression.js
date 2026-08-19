@@ -5,6 +5,10 @@
 //
 // Usage: rm -f pinktt.db*; node server.js & then:
 //   NODE_PATH=/opt/node22/lib/node_modules node scripts/regression.js
+//
+// Set PW_CHROMIUM_PATH to pin a specific browser binary (used in some sandboxes with a
+// pre-installed Chromium). Left unset -- e.g. in CI, after `playwright install chromium`
+// -- Playwright resolves its own installed browser.
 
 const { chromium } = require('playwright');
 
@@ -16,7 +20,9 @@ function record(name, pass, detail) {
 }
 
 async function main() {
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch(
+    process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {}
+  );
 
   // 1. Syntax sanity (belt-and-suspenders; the caller should already have run node -c)
   {

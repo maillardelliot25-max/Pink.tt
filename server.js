@@ -478,6 +478,13 @@ async function triggerSafetyAlert(message){
 
 // ── Express ───────────────────────────────────────────────────────────────────
 const app=express();
+// Render puts every request through its own reverse proxy, so without this the rate
+// limiters below see that proxy's address for every request -- one shared bucket for
+// the whole app instead of one per real client, which both lets a single abusive
+// client exhaust everyone else's quota and fails to actually contain them. Trusting
+// exactly one hop reads the real client IP from Render's X-Forwarded-For without
+// opening up IP spoofing to the outside world.
+app.set('trust proxy',1);
 // Once the custom domain is live, set CANONICAL_HOST (e.g. "pinktt.com") as a Render env
 // var -- every request to the old onrender.com URL (or any other host) then 301-redirects
 // to it, so there's a single canonical URL and no split traffic/SEO. No env var = no-op,

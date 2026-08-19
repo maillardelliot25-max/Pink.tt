@@ -1,0 +1,51 @@
+name: Regression suite
+
+# Runs the same checks the docs ask for locally before every push -- login for all
+# four demo accounts, every rider tab, the backdrop video, onboarding, the /api/db
+# privacy scoping, and the admin dashboard -- so a broken push is caught even if
+# nobody ran `node scripts/regression.js` by hand first. No secrets required: the
+# server falls back to a local SQLite file and demo-account seeding when none of
+# the production env vars are set.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright's Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start server
+        run: |
+          rm -f pinktt.db*
+          nohup node server.js > server.log 2>&1 &
+          echo $! > server.pid
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/ -o /dev/null && exit 0
+            sleep 1
+          done
+          echo "Server never came up:"; cat server.log; exit 1
+
+      - name: Run regression suite
+        run: node scripts/regression.js
+
+      - name: Server log (always, for debugging)
+        if: always()
+        run: cat server.log || true
+
+      - name: Stop server
+        if: always()
+        run: kill "$(cat server.pid)" 2>/dev/null || true
