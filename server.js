@@ -52,7 +52,17 @@ const SCHEMA_SQL=[
   `CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,user_id TEXT,type TEXT DEFAULT'info',message TEXT,is_read INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT DEFAULT'',updated_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS audit_log(id TEXT PRIMARY KEY,admin_id TEXT,admin_email TEXT,action TEXT,target_type TEXT DEFAULT'',target_id TEXT DEFAULT'',details TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`,
-  `CREATE TABLE IF NOT EXISTS businesses(id TEXT PRIMARY KEY,name TEXT NOT NULL,category TEXT DEFAULT'',description TEXT DEFAULT'',address TEXT DEFAULT'',phone TEXT DEFAULT'',rating REAL DEFAULT 5.0,rating_count INTEGER DEFAULT 0,is_featured INTEGER DEFAULT 0,is_active INTEGER DEFAULT 1,discount TEXT DEFAULT'',discount_code TEXT DEFAULT'',lat REAL DEFAULT 0,lng REAL DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`
+  `CREATE TABLE IF NOT EXISTS businesses(id TEXT PRIMARY KEY,name TEXT NOT NULL,category TEXT DEFAULT'',description TEXT DEFAULT'',address TEXT DEFAULT'',phone TEXT DEFAULT'',rating REAL DEFAULT 5.0,rating_count INTEGER DEFAULT 0,is_featured INTEGER DEFAULT 0,is_active INTEGER DEFAULT 1,discount TEXT DEFAULT'',discount_code TEXT DEFAULT'',lat REAL DEFAULT 0,lng REAL DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`,
+  // Driver tiers: a driver earns a better commission split (and the right to take
+  // recurring bookings) by sustaining a rating and trip count. Config lives in a table
+  // rather than constants so the thresholds/rates can be tuned without a redeploy.
+  `CREATE TABLE IF NOT EXISTS driver_tiers(id TEXT PRIMARY KEY,name TEXT UNIQUE,label TEXT DEFAULT'',commission_rate REAL DEFAULT 0.20,min_rating REAL DEFAULT 0,min_completed_trips INTEGER DEFAULT 0,can_accept_recurring INTEGER DEFAULT 0,sort_order INTEGER DEFAULT 0)`,
+  // Recurring schedules + their per-day legs. Coordinates are plain lat/lng REAL rather
+  // than PostGIS geography, because this same schema has to create cleanly on SQLite
+  // and Turso as well as Postgres -- distance work is done with the haversine helper
+  // already used throughout dispatch, so nothing here needs a spatial index.
+  `CREATE TABLE IF NOT EXISTS recurring_schedules(id TEXT PRIMARY KEY,rider_id TEXT,primary_driver_id TEXT,backup_driver_id TEXT,label TEXT DEFAULT'',pickup_address TEXT DEFAULT'',pickup_lat REAL,pickup_lng REAL,dropoff_address TEXT DEFAULT'',dropoff_lat REAL,dropoff_lng REAL,pickup_time TEXT,days_of_week TEXT DEFAULT'',status TEXT DEFAULT'pending_match',start_date TEXT,end_date TEXT,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(rider_id)REFERENCES users(id))`,
+  `CREATE TABLE IF NOT EXISTS scheduled_ride_legs(id TEXT PRIMARY KEY,schedule_id TEXT,assigned_driver_id TEXT,scheduled_timestamp TEXT,status TEXT DEFAULT'queued',ride_id TEXT,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(schedule_id)REFERENCES recurring_schedules(id))`
 ];
 // Public-safe settings keys: readable by any authenticated user via buildDB() (e.g.
 // so a rider can see the real safety contact number). Anything more sensitive than
@@ -73,7 +83,9 @@ const MIGRATIONS_SQL=[
   `ALTER TABLE rides ADD COLUMN points_earned INTEGER DEFAULT 0`,
   `ALTER TABLE driver_profiles ADD COLUMN license_expiry TEXT DEFAULT ''`,
   `ALTER TABLE rides ADD COLUMN driver_review TEXT DEFAULT ''`,
-  `ALTER TABLE rides ADD COLUMN scheduled_for TEXT`
+  `ALTER TABLE rides ADD COLUMN scheduled_for TEXT`,
+  `ALTER TABLE driver_profiles ADD COLUMN tier_id TEXT`,
+  `ALTER TABLE driver_profiles ADD COLUMN active_recurring_slots INTEGER DEFAULT 0`
 ];
 // Postgres-flavored schema: same tables, but datetime('now') and COLLATE NOCASE
 // aren't valid Postgres syntax. Email case-insensitivity is handled at the app
@@ -89,7 +101,9 @@ const MIGRATIONS_SQL_PG=[
   `ALTER TABLE rides ADD COLUMN IF NOT EXISTS points_earned INTEGER DEFAULT 0`,
   `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS license_expiry TEXT DEFAULT ''`,
   `ALTER TABLE rides ADD COLUMN IF NOT EXISTS driver_review TEXT DEFAULT ''`,
-  `ALTER TABLE rides ADD COLUMN IF NOT EXISTS scheduled_for TEXT`
+  `ALTER TABLE rides ADD COLUMN IF NOT EXISTS scheduled_for TEXT`,
+  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS tier_id TEXT`,
+  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS active_recurring_slots INTEGER DEFAULT 0`
 ];
 // Both SCHEMA_SQL and the app's query strings use SQLite syntax (`?` placeholders,
 // datetime('now')); translate to Postgres syntax (`$1,$2,...`, now()) at the call
@@ -233,6 +247,33 @@ function pinkPointsTier(lifetimePoints){
   if(lifetimePoints>=500)return{name:'Silver',multiplier:1.25};
   return{name:'Bronze',multiplier:1.0};
 }
+
+// ── Driver tiers ──────────────────────────────────────────────────────────────
+// Seeded once at boot; thresholds/rates are editable in the DB afterwards without a
+// redeploy. Standard is the floor everyone starts on (20% platform cut, same as the
+// hardcoded rate this replaces, so existing drivers see no change until they earn up).
+const DEFAULT_DRIVER_TIERS=[
+  {name:'standard', label:'Standard', commission_rate:0.20, min_rating:0,   min_completed_trips:0,   can_accept_recurring:0, sort_order:1},
+  {name:'preferred',label:'Preferred',commission_rate:0.15, min_rating:4.6, min_completed_trips:50,  can_accept_recurring:1, sort_order:2},
+  {name:'vip',      label:'VIP',      commission_rate:0.10, min_rating:4.85,min_completed_trips:200, can_accept_recurring:1, sort_order:3},
+];
+// Picks the best tier a driver currently qualifies for. Pure function over an
+// already-loaded tier list so it can be reused per-row in buildDB without extra queries.
+function resolveDriverTier(tiers,driver){
+  const rating=driver?.rating??0,trips=driver?.total_trips??0;
+  const eligible=(tiers||[]).filter(t=>rating>=(t.min_rating||0)&&trips>=(t.min_completed_trips||0));
+  const best=eligible.sort((a,b)=>(b.sort_order||0)-(a.sort_order||0))[0];
+  return best?{...best,can_accept_recurring:!!best.can_accept_recurring}:{name:'standard',label:'Standard',commission_rate:0.20,can_accept_recurring:false,sort_order:1};
+}
+// Commission lookup for payout time -- falls back to the historical flat 20% if the
+// tier table somehow isn't populated, so earnings can never silently compute as 0.
+async function driverCommissionRate(driverUserId){
+  try{
+    const tiers=await dbAll('SELECT * FROM driver_tiers ORDER BY sort_order');
+    const dp=await dbGet('SELECT rating,total_trips FROM driver_profiles WHERE user_id=?',[driverUserId]);
+    return resolveDriverTier(tiers,dp).commission_rate??0.20;
+  }catch{return 0.20;}
+}
 // Converts a requested point redemption into an actual (points,discount$) pair,
 // clamped to what the rider actually has and the per-ride redemption cap.
 function clampPointsRedemption(requestedPoints,availablePoints,fare){
@@ -329,7 +370,14 @@ async function getRoute(pickup,destination){
 
 async function buildDB(){
   const users=(await dbAll('SELECT id,email,first_name,last_name,phone,role,gender,is_verified,is_active,emergency_contact_name,emergency_contact_phone,wallet_balance,total_rides,pink_points,pink_points_lifetime,created_at FROM users')).map(u=>({...u,is_verified:!!u.is_verified,is_active:!!u.is_active,pink_points:u.pink_points||0,pink_points_lifetime:u.pink_points_lifetime||0,pink_points_tier:pinkPointsTier(u.pink_points_lifetime||0).name}));
-  const driver_profiles=(await dbAll('SELECT id,user_id,license_number,license_expiry,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status,is_online,current_lat,current_lng,total_trips,total_earnings,balance,today_earnings,rating,rating_count,created_at FROM driver_profiles')).map(d=>({...d,is_online:!!d.is_online,approved_at:d.status==='approved'?d.created_at:null}));
+  const driver_tiers=(await dbAll('SELECT * FROM driver_tiers ORDER BY sort_order')).map(t=>({...t,can_accept_recurring:!!t.can_accept_recurring}));
+  const driver_profiles=(await dbAll('SELECT id,user_id,license_number,license_expiry,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status,is_online,current_lat,current_lng,total_trips,total_earnings,balance,today_earnings,rating,rating_count,tier_id,active_recurring_slots,created_at FROM driver_profiles')).map(d=>{
+    // Resolve the tier live from the driver's current stats rather than trusting the
+    // stored tier_id alone -- a driver's rating/trip count changes constantly, and this
+    // keeps the badge honest even if a recompute was ever missed.
+    const tier=resolveDriverTier(driver_tiers,d);
+    return{...d,is_online:!!d.is_online,approved_at:d.status==='approved'?d.created_at:null,active_recurring_slots:d.active_recurring_slots||0,tier};
+  });
   const rides=await dbAll('SELECT * FROM rides');
   const payments=await dbAll('SELECT * FROM payments');
   const sos_events=await dbAll('SELECT * FROM sos_events');
@@ -343,7 +391,7 @@ async function buildDB(){
   const settingsRows=await dbAll('SELECT key,value FROM settings');
   const settings={...DEFAULT_SETTINGS};
   settingsRows.forEach(r=>{settings[r.key]=r.value;});
-  return{users,driver_profiles,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings};
+  return{users,driver_tiers,driver_profiles,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings};
 }
 
 async function setSetting(key,value){
@@ -678,7 +726,10 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
         // fare = what the rider actually pays (estimated_fare already has any points
         // discount baked in). Driver earnings are calculated from the full pre-discount
         // fare (fare + points_discount) so a points redemption never reduces payout.
-        const fare=ride.final_fare||ride.estimated_fare||18,fullFare=fare+(ride.points_discount||0),earn=fullFare*.8;
+        // Platform cut now comes from the driver's tier (20/15/10%) instead of a flat
+        // 20% -- better-rated, higher-volume drivers keep more of each fare.
+        const commission=await driverCommissionRate(ride.driver_id);
+        const fare=ride.final_fare||ride.estimated_fare||18,fullFare=fare+(ride.points_discount||0),earn=fullFare*(1-commission);
         const rider=await dbGet('SELECT pink_points,pink_points_lifetime FROM users WHERE id=?',[ride.rider_id]);
         const tier=pinkPointsTier(rider?.pink_points_lifetime||0);
         const pointsEarned=Math.round(fare*PINK_POINTS_EARN_RATE*tier.multiplier);
@@ -883,6 +934,12 @@ wss.on('connection',ws=>{
   }
   for(const[k,v]of Object.entries(DEFAULT_SETTINGS)){
     if(!(await dbGet('SELECT key FROM settings WHERE key=?',[k])))await dbRun('INSERT INTO settings(key,value)VALUES(?,?)',[k,v]);
+  }
+  // Seed the driver tier ladder once. Insert-if-missing (rather than overwrite) so any
+  // later tuning of rates/thresholds done directly in the DB survives a restart.
+  for(const t of DEFAULT_DRIVER_TIERS){
+    if(!(await dbGet('SELECT id FROM driver_tiers WHERE name=?',[t.name])))
+      await dbRun('INSERT INTO driver_tiers(id,name,label,commission_rate,min_rating,min_completed_trips,can_accept_recurring,sort_order)VALUES(?,?,?,?,?,?,?,?)',[uuidv4(),t.name,t.label,t.commission_rate,t.min_rating,t.min_completed_trips,t.can_accept_recurring,t.sort_order]);
   }
   if(SHOW_DEMO_ACCOUNTS&&!(await dbGet('SELECT id FROM users WHERE email=?',['sarah@demo.pink.tt']))){
     const riderId=uuidv4(),drv1Id=uuidv4(),drv2Id=uuidv4();

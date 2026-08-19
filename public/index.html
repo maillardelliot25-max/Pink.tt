@@ -828,7 +828,10 @@ function _minScheduleDatetime(){
 }
 
 // ─── IN-MEMORY DATABASE ─────────────────────────────────────────
-const DB = { users:[], driver_profiles:[], rides:[], sos_events:[], trip_shares:[], reports:[], payments:[], businesses:[], business_services:[], business_discounts:[], promotions:[], notifications:[], settings:{} };
+// NOTE: _pttLoadDB() only copies server keys that already exist here (`if(DB[k]!==undefined)`),
+// so any new table exposed by buildDB must be declared in this literal too or it is
+// silently dropped client-side.
+const DB = { users:[], driver_tiers:[], driver_profiles:[], rides:[], sos_events:[], trip_shares:[], reports:[], payments:[], businesses:[], business_services:[], business_discounts:[], promotions:[], notifications:[], settings:{} };
 
 // ─── SEED DATA ──────────────────────────────────────────────────
 const ADMIN_ID=uid(),RIDER1_ID=uid(),RIDER2_ID=uid(),DRIVER1_ID=uid(),DRIVER2_ID=uid(),DP1_ID=uid(),DP2_ID=uid();
@@ -1755,9 +1758,33 @@ function renderDriverEarnings(body){
   const dp=S.dp;
   const wkRides=DB.rides.filter(r=>r.driver_id===S.user.id&&r.status==='completed'&&new Date(r.completed_at)>new Date(Date.now()-7*86400000));
   const gross=wkRides.reduce((s,r)=>s+(r.final_fare||0),0);
-  const net=gross*.8;
+  // Commission comes from the driver's tier (server-resolved) rather than a flat 20%.
+  const tier=dp?.tier||{label:'Standard',commission_rate:0.20,can_accept_recurring:false};
+  const net=gross*(1-(tier.commission_rate??0.20));
+  const tiers=(DB.driver_tiers||[]).slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+  const nextTier=tiers.find(t=>(t.sort_order||0)>(tier.sort_order||0));
   const pays=DB.payments.filter(p=>p.driver_id===S.user.id&&p.status==='completed');
   body.innerHTML=`
+    <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,var(--pp),#fff)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0">
+          <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:linear-gradient(150deg,var(--pl),var(--p) 55%,var(--pd));display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 10px -2px rgba(196,0,111,.5)">🏅</div>
+          <div style="min-width:0">
+            <p style="font-size:14px;font-weight:700;color:#111827">${tier.label||'Standard'} Driver</p>
+            <p style="font-size:11px;color:#6b7280">You keep ${Math.round((1-(tier.commission_rate??0.20))*100)}% of every fare</p>
+          </div>
+        </div>
+        ${tier.can_accept_recurring?`<span class="badge bpink" style="flex-shrink:0">Recurring ✓</span>`:''}
+      </div>
+      ${nextTier?`
+        <div style="border-top:1px solid rgba(233,30,140,.15);margin:12px 0 10px"></div>
+        <p style="font-size:11px;color:#6b7280">Next: <strong style="color:var(--p)">${nextTier.label}</strong> — keep ${Math.round((1-(nextTier.commission_rate??0))*100)}% at ${nextTier.min_rating}★ and ${nextTier.min_completed_trips} trips
+        <span style="color:#9ca3af">(you're at ${(dp?.rating||5).toFixed(2)}★, ${dp?.total_trips||0} trips)</span></p>
+      `:`
+        <div style="border-top:1px solid rgba(233,30,140,.15);margin:12px 0 10px"></div>
+        <p style="font-size:11px;color:#6b7280">🌸 You're at the top tier — the best commission rate on Pink.TT.</p>
+      `}
+    </div>
     <div class="earn-grid" style="margin-bottom:12px">
       <div class="earn-card"><div style="font-size:20px;font-weight:700;color:var(--g)">TTD $${net.toFixed(0)}</div><div style="font-size:11px;color:#9ca3af">Net This Week</div></div>
       <div class="earn-card"><div style="font-size:20px;font-weight:700;color:var(--p)">${wkRides.length}</div><div style="font-size:11px;color:#9ca3af">Trips This Week</div></div>
