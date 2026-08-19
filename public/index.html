@@ -184,6 +184,16 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 /* SOS */
 .sosbtn{background:var(--r);color:#fff;font-size:11px;font-weight:800;padding:5px 11px;border-radius:20px;border:none;cursor:pointer;letter-spacing:.5px;animation:sosp 1.8s ease-in-out infinite}
 @keyframes sosp{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
+/* "Searching for a driver" pin: the rider's own location becomes the Pink.TT logo mark
+   with an outward-fading pink glow, so the map communicates active searching at a
+   glance rather than sitting as a static dot. Two rings on staggered delays keep the
+   pulse continuous instead of visibly restarting. */
+.me-search-pin{position:relative;width:34px;height:34px}
+.me-search-pin .msp-core{position:absolute;inset:0;border-radius:11px;background:linear-gradient(150deg,var(--pl),var(--p) 55%,var(--pd));color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:15px;box-shadow:0 3px 10px -2px rgba(196,0,111,.6),inset 0 1px 0 rgba(255,255,255,.4);z-index:2}
+.me-search-pin .msp-ring{position:absolute;top:50%;left:50%;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;background:radial-gradient(circle,rgba(233,30,140,.45),rgba(233,30,140,0) 70%);animation:mspPulse 2.2s ease-out infinite;z-index:1}
+.me-search-pin .msp-ring.d2{animation-delay:1.1s}
+@keyframes mspPulse{0%{transform:scale(.6);opacity:.85}100%{transform:scale(3.6);opacity:0}}
+@media (prefers-reduced-motion:reduce){.me-search-pin .msp-ring{animation:none;opacity:.35}}
 /* Toggle */
 .tog{width:44px;height:24px;background:#e5e7eb;border-radius:12px;position:relative;cursor:pointer;transition:background .25s;flex-shrink:0}
 .tog.on{background:var(--g)}
@@ -2382,6 +2392,10 @@ function _pinkIcon(){return L.divIcon({html:'<div style="background:#E91E8C;widt
 function _greenIcon(){return L.divIcon({html:'<div style="background:#22c55e;width:13px;height:13px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(34,197,94,.5)"></div>',iconSize:[13,13],iconAnchor:[6.5,6.5],className:''});}
 function _carIcon(){return L.divIcon({html:'<div style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))">🚗</div>',iconSize:[28,28],iconAnchor:[14,14],className:''});}
 function _meIcon(){return L.divIcon({html:'<div style="background:#3b82f6;width:15px;height:15px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.3)"></div>',iconSize:[15,15],iconAnchor:[7.5,7.5],className:''});}
+// Used in place of the plain pickup dot while a ride is still unassigned -- the rider's
+// own spot becomes the Pink.TT logo with a fading pink glow so "we're looking for your
+// driver" is legible from the map itself, not just the status text above it.
+function _searchingIcon(){return L.divIcon({html:'<div class="me-search-pin"><div class="msp-ring"></div><div class="msp-ring d2"></div><div class="msp-core">P</div></div>',iconSize:[34,34],iconAnchor:[17,17],className:''});}
 
 // ── Real GPS pickup location ──────────────────────────────────────
 // The pickup field used to default to hardcoded text ("Current Location — Port of
@@ -2575,7 +2589,11 @@ function initTrackMap(pickup,destination,driverLat,driverLng){
     _MAP_TRACK=L.map(el,{zoomControl:false,attributionControl:false}).setView([pLat,pLng],13);
     _watchTiles(_MAP_TRACK,el);
     _tileLayer(_MAP_TRACK);L.control.zoom({position:'bottomright'}).addTo(_MAP_TRACK);
-    const pMk=L.marker([pLat,pLng],{icon:_pinkIcon()}).addTo(_MAP_TRACK).bindPopup('📍 Pickup');
+    // While the ride is still unassigned, the rider's pickup point shows as the glowing
+    // Pink.TT logo instead of the plain dot; once a driver accepts, it reverts to the
+    // normal pickup marker (the car marker becomes the thing worth watching).
+    const stillSearching=!pR?.driver_id&&(pR?.status==='requested'||!pR);
+    const pMk=L.marker([pLat,pLng],{icon:stillSearching?_searchingIcon():_pinkIcon()}).addTo(_MAP_TRACK).bindPopup(stillSearching?'🌸 Finding your driver…':'📍 Pickup');
     const dMk=L.marker([dLat,dLng],{icon:_greenIcon()}).addTo(_MAP_TRACK).bindPopup('🏁 Destination');
     const carStart=driverLat||pLat+(Math.random()-.5)*.02;
     const carStartLng=driverLng||pLng+(Math.random()-.5)*.02;
