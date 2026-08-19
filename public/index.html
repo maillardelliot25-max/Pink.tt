@@ -443,6 +443,33 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
   </div>
 </div>
 
+<!-- Complaint / support (riders and drivers alike) -->
+<div class="overlay" id="complaint-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:4px">📮 Make a Complaint</h3>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:14px">This goes straight to the Pink.TT team by email and into the admin console. We read every one.</p>
+    <div class="fg"><label class="lbl">What is this about? *</label>
+      <select class="inp" id="cmp-category">
+        <option value="">Choose one…</option>
+        <option>Driver behaviour</option>
+        <option>Rider behaviour</option>
+        <option>Safety concern</option>
+        <option>Fare or payment</option>
+        <option>Pink Points or promo</option>
+        <option>App problem / bug</option>
+        <option>Account or verification</option>
+        <option>Something else</option>
+      </select>
+    </div>
+    <div class="fg"><label class="lbl">Subject</label><input class="inp" id="cmp-subject" placeholder="Short summary (optional)"></div>
+    <div class="fg"><label class="lbl">What happened? *</label>
+      <textarea class="inp" id="cmp-message" rows="5" style="resize:vertical" placeholder="Tell us what happened, including when and where if it helps."></textarea>
+    </div>
+    <button class="btn bp bw" id="cmp-btn" onclick="submitComplaint()">Send Complaint</button>
+    <button class="btn bs bw" style="margin-top:8px" onclick="closeModal('complaint-modal')">Cancel</button>
+  </div>
+</div>
+
 <!-- Recurring commute (multi-leg schedule) -->
 <div class="overlay" id="recurring-modal">
   <div class="sheet">
@@ -919,7 +946,7 @@ function _minScheduleDatetime(){
 // NOTE: _pttLoadDB() only copies server keys that already exist here (`if(DB[k]!==undefined)`),
 // so any new table exposed by buildDB must be declared in this literal too or it is
 // silently dropped client-side.
-const DB = { users:[], driver_tiers:[], recurring_schedules:[], scheduled_ride_legs:[], driver_profiles:[], rides:[], sos_events:[], trip_shares:[], reports:[], payments:[], businesses:[], business_services:[], business_discounts:[], promotions:[], notifications:[], settings:{} };
+const DB = { users:[], driver_tiers:[], complaints:[], recurring_schedules:[], scheduled_ride_legs:[], driver_profiles:[], rides:[], sos_events:[], trip_shares:[], reports:[], payments:[], businesses:[], business_services:[], business_discounts:[], promotions:[], notifications:[], settings:{} };
 
 // ─── SEED DATA ──────────────────────────────────────────────────
 const ADMIN_ID=uid(),RIDER1_ID=uid(),RIDER2_ID=uid(),DRIVER1_ID=uid(),DRIVER2_ID=uid(),DP1_ID=uid(),DP2_ID=uid();
@@ -1343,6 +1370,10 @@ function renderRiderBook(){
         <div style="min-width:0"><p style="font-size:13px;font-weight:600">Payments</p><p style="font-size:11px;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Promos & history</p></div>
       </div>
     </div>
+    <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-top:10px" onclick="openComplaint()">
+      <div style="width:40px;height:40px;flex-shrink:0;background:#fff5f5;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px">📮</div>
+      <div style="min-width:0"><p style="font-size:13px;font-weight:600">Make a Complaint</p><p style="font-size:11px;color:#9ca3af">Goes straight to the Pink.TT team</p></div>
+    </div>
   `;
 }
 
@@ -1515,14 +1546,49 @@ function sendSOS(){
 }
 
 // Report
-function submitReport(){
+// Reporting a driver mid-ride. This used to only push onto the local DB.reports array
+// and never contact the server at all -- the toast said "report submitted" while nothing
+// left the device. It now goes through the same complaint pipeline as the complaint form
+// (persisted, emailed to Pink.TT, surfaced in the admin queue).
+async function submitReport(){
   const reason=document.getElementById('report-reason').value;
   const desc=document.getElementById('report-desc').value;
   if(!reason){toast('Select a reason','err');return;}
-  DB.reports.push({id:uid(),reporter_id:S.user.id,driver_id:S.reportDriverId,ride_id:S.reportRideId,reason,description:desc,status:'pending',created_at:ts()});
+  const res=await _mutate('submit_complaint',{
+    category:'Driver behaviour',
+    subject:reason,
+    message:desc&&desc.trim().length>=10?desc:`${reason} — reported from an active ride.`,
+    ride_id:S.reportRideId||S.activeRide?.id||null,
+    about_user_id:S.reportDriverId||S.activeRide?.driver_id||null
+  });
+  if(!res.ok){toast(res.error||'Could not submit report','err');return;}
   toast('Report submitted. We take safety seriously. 🛡️','ok');
   closeModal('report-modal');
   document.getElementById('report-reason').value='';document.getElementById('report-desc').value='';
+}
+
+// ── Complaints (rider + driver) ──────────────────────────────────
+function openComplaint(){
+  document.getElementById('cmp-category').value='';
+  document.getElementById('cmp-subject').value='';
+  document.getElementById('cmp-message').value='';
+  openModal('complaint-modal');
+}
+async function submitComplaint(){
+  const category=document.getElementById('cmp-category').value;
+  const subject=document.getElementById('cmp-subject').value.trim();
+  const message=document.getElementById('cmp-message').value.trim();
+  if(!category){toast('Pick what your complaint is about','err');return;}
+  if(message.length<10){toast('Please describe what happened','err');return;}
+  const btn=document.getElementById('cmp-btn');
+  if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Sending...';}
+  const res=await _mutate('submit_complaint',{category,subject,message,ride_id:S.activeRide?.id||null});
+  if(btn){btn.disabled=false;btn.textContent='Send Complaint';}
+  if(res.ok){
+    toast('📮 Complaint sent — the Pink.TT team has it','ok');
+    closeModal('complaint-modal');
+    await _pttLoadDB();
+  }else toast(res.error||'Could not send complaint','err');
 }
 
 // Rating
@@ -1886,6 +1952,10 @@ function renderDriverEarnings(body){
       <p style="font-size:14px;font-weight:700;font-family:monospace;margin-top:4px">${dp?.vehicle_plate}</p>
       <p style="font-size:11px;color:#9ca3af;margin-top:4px">License: ${dp?.license_number} · Expires: ${dp?.license_expiry}</p>
     </div>
+    <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:12px" onclick="openComplaint()">
+      <div style="width:40px;height:40px;flex-shrink:0;background:#fff5f5;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px">📮</div>
+      <div style="min-width:0"><p style="font-size:13px;font-weight:600">Make a Complaint</p><p style="font-size:11px;color:#9ca3af">Goes straight to the Pink.TT team</p></div>
+    </div>
     <h4 class="sec-head">Recent Payments</h4>
     ${!pays.length?'<div class="empty"><p>No trips yet this week</p></div>':
       pays.slice().reverse().slice(0,10).map(p=>{
@@ -2066,8 +2136,31 @@ function renderAdminSafety(body){
   const active=DB.sos_events.filter(s=>s.status==='active');
   const all=DB.sos_events.slice().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
   const reports=DB.reports.slice().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
-  document.getElementById('admin-sos-badge').style.display=active.length?'block':'none';
+  const complaints=(DB.complaints||[]).slice();
+  const openComplaints=complaints.filter(c=>c.status!=='resolved');
+  document.getElementById('admin-sos-badge').style.display=(active.length||openComplaints.length)?'block':'none';
   body.innerHTML=`
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <h4 style="font-size:14px">📮 Complaints</h4>
+        ${openComplaints.length?`<span class="badge byel">${openComplaints.length} open</span>`:`<span class="badge bgrn">All clear</span>`}
+      </div>
+      ${complaints.length?complaints.slice(0,25).map(c=>{
+        const u=DB.users.find(x=>x.id===c.user_id)||{};
+        return `<div style="border-top:1px solid rgba(17,17,17,.06);padding:10px 0">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+            <div style="min-width:0">
+              <p style="font-size:13px;font-weight:700">${c.category}${c.subject?` — ${c.subject}`:''}</p>
+              <p style="font-size:11px;color:#9ca3af">${u.first_name||'Unknown'} ${u.last_name||''} · ${c.user_role||'user'} · ${fmtDate(c.created_at)}</p>
+              <p style="font-size:12px;color:#374151;margin-top:5px;white-space:pre-wrap">${c.message}</p>
+            </div>
+            ${c.status==='resolved'
+              ?`<span class="badge bgrn" style="flex-shrink:0">Resolved</span>`
+              :`<button class="btn bg2 bsm" style="flex-shrink:0" onclick="resolveComplaint('${c.id}')">Resolve</button>`}
+          </div>
+        </div>`;
+      }).join(''):`<p style="font-size:12px;color:#9ca3af">No complaints submitted yet.</p>`}
+    </div>
     ${active.length?`
     <div style="border:2px solid #fca5a5;background:#fff5f5;border-radius:20px;padding:14px;margin-bottom:12px">
       <h4 style="color:var(--r);margin-bottom:10px;font-size:14px">🚨 Active SOS Alerts (${active.length})</h4>
@@ -2094,6 +2187,11 @@ function renderAdminSafety(body){
 }
 // Used to only mutate local state -- an admin's "Resolve" click never reached the
 // server at all, so the alert silently reverted back to "active" on the next refresh.
+async function resolveComplaint(id){
+  const res=await _mutate('resolve_complaint',{complaint_id:id});
+  if(res.ok){toast('Complaint resolved ✓','ok');await _pttLoadDB();renderAdminSafety(document.getElementById('admin-body'));}
+  else toast(res.error||'Could not resolve','err');
+}
 async function resolveSOS(id){
   const res=await _mutate('resolve_sos',{sos_id:id});
   if(res.ok){toast('SOS resolved ✓','ok');await _pttLoadDB();renderAdminSafety(document.getElementById('admin-body'));}

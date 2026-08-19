@@ -62,7 +62,10 @@ const SCHEMA_SQL=[
   // and Turso as well as Postgres -- distance work is done with the haversine helper
   // already used throughout dispatch, so nothing here needs a spatial index.
   `CREATE TABLE IF NOT EXISTS recurring_schedules(id TEXT PRIMARY KEY,rider_id TEXT,primary_driver_id TEXT,backup_driver_id TEXT,label TEXT DEFAULT'',pickup_address TEXT DEFAULT'',pickup_lat REAL,pickup_lng REAL,dropoff_address TEXT DEFAULT'',dropoff_lat REAL,dropoff_lng REAL,pickup_time TEXT,days_of_week TEXT DEFAULT'',status TEXT DEFAULT'pending_match',start_date TEXT,end_date TEXT,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(rider_id)REFERENCES users(id))`,
-  `CREATE TABLE IF NOT EXISTS scheduled_ride_legs(id TEXT PRIMARY KEY,schedule_id TEXT,assigned_driver_id TEXT,scheduled_timestamp TEXT,status TEXT DEFAULT'queued',ride_id TEXT,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(schedule_id)REFERENCES recurring_schedules(id))`
+  `CREATE TABLE IF NOT EXISTS scheduled_ride_legs(id TEXT PRIMARY KEY,schedule_id TEXT,assigned_driver_id TEXT,scheduled_timestamp TEXT,status TEXT DEFAULT'queued',ride_id TEXT,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(schedule_id)REFERENCES recurring_schedules(id))`,
+  // Complaints/support from either riders or drivers. Deliberately one table for both
+  // roles -- the admin queue should be a single place to look, not two.
+  `CREATE TABLE IF NOT EXISTS complaints(id TEXT PRIMARY KEY,user_id TEXT,user_role TEXT DEFAULT'',category TEXT DEFAULT'',subject TEXT DEFAULT'',message TEXT DEFAULT'',ride_id TEXT,about_user_id TEXT,status TEXT DEFAULT'open',admin_notes TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')),resolved_at TEXT)`
 ];
 // Public-safe settings keys: readable by any authenticated user via buildDB() (e.g.
 // so a rider can see the real safety contact number). Anything more sensitive than
@@ -431,9 +434,10 @@ async function buildDB(){
   const settingsRows=await dbAll('SELECT key,value FROM settings');
   const settings={...DEFAULT_SETTINGS};
   settingsRows.forEach(r=>{settings[r.key]=r.value;});
+  const complaints=await dbAll('SELECT * FROM complaints ORDER BY created_at DESC');
   const recurring_schedules=(await dbAll('SELECT * FROM recurring_schedules')).map(s=>({...s,days_of_week:String(s.days_of_week||'').split(',').filter(x=>x!=='').map(Number)}));
   const scheduled_ride_legs=await dbAll('SELECT * FROM scheduled_ride_legs ORDER BY scheduled_timestamp');
-  return{users,driver_tiers,driver_profiles,recurring_schedules,scheduled_ride_legs,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings};
+  return{users,driver_tiers,driver_profiles,complaints,recurring_schedules,scheduled_ride_legs,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings};
 }
 
 async function setSetting(key,value){
@@ -560,6 +564,13 @@ app.post('/api/login',authLimiter,async(req,res)=>{
 app.get('/api/db',authMW,async(req,res)=>{
   const dbObj=await buildDB();
   const user=dbObj.users.find(u=>u.id===req.jwt.id)||null;
+  // Complaints are free text that routinely names other people ("my driver did X"), so
+  // unlike the rest of this payload they are scoped: an admin sees the queue, everyone
+  // else sees only what they themselves submitted. Done here rather than in buildDB so
+  // the admin console and the websocket broadcast keep using one shared builder.
+  if(req.jwt.role!=='admin'){
+    dbObj.complaints=(dbObj.complaints||[]).filter(c=>c.user_id===req.jwt.id);
+  }
   res.json({db:dbObj,user});
 });
 
@@ -745,6 +756,39 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const km=route.km,min=route.min,fare=calcFare(km,min);
       const rideId=uuidv4();
       await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,scheduled_for)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',[rideId,userId,'scheduled',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,when.toISOString()]);
+    }else if(type==='submit_complaint'){
+      const category=String(data.category||'').slice(0,60);
+      const message=String(data.message||'').trim().slice(0,4000);
+      if(!category)return res.json({ok:false,error:'Pick what your complaint is about'});
+      if(message.length<10)return res.json({ok:false,error:'Please describe what happened (at least 10 characters)'});
+      const me=await dbGet('SELECT first_name,last_name,email,phone,role FROM users WHERE id=?',[userId]);
+      const cid=uuidv4();
+      await dbRun('INSERT INTO complaints(id,user_id,user_role,category,subject,message,ride_id,about_user_id)VALUES(?,?,?,?,?,?,?,?)',
+        [cid,userId,me?.role||'',category,String(data.subject||'').slice(0,140),message,data.ride_id||null,data.about_user_id||null]);
+      // Live badge for whoever is in the admin console right now...
+      const admins=await dbAll("SELECT id FROM users WHERE role='admin'");
+      for(const a of admins){
+        await dbRun('INSERT INTO notifications(id,user_id,title,body,type)VALUES(?,?,?,?,?)',
+          [uuidv4(),a.id,'New complaint',`${category} — from ${me?.first_name||'a user'} ${me?.last_name||''}`.trim(),'complaint']);
+        broadcastTo(a.id,{type:'complaint_received',complaint_id:cid});
+      }
+      // ...and an email to the Pink.TT inbox, so nothing depends on someone happening to
+      // be looking at the dashboard.
+      sendAdminEmail(`Pink.TT complaint: ${category}`,
+        [`A ${me?.role||'user'} submitted a complaint.`,'',
+         `From:     ${me?.first_name||''} ${me?.last_name||''}`.trim(),
+         `Email:    ${me?.email||'—'}`,
+         `Phone:    ${me?.phone||'—'}`,
+         `Category: ${category}`,
+         data.subject?`Subject:  ${data.subject}`:null,
+         data.ride_id?`Ride:     ${data.ride_id}`:null,'',
+         'Message:',message,'',
+         `Complaint ID: ${cid}`].filter(Boolean).join('\n')
+      ).catch(()=>{}); // fire-and-forget: a mail outage must never fail the submission
+    }else if(type==='resolve_complaint'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      await dbRun("UPDATE complaints SET status='resolved',resolved_at=datetime('now'),admin_notes=? WHERE id=?",[String(data.notes||'').slice(0,2000),data.complaint_id]);
+      await logAudit(req.jwt,'resolve_complaint','complaint',data.complaint_id,'Marked resolved');
     }else if(type==='create_recurring_schedule'){
       // A repeating commute (e.g. Mon-Fri 07:30). Stores the pattern, matches a primary
       // + backup driver from the recurring-eligible pool, then materialises the next
@@ -953,7 +997,20 @@ app.use((err,req,res,next)=>{
 const server=http.createServer(app);
 const wss=new WebSocket.Server({server});
 const clients=new Map();
-function broadcastDBUpdate(){buildDB().then(d=>{const m=JSON.stringify({type:'db_update',db:d});clients.forEach(ws=>{if(ws.readyState===WebSocket.OPEN)ws.send(m);});}).catch(console.error);}
+// Per-recipient payload rather than one shared blob: complaints must be scoped the same
+// way /api/db scopes them, or the websocket would hand every connected rider and driver
+// the full complaint queue and quietly undo that restriction.
+function broadcastDBUpdate(){
+  buildDB().then(async d=>{
+    const admins=new Set((await dbAll("SELECT id FROM users WHERE role='admin'")).map(r=>r.id));
+    const allComplaints=d.complaints||[];
+    for(const[uid,ws]of clients.entries()){
+      if(ws.readyState!==WebSocket.OPEN)continue;
+      const scoped={...d,complaints:admins.has(uid)?allComplaints:allComplaints.filter(c=>c.user_id===uid)};
+      ws.send(JSON.stringify({type:'db_update',db:scoped}));
+    }
+  }).catch(console.error);
+}
 function broadcastAll(data){const m=JSON.stringify(data);clients.forEach(ws=>{if(ws.readyState===WebSocket.OPEN)ws.send(m);});}
 function broadcastTo(uid,data){const ws=clients.get(uid);if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(data));}
 
