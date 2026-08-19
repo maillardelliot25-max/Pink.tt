@@ -85,6 +85,16 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    height instead of being covered by it. --ib-h is set from JS since the height varies
    with the safe-area inset and text wrapping. */
 body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:var(--ib-h,0px)}
+/* Boot splash -- sits above the shell, below toasts. Background is only a soft tint so
+   the wallpaper video behind it stays visible and the loading screen rotates with it. */
+#boot-splash{position:fixed;inset:0;z-index:150;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:linear-gradient(165deg,rgba(255,105,180,.28),rgba(199,0,105,.36));-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);transition:opacity .45s ease,visibility .45s ease}
+#boot-splash.done{opacity:0;visibility:hidden;pointer-events:none}
+#boot-splash .boot-mark{width:72px;height:72px;border-radius:22px;background:linear-gradient(150deg,var(--pl),var(--p) 55%,var(--pd));color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:38px;box-shadow:inset 0 2px 0 rgba(255,255,255,.45),0 14px 30px -10px rgba(199,0,105,.65)}
+#boot-splash .boot-name{font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.3)}
+#boot-splash .boot-bar{width:132px;height:4px;border-radius:4px;background:rgba(255,255,255,.35);overflow:hidden}
+#boot-splash .boot-bar span{display:block;width:40%;height:100%;border-radius:4px;background:#fff;animation:bootSlide 1.1s ease-in-out infinite}
+@keyframes bootSlide{0%{transform:translateX(-110%)}100%{transform:translateX(360%)}}
+@media (prefers-reduced-motion:reduce){#boot-splash .boot-bar span{animation:none;width:100%}}
 .page{display:none;flex-direction:column;height:100%;overflow:hidden}
 .page.active{display:flex}
 /* Every scrollable content area needs clearance for the device's bottom safe area
@@ -375,6 +385,17 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
   <source src="/media/install-banner-bg.webm?v=5" type="video/webm">
 </video>
 <div class="app-bg-wash"></div>
+
+<!-- Boot splash. Shown from first paint until the session is restored and a page is
+     routed to. It is transparent apart from a soft tint, so the rotating wallpaper
+     behind #shell is what fills it -- the loading screen changes with every open the
+     same way the rest of the app does, instead of being a white flash (or a long blank
+     wait on a cold start). -->
+<div id="boot-splash">
+  <div class="boot-mark">P</div>
+  <div class="boot-name">Pink.TT</div>
+  <div class="boot-bar"><span></span></div>
+</div>
 <div id="toasts"></div>
 
 <!-- SOS Modal -->
@@ -3543,7 +3564,14 @@ init=async function(){
     if(fresh&&fresh.is_active){S.user=fresh;_wsConnect();routeUser(fresh);}
     else{localStorage.removeItem('ptt_token');_PTT_TOKEN=null;go('land');}
   }else{go('land');}
+  _hideBootSplash();
 };
+
+// Dismissed once a page has actually been routed to. The timeout is a hard safety net,
+// not the normal path: a hung request must never leave someone staring at a splash they
+// cannot get past, so it clears regardless after a few seconds.
+function _hideBootSplash(){document.getElementById('boot-splash')?.classList.add('done');}
+setTimeout(_hideBootSplash,6000);
 
 // ── Hook renderRiderBook to init map when idle ───────────────────
 const _origRRB=renderRiderBook;

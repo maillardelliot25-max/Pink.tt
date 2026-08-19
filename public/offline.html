@@ -40,7 +40,19 @@ p{color:rgba(255,255,255,.92);font-size:14px;line-height:1.6;margin-bottom:24px;
 // power mode, and `loop` alone doesn't resume a video that's been paused externally --
 // so re-assert play() every time the page becomes visible again, and immediately if the
 // video itself ever reports paused while the page is visible.
+// Match whatever wallpaper the app itself last picked, so the offline screen belongs to
+// the same session rather than always showing one fixed clip. Falls back silently to the
+// hardcoded <source> already in the markup if there's nothing stored (or storage is
+// blocked), which is also the copy the service worker precached -- important here, since
+// this page has to render with no network at all.
 const vid = document.getElementById('bg-video');
+try{
+  const last=localStorage.getItem('ptt_last_wallpaper');
+  if(last&&/^[a-z0-9-]+$/i.test(last)&&!vid.querySelector(`source[src*="${last}"]`)){
+    vid.innerHTML=`<source src="/media/${last}.mp4?v=5" type="video/mp4"><source src="/media/${last}.webm?v=5" type="video/webm">`;
+    vid.load();
+  }
+}catch(e){}
 function keepLoopAlive(){
   if(document.visibilityState === 'visible' && vid.paused) vid.play().catch(()=>{});
 }
