@@ -111,6 +111,15 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
 .fg{margin-bottom:14px}
 /* Cards */
 .card{background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-radius:18px;padding:18px;box-shadow:var(--glass-shadow);border:var(--glass-border)}
+/* Uniform gap between the top-level blocks of every scrollable console body. These
+   views are built from template strings where each block sets (or forgets) its own
+   margin, so cards repeatedly ended up flush against each other -- with the glass
+   borders and shadows meeting at the seam, that reads as one card overlapping the next.
+   Spacing the container's direct children fixes it once for every block, including any
+   added later, instead of chasing it card by card. Blocks that set their own inline
+   margin-bottom still win, and they already use this same 14px. */
+#rider-body>*,#driver-body>*,#admin-body>*,#discover-body>*{margin-bottom:14px}
+#rider-body>*:last-child,#driver-body>*:last-child,#admin-body>*:last-child,#discover-body>*:last-child{margin-bottom:0}
 /* Badges */
 .badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;-webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%);border:1px solid rgba(255,255,255,.5)}
 .bpink{background:rgba(252,231,243,.75);color:#9d174d}
@@ -1354,13 +1363,13 @@ function renderRiderBook(){
         ?`<button class="btn bp bw" id="book-btn" onclick="scheduleRide()" style="font-size:15px;padding:13px">🕐 Schedule Ride</button>`
         :`<button class="btn bp bw" id="book-btn" onclick="bookRide()" style="font-size:15px;padding:13px">🌸 Book Ride</button>`}
     </div>
-    <div class="card" style="margin-top:0">
+    <div class="card">
       <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Quick Destinations</p>
       <div style="display:flex;flex-wrap:wrap;gap:7px">
         ${['Airport','Chaguanas','San Fernando','Maraval','Trincity'].map(d=>`<button class="btn bs bsm" style="font-size:11px" onclick="setDest('${d}, T&T')">${d}</button>`).join('')}
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:0">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer;min-width:0" onclick="go('discover');renderDiscover()">
         <div style="width:40px;height:40px;flex-shrink:0;background:var(--pp);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px">💅</div>
         <div style="min-width:0"><p style="font-size:13px;font-weight:600">Discover</p><p style="font-size:11px;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Women's services</p></div>
@@ -1370,7 +1379,7 @@ function renderRiderBook(){
         <div style="min-width:0"><p style="font-size:13px;font-weight:600">Payments</p><p style="font-size:11px;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Promos & history</p></div>
       </div>
     </div>
-    <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-top:10px" onclick="openComplaint()">
+    <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="openComplaint()">
       <div style="width:40px;height:40px;flex-shrink:0;background:#fff5f5;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px">📮</div>
       <div style="min-width:0"><p style="font-size:13px;font-weight:600">Make a Complaint</p><p style="font-size:11px;color:#9ca3af">Goes straight to the Pink.TT team</p></div>
     </div>
