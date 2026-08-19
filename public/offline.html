@@ -20,17 +20,45 @@ h1{font-size:22px;margin-bottom:8px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,
 p{color:rgba(255,255,255,.92);font-size:14px;line-height:1.6;margin-bottom:24px;text-shadow:0 1px 6px rgba(0,0,0,.2)}
 .btn{display:inline-block;background:#fff;color:var(--p);text-decoration:none;font-weight:700;font-size:14px;padding:12px 28px;border-radius:16px;border:none;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .btn:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.btn:disabled{opacity:.7;cursor:default}
 @media (prefers-reduced-motion:reduce){.bg-video{display:none}}
 </style>
 </head>
 <body>
 <div id="shell">
-  <video class="bg-video" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4" type="video/mp4"><source src="/media/install-banner-bg.webm" type="video/webm"></video>
+  <video class="bg-video" id="bg-video" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4" type="video/mp4"><source src="/media/install-banner-bg.webm" type="video/webm"></video>
   <div class="bg-wash"></div>
   <div class="logo-dot">P</div>
   <h1>You're offline</h1>
-  <p>We can't reach Pink.TT right now. Check your connection and try again — your safety features need a live connection to work.</p>
-  <button class="btn" onclick="location.reload()">Try Again</button>
+  <p id="offline-msg">We can't reach Pink.TT right now. Check your connection and try again — your safety features need a live connection to work.</p>
+  <button class="btn" id="retry-btn" onclick="location.reload()">Try Again</button>
 </div>
+<script>
+// This screen can legitimately sit here for minutes while someone waits for signal --
+// the background loop has to survive that whole time, not just autoplay once. Mobile
+// browsers commonly pause background video on screen lock / app backgrounding / low
+// power mode, and `loop` alone doesn't resume a video that's been paused externally --
+// so re-assert play() every time the page becomes visible again, and immediately if the
+// video itself ever reports paused while the page is visible.
+const vid = document.getElementById('bg-video');
+function keepLoopAlive(){
+  if(document.visibilityState === 'visible' && vid.paused) vid.play().catch(()=>{});
+}
+document.addEventListener('visibilitychange', keepLoopAlive);
+window.addEventListener('pageshow', keepLoopAlive);
+vid.addEventListener('pause', keepLoopAlive);
+
+// The whole point of this screen is "come back on its own once wifi returns" rather
+// than making someone remember to tap Try Again -- listen for the browser's own
+// connectivity signal and reload the instant it fires. Try Again stays as a manual
+// fallback for cases the online event misses (e.g. wifi connected but no real route
+// to the internet).
+window.addEventListener('online', ()=>{
+  document.getElementById('offline-msg').textContent = "Back online — reloading…";
+  document.getElementById('retry-btn').textContent = 'Reloading…';
+  document.getElementById('retry-btn').disabled = true;
+  setTimeout(()=>location.reload(), 400);
+});
+</script>
 </body>
 </html>
