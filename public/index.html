@@ -170,8 +170,13 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
    classic top infobar but a lot more alive. */
 #install-banner{position:fixed;left:0;right:0;top:0;z-index:180;overflow:hidden;color:#fff;background:#7a1263;box-shadow:0 4px 18px rgba(196,0,111,.4);padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;display:flex;align-items:center;gap:10px;animation:tInTop .25s ease}
 @keyframes tInTop{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:none}}
-#install-banner .ib-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.8}
-#install-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(100deg,rgba(122,10,80,.78),rgba(90,8,65,.68));pointer-events:none}
+#install-banner .ib-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:1}
+/* Was rgba(...,.78)/rgba(...,.68) -- far heavier than the ~16-24% tint app-bg-wash uses
+   on the exact same video everywhere else in the app, so even with the correct clip
+   playing underneath, that much dark overlay made the banner read as a flat solid bar
+   instead of visibly the same background. Lightened to the same range (text still gets
+   its own text-shadow below for contrast, so legibility doesn't depend on this alone). */
+#install-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(100deg,rgba(122,10,80,.32),rgba(90,8,65,.24));pointer-events:none}
 /* :not(.ib-bg) is load-bearing -- this rule's ID specificity beats .ib-bg's own
    position:absolute, so without the exclusion the backdrop video gets forced to
    position:relative, collapses into the flex row as a zero-ish sized child, and the
