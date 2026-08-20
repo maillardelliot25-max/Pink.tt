@@ -482,6 +482,19 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
   </div>
 </div>
 
+<!-- Ride Chat Modal -->
+<div class="overlay" id="chat-modal">
+  <div class="sheet" style="display:flex;flex-direction:column;max-height:85vh">
+    <h3 style="font-size:18px;margin-bottom:10px">💬 Ride Chat</h3>
+    <div id="chat-messages" style="flex:1;overflow-y:auto;background:#f9fafb;border-radius:14px;padding:12px;margin-bottom:10px;min-height:200px;max-height:50vh"></div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <input class="inp" id="chat-input" style="flex:1;font-size:16px;padding:10px 12px" placeholder="Type a message..." maxlength="500" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}">
+      <button class="btn bp bsm" onclick="sendChatMessage()">Send</button>
+    </div>
+    <button class="btn bs bw" onclick="closeChatModal()">Close</button>
+  </div>
+</div>
+
 <!-- Report Modal -->
 <div class="overlay" id="report-modal">
   <div class="sheet">
@@ -1537,6 +1550,7 @@ function renderRiderBook(){
               <button class="btn bs bsm" onclick="openModal('share-modal')">📤 Share Trip</button>
               <button class="btn bs bsm" onclick="toast('Calling ${S.driverInfo.name}... 📞')">📞 Call Driver</button>
             </div>
+            <button class="btn bs bw" style="margin-top:7px" onclick="openChatModal('${S.activeRide?.id}')">💬 Chat with Driver</button>
             <button class="btn bsm bw" style="margin-top:7px;background:#fff5f5;color:var(--r);border:1.5px solid #fecaca" onclick="openModal('report-modal')">⚠️ Report Issue</button>
           </div>` : ''}
         ${S.activeRide?`
@@ -1642,6 +1656,10 @@ function renderRiderBook(){
           <input class="inp" id="promo-inp" style="flex:1;font-size:16px;padding:9px 12px;background:#fff" placeholder="Promo code (WELCOME25)">
           <button class="btn bs bsm" onclick="applyPromo()">Apply</button>
         </div>
+      </div>
+      <div class="fg" style="margin-bottom:10px">
+        <label class="lbl">Notes for your driver (optional)</label>
+        <textarea class="inp" id="ride-notes" rows="2" maxlength="300" placeholder="e.g. gate code, landmark, extra luggage..." style="resize:none"></textarea>
       </div>
       <label style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--pb);border-radius:14px;padding:11px 14px;margin-bottom:10px;cursor:pointer;font-size:12px;font-weight:600">
         <input type="checkbox" id="schedule-toggle" ${S._scheduleMode?'checked':''} onchange="toggleScheduleMode(this.checked)">
@@ -1903,6 +1921,50 @@ async function submitRate(){
   document.querySelectorAll('.star').forEach(s=>s.classList.remove('on'));
   document.getElementById('rate-review').value='';
   resetRide();
+}
+
+// ── Ride chat (rider <-> driver) ────────────────────────────────
+async function openChatModal(rideId){
+  if(!rideId||rideId==='undefined'){toast('No active ride to chat about','err');return;}
+  S._openChatRideId=rideId;
+  const box=document.getElementById('chat-messages');
+  box.innerHTML='<p style="text-align:center;color:#9ca3af;font-size:12px;padding:20px 0">Loading...</p>';
+  openModal('chat-modal');
+  try{
+    const attempt=await _fetchWithRetry('/api/chat/'+rideId,{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    if(!attempt.ok){box.innerHTML='<p style="text-align:center;color:var(--r);font-size:12px;padding:20px 0">Could not load messages.</p>';return;}
+    _renderChatMessages(attempt.json.messages||[]);
+  }catch(e){box.innerHTML='<p style="text-align:center;color:var(--r);font-size:12px;padding:20px 0">Could not load messages.</p>';}
+}
+function closeChatModal(){S._openChatRideId=null;closeModal('chat-modal');}
+function _renderChatMessages(messages){
+  const box=document.getElementById('chat-messages');
+  if(!messages.length){box.innerHTML='<p style="text-align:center;color:#9ca3af;font-size:12px;padding:20px 0">No messages yet — say hi 👋</p>';return;}
+  box.innerHTML=messages.map(m=>{
+    const mine=m.sender_id===S.user?.id;
+    return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:8px">
+      <div style="max-width:78%;background:${mine?'var(--p)':'#fff'};color:${mine?'#fff':'#111827'};border:${mine?'none':'1px solid #f0f0f0'};border-radius:14px;padding:8px 12px;font-size:13px">${m.message}</div>
+    </div>`;
+  }).join('');
+  box.scrollTop=box.scrollHeight;
+}
+function _appendChatMessage(msg){
+  if(document.getElementById('chat-messages')?.querySelector('p'))return _renderChatMessages([{sender_id:msg.sender_id,message:msg.message}]);
+  const box=document.getElementById('chat-messages');if(!box)return;
+  const mine=msg.sender_id===S.user?.id;
+  box.insertAdjacentHTML('beforeend',`<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:8px">
+    <div style="max-width:78%;background:${mine?'var(--p)':'#fff'};color:${mine?'#fff':'#111827'};border:${mine?'none':'1px solid #f0f0f0'};border-radius:14px;padding:8px 12px;font-size:13px">${msg.message}</div>
+  </div>`);
+  box.scrollTop=box.scrollHeight;
+}
+async function sendChatMessage(){
+  const input=document.getElementById('chat-input');
+  const text=input.value.trim();
+  if(!text||!S._openChatRideId)return;
+  input.value='';
+  const res=await _mutate('send_chat_message',{ride_id:S._openChatRideId,message:text});
+  if(res.ok)_appendChatMessage(res.message);
+  else{toast(res.error||'Could not send message','err');input.value=text;}
 }
 
 function renderRiderHistory(body){
@@ -2280,7 +2342,9 @@ function renderDriverActive(body){
       <div style="background:#f9fafb;border-radius:12px;padding:10px;margin-bottom:14px">
         <p style="font-size:12px;font-weight:600">Rider: ${rider.first_name} ${rider.last_name}</p>
         <p style="font-size:11px;color:#9ca3af">${rider.phone||''}</p>
+        ${r.notes?`<p style="font-size:11px;color:#374151;margin-top:6px;padding-top:6px;border-top:1px solid #f0f0f0"><strong>Note:</strong> ${r.notes}</p>`:''}
       </div>
+      <button class="btn bs bw" style="margin-bottom:8px" onclick="openChatModal('${r.id}')">💬 Chat with Rider</button>
       <div style="display:flex;gap:8px">
         ${r.status==='accepted'?`<button class="btn bg2" style="flex:1" onclick="startRide()">✅ Rider Picked Up</button><button class="btn bs bsm" onclick="cancelRideDriver()">Cancel</button>`:''}
         ${r.status==='arriving'?`<button class="btn bg2" style="flex:1" onclick="startRide()">✅ Rider Picked Up</button>`:''}
@@ -3276,6 +3340,12 @@ function _showMapError(el,retryFn){
 function _pinkIcon(){return L.divIcon({html:'<div style="background:#E91E8C;width:13px;height:13px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(233,30,140,.5)"></div>',iconSize:[13,13],iconAnchor:[6.5,6.5],className:''});}
 function _greenIcon(){return L.divIcon({html:'<div style="background:#22c55e;width:13px;height:13px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(34,197,94,.5)"></div>',iconSize:[13,13],iconAnchor:[6.5,6.5],className:''});}
 function _carIcon(){return L.divIcon({html:'<div style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))">🚗</div>',iconSize:[28,28],iconAnchor:[14,14],className:''});}
+// Every available (online, approved) driver shown on the pre-booking map is pink, on
+// brand, and distinct from the neutral 🚗 used for the one specific assigned driver
+// during an active ride. A solid pink circle badge rather than trying to recolor the
+// car emoji itself (emoji glyphs render with their own fixed colors per platform/font,
+// so a CSS filter hue-rotate is unreliable) -- guarantees the same pink everywhere.
+function _pinkCarIcon(){return L.divIcon({html:'<div style="background:var(--p);width:26px;height:26px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(233,30,140,.5);display:flex;align-items:center;justify-content:center;font-size:13px">🚗</div>',iconSize:[26,26],iconAnchor:[13,13],className:''});}
 function _meIcon(){return L.divIcon({html:'<div style="background:#3b82f6;width:15px;height:15px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.3)"></div>',iconSize:[15,15],iconAnchor:[7.5,7.5],className:''});}
 // Used in place of the plain pickup dot while a ride is still unassigned -- the rider's
 // own spot becomes the Pink.TT logo with a fading pink glow so "we're looking for your
@@ -3391,11 +3461,42 @@ function initIdleMap(){
     _tileLayer(_MAP_IDLE);L.control.zoom({position:'bottomright'}).addTo(_MAP_IDLE);
     if(haveLoc)_ME_MARKER=L.marker([S.myLat,S.myLng],{icon:_meIcon()}).addTo(_MAP_IDLE).bindPopup('📍 You are here');
     setTimeout(()=>_MAP_IDLE&&_MAP_IDLE.invalidateSize(),300);
+    loadNearbyDrivers();
   }).catch(()=>{
     const el=document.getElementById('idle-map');
     if(el)_showMapError(el,initIdleMap);
   });
 }
+// Every available car as a live pink pin on the pre-booking map, the same "here's what's
+// nearby" signal any rideshare app shows before you even request a ride -- an initial
+// fetch on map load, kept fresh afterward by real-time WS pushes (_handleWS's
+// nearby_driver_update/nearby_driver_offline) plus a periodic re-fetch as a fallback in
+// case a push was ever missed (e.g. a brief WS reconnect).
+let _nearbyDriverMarkers={};
+async function loadNearbyDrivers(){
+  if(!_MAP_IDLE||!window.L)return;
+  try{
+    const attempt=await _fetchWithRetry('/api/nearby-drivers',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    if(!attempt.ok)return;
+    const seen=new Set();
+    attempt.json.drivers.forEach(d=>{
+      seen.add(d.driver_id);
+      _placeNearbyDriverMarker(d.driver_id,d.lat,d.lng);
+    });
+    Object.keys(_nearbyDriverMarkers).forEach(id=>{if(!seen.has(id))_removeNearbyDriverMarker(id);});
+  }catch(e){}
+}
+function _placeNearbyDriverMarker(driverId,lat,lng){
+  if(!_MAP_IDLE||!window.L)return;
+  const existing=_nearbyDriverMarkers[driverId];
+  if(existing){existing.setLatLng([lat,lng]);return;}
+  _nearbyDriverMarkers[driverId]=L.marker([lat,lng],{icon:_pinkCarIcon()}).addTo(_MAP_IDLE);
+}
+function _removeNearbyDriverMarker(driverId){
+  const m=_nearbyDriverMarkers[driverId];
+  if(m){m.remove();delete _nearbyDriverMarkers[driverId];}
+}
+setInterval(loadNearbyDrivers,20000);
 function updateIdleMap(d){
   if(!_MAP_IDLE||!window.L)return;
   if(_P_MARKER)_P_MARKER.remove();if(_D_MARKER)_D_MARKER.remove();
@@ -3611,7 +3712,14 @@ async function _setupPushNotifications(){
   }catch(e){}
 }
 function _handleWS(msg){
-  if(msg.type==='db_update'){
+  if(msg.type==='nearby_driver_update'){
+    _placeNearbyDriverMarker(msg.driver_id,msg.lat,msg.lng);
+  }else if(msg.type==='nearby_driver_offline'){
+    _removeNearbyDriverMarker(msg.driver_id);
+  }else if(msg.type==='chat_message'){
+    toast('💬 New message about your ride','ok');
+    if(typeof _appendChatMessage==='function'&&S._openChatRideId===msg.ride_id)_appendChatMessage(msg);
+  }else if(msg.type==='db_update'){
     // Merge server DB into local DB
     Object.keys(msg.db).forEach(k=>{if(DB[k]!==undefined)DB[k]=msg.db[k];});
     _rerender();
@@ -3914,11 +4022,12 @@ bookRide=async function(){
   const redeemChecked=document.getElementById('ride-redeem-points')?.checked;
   const pointsToRedeem=redeemChecked?(S.user?.pink_points||0):0;
   const pickupCoord=S._pickupSuggest,destCoord=S._destSuggest;
+  const notes=document.getElementById('ride-notes')?.value.trim()||'';
   const res=await _mutate('book_ride',{
     pickup_address:pickup,destination_address:dest,
     pickup_lat:pickupCoord?.lat??S.myLat,pickup_lng:pickupCoord?.lng??S.myLng,
     destination_lat:destCoord?.lat,destination_lng:destCoord?.lng,
-    points_to_redeem:pointsToRedeem
+    points_to_redeem:pointsToRedeem,notes
   });
   if(res.ok){
     toast('🌸 Ride requested! Finding your driver...','ok');

@@ -107,7 +107,12 @@ const SCHEMA_SQL=[
   // routed here for a human admin to actually look at, rather than either auto-approving
   // on a guess or, worse, auto-rejecting a real user based on an AI misread. The AI is
   // only ever used as a fast-path *approval* shortcut, never a fast-path rejection.
-  `CREATE TABLE IF NOT EXISTS id_verifications(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,photo TEXT NOT NULL,ai_result TEXT DEFAULT'',status TEXT DEFAULT'pending',created_at TEXT DEFAULT(datetime('now')),reviewed_at TEXT,FOREIGN KEY(user_id)REFERENCES users(id))`
+  `CREATE TABLE IF NOT EXISTS id_verifications(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,photo TEXT NOT NULL,ai_result TEXT DEFAULT'',status TEXT DEFAULT'pending',created_at TEXT DEFAULT(datetime('now')),reviewed_at TEXT,FOREIGN KEY(user_id)REFERENCES users(id))`,
+  // In-ride chat between rider and driver. Fetched per-ride via a dedicated endpoint
+  // rather than folded into buildDB()/the general sync -- it's the one thing in this
+  // app that can legitimately grow unbounded per ride, and nobody but the two parties
+  // on that specific ride ever needs it.
+  `CREATE TABLE IF NOT EXISTS chat_messages(id TEXT PRIMARY KEY,ride_id TEXT NOT NULL,sender_id TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(ride_id)REFERENCES rides(id))`
 ];
 // Public-safe settings keys: readable by any authenticated user via buildDB() (e.g.
 // so a rider can see the real safety contact number). Anything more sensitive than
@@ -150,7 +155,8 @@ const MIGRATIONS_SQL=[
   `ALTER TABLE driver_profiles ADD COLUMN active_recurring_slots INTEGER DEFAULT 0`,
   `ALTER TABLE driver_profiles ADD COLUMN id_card_photo TEXT DEFAULT ''`,
   `ALTER TABLE driver_profiles ADD COLUMN portrait_photo TEXT DEFAULT ''`,
-  `ALTER TABLE driver_profiles ADD COLUMN coc_accepted_at TEXT`
+  `ALTER TABLE driver_profiles ADD COLUMN coc_accepted_at TEXT`,
+  `ALTER TABLE rides ADD COLUMN notes TEXT DEFAULT ''`
 ];
 // Postgres-flavored schema: same tables, but datetime('now') and COLLATE NOCASE
 // aren't valid Postgres syntax. Email case-insensitivity is handled at the app
@@ -171,7 +177,8 @@ const MIGRATIONS_SQL_PG=[
   `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS active_recurring_slots INTEGER DEFAULT 0`,
   `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS id_card_photo TEXT DEFAULT ''`,
   `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS portrait_photo TEXT DEFAULT ''`,
-  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS coc_accepted_at TEXT`
+  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS coc_accepted_at TEXT`,
+  `ALTER TABLE rides ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT ''`
 ];
 // Both SCHEMA_SQL and the app's query strings use SQLite syntax (`?` placeholders,
 // datetime('now')); translate to Postgres syntax (`$1,$2,...`, now()) at the call
@@ -1042,6 +1049,24 @@ app.get('/api/id-verification-photo/:verificationId',authMW,async(req,res)=>{
   const ver=await dbGet('SELECT photo FROM id_verifications WHERE id=?',[req.params.verificationId]);
   res.json({photo:ver?.photo||''});
 });
+// In-ride chat history -- only the rider and driver on that specific ride (or an admin)
+// can read it, checked the same way the mutation itself checks who's allowed to post.
+app.get('/api/chat/:rideId',authMW,async(req,res)=>{
+  const ride=await dbGet('SELECT rider_id,driver_id FROM rides WHERE id=?',[req.params.rideId]);
+  if(!ride)return res.status(404).json({error:'Ride not found'});
+  if(req.jwt.role!=='admin'&&ride.rider_id!==req.jwt.id&&ride.driver_id!==req.jwt.id)return res.status(403).json({error:'Not part of this ride'});
+  const messages=await dbAll('SELECT id,ride_id,sender_id,message,created_at FROM chat_messages WHERE ride_id=? ORDER BY created_at',[req.params.rideId]);
+  res.json({messages});
+});
+// Every online, approved driver's current position -- deliberately public to any
+// authenticated user (not just ride counterparties, unlike the rest of this app's
+// location data), the same "here are the nearby cars" pins every rideshare app shows
+// before you even request a ride. Anonymous by design: id + coordinates only, nothing
+// that identifies the driver personally.
+app.get('/api/nearby-drivers',authMW,async(req,res)=>{
+  const drivers=await dbAll("SELECT user_id,current_lat,current_lng FROM driver_profiles WHERE status='approved' AND is_online=1");
+  res.json({drivers:drivers.filter(d=>isValidTTCoord(d.current_lat,d.current_lng)).map(d=>({driver_id:d.user_id,lat:d.current_lat,lng:d.current_lng}))});
+});
 
 // Admin-only: audit log of sensitive admin actions (kept out of the general /api/db broadcast — no reason for every client to receive it).
 app.get('/api/audit-log',authMW,async(req,res)=>{
@@ -1094,7 +1119,7 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const fare=Math.round((afterTier-discount)*100)/100;
       if(points>0)await dbRun('UPDATE users SET pink_points=pink_points-? WHERE id=?',[points,userId]);
       const rideId=uuidv4();
-      await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,points_redeemed,points_discount)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[rideId,userId,'requested',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,points,discount]);
+      await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,points_redeemed,points_discount,notes)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[rideId,userId,'requested',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,points,discount,String(data.notes||'').slice(0,300)]);
       pingDriversForRide({id:rideId,pickup_lat:p[0],pickup_lng:p[1]});
     }else if(type==='schedule_ride'){
       // Books a ride for a future time instead of dispatching immediately. Doesn't
@@ -1242,11 +1267,34 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const dp=await dbGet('SELECT * FROM driver_profiles WHERE user_id=?',[userId]);
       if(!dp)return res.json({ok:false,error:'No driver profile found'});
       if(dp.status!=='approved')return res.json({ok:false,error:'Account pending admin approval'});
-      await dbRun('UPDATE driver_profiles SET is_online=? WHERE user_id=?',[dp.is_online?0:1,userId]);
+      const goingOnline=!dp.is_online;
+      await dbRun('UPDATE driver_profiles SET is_online=? WHERE user_id=?',[goingOnline?1:0,userId]);
+      // Riders browsing the map before booking see every available car as a live pink pin
+      // (see /api/nearby-drivers) -- going offline has to pull that pin immediately, not
+      // wait for it to time out, or a rider could try to route toward a car that's gone.
+      if(!goingOnline)broadcastAll({type:'nearby_driver_offline',driver_id:userId});
+      else if(isValidTTCoord(dp.current_lat,dp.current_lng))broadcastAll({type:'nearby_driver_update',driver_id:userId,lat:dp.current_lat,lng:dp.current_lng});
     }else if(type==='driver_location'){
       await dbRun('UPDATE driver_profiles SET current_lat=?,current_lng=? WHERE user_id=?',[data.lat,data.lng,userId]);
       const activeRide=await dbGet("SELECT rider_id FROM rides WHERE driver_id=? AND status IN('accepted','arriving','in_progress') LIMIT 1",[userId]);
       if(activeRide)broadcastTo(activeRide.rider_id,{type:'driver_location',lat:data.lat,lng:data.lng,driver_id:userId});
+      // Also nudges every rider's live nearby-cars map -- deliberately anonymous (just an
+      // id and a position, the same fields /api/nearby-drivers already exposes), the same
+      // "here's a pink car nearby" signal every rideshare app shows before you even book.
+      broadcastAll({type:'nearby_driver_update',driver_id:userId,lat:data.lat,lng:data.lng});
+    }else if(type==='send_chat_message'){
+      const text=String(data.message||'').trim().slice(0,500);
+      if(!text)return res.json({ok:false,error:'Message cannot be empty'});
+      const ride=await dbGet('SELECT rider_id,driver_id FROM rides WHERE id=?',[data.ride_id]);
+      if(!ride||(ride.rider_id!==userId&&ride.driver_id!==userId))return res.json({ok:false,error:'Ride not found'});
+      const msgId=uuidv4();
+      await dbRun('INSERT INTO chat_messages(id,ride_id,sender_id,message)VALUES(?,?,?,?)',[msgId,data.ride_id,userId,text]);
+      const otherParty=ride.rider_id===userId?ride.driver_id:ride.rider_id;
+      if(otherParty){
+        broadcastTo(otherParty,{type:'chat_message',ride_id:data.ride_id,sender_id:userId,message:text,id:msgId});
+        pushToUser(otherParty,'💬 New message','You have a new message about your ride','/');
+      }
+      return res.json({ok:true,message:{id:msgId,ride_id:data.ride_id,sender_id:userId,message:text,created_at:new Date().toISOString()}});
     }else if(type==='sos'){
       const id=uuidv4();
       await dbRun('INSERT INTO sos_events(id,user_id,ride_id,lat,lng,message)VALUES(?,?,?,?,?,?)',[id,userId,data.ride_id||null,data.lat||10.6549,data.lng||-61.5019,data.message||'SOS Alert']);
