@@ -528,6 +528,13 @@ const app=express();
 // exactly one hop reads the real client IP from Render's X-Forwarded-For without
 // opening up IP spoofing to the outside world.
 app.set('trust proxy',1);
+// Cheap, unauthenticated, no DB touch -- exists purely so an external keep-alive pinger
+// (see .github/workflows/keepalive.yml) can hit the app every few minutes and stop
+// Render's free-plan instance from spinning down after 15 minutes idle, without eating
+// into any rate limit or query budget. Free plan gives 750 instance-hours/month, which
+// is enough to stay up 24/7 (744hrs) as long as it's actually pinged often enough to
+// never idle out.
+app.get('/healthz',(req,res)=>res.status(200).send('ok'));
 // Once the custom domain is live, set CANONICAL_HOST (e.g. "pinktt.com") as a Render env
 // var -- every request to the old onrender.com URL (or any other host) then 301-redirects
 // to it, so there's a single canonical URL and no split traffic/SEO. No env var = no-op,

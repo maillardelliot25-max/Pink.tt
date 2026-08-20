@@ -7,14 +7,24 @@ name: Keep Render service awake
 # tier, this pings the live app on a schedule that never lets it go idle
 # long enough to sleep. No new accounts/signups needed -- runs entirely
 # on GitHub Actions, which this repo already has for free.
+#
+# GitHub itself does not guarantee scheduled-workflow timing -- under load
+# it can delay a "*/10" cron by 30-40+ minutes (observed directly: actual
+# gaps between runs have been running well past Render's 15-minute idle
+# window), which defeats the whole point. Two independent, offset
+# schedules roughly double the odds that at least one fires inside any
+# given 15-minute window without relying on GitHub delivering any single
+# cron on time. /healthz is a trivial no-DB route added specifically for
+# this, cheaper than fetching the full page on every ping.
 on:
   schedule:
     - cron: '*/10 * * * *'
+    - cron: '5-55/10 * * * *'
   workflow_dispatch: {}
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping pinktt.onrender.com
-        run: curl -sS -o /dev/null -w "HTTP %{http_code}\n" --max-time 25 https://pinktt.onrender.com/ || true
+      - name: Ping pinktt.onrender.com/healthz
+        run: curl -sS -o /dev/null -w "HTTP %{http_code}\n" --max-time 25 https://pinktt.onrender.com/healthz || true
