@@ -605,10 +605,10 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
   </div>
 </div>
 
-<!-- Driver Licence Photo Modal (Admin) -->
+<!-- Driver Verification Docs Modal (Admin) -->
 <div class="overlay" id="license-modal">
   <div class="sheet">
-    <h3 style="font-size:18px;margin-bottom:14px">Driver's Licence</h3>
+    <h3 style="font-size:18px;margin-bottom:14px">Driver Verification</h3>
     <div id="license-photo-box" style="margin-bottom:14px"></div>
     <button class="btn bs bw" onclick="closeModal('license-modal')">Close</button>
   </div>
@@ -907,6 +907,26 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
     </div>
     <input type="file" accept="image/*" id="ds-lic-photo" style="display:none" onchange="_previewFile('ds-lic-photo','ds-lic-photo-box')">
     <button class="btn bs bw" style="margin-bottom:16px" onclick="document.getElementById('ds-lic-photo').click()">📷 Upload Licence Photo</button>
+
+    <p style="font-size:10px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 10px">🪪 National ID Card</p>
+    <div id="ds-idcard-box" style="background:#f9fafb;border-radius:14px;height:140px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;overflow:hidden">
+      <span style="color:#9ca3af;font-size:13px">No photo selected</span>
+    </div>
+    <input type="file" accept="image/*" id="ds-idcard-photo" style="display:none" onchange="_previewFile('ds-idcard-photo','ds-idcard-box')">
+    <button class="btn bs bw" style="margin-bottom:16px" onclick="document.getElementById('ds-idcard-photo').click()">📷 Upload ID Card Photo</button>
+
+    <p style="font-size:10px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 10px">🤳 Live Portrait Photo</p>
+    <p style="font-size:11px;color:#9ca3af;margin-bottom:10px">Taken live with your camera so we can confirm the person driving matches the account on file -- not a photo of a photo, and not a file upload.</p>
+    <div id="ds-portrait-box" style="background:#f9fafb;border-radius:14px;height:220px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;overflow:hidden;position:relative">
+      <span id="ds-portrait-placeholder" style="color:#9ca3af;font-size:13px">No photo taken yet</span>
+      <video id="ds-portrait-video" autoplay playsinline muted style="display:none;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)"></video>
+      <img id="ds-portrait-img" style="display:none;width:100%;height:100%;object-fit:cover">
+    </div>
+    <canvas id="ds-portrait-canvas" style="display:none"></canvas>
+    <div id="ds-portrait-controls" style="margin-bottom:16px">
+      <button class="btn bs bw" onclick="_startPortraitCamera()">📸 Open Camera</button>
+    </div>
+
     <div style="background:var(--pp);border-radius:14px;padding:14px;margin-bottom:16px">
       <p style="font-weight:700;font-size:13px;color:var(--p);margin-bottom:8px">What happens next?</p>
       <ul style="font-size:12px;color:#9d174d;list-style:none;display:flex;flex-direction:column;gap:4px">
@@ -916,6 +936,10 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
         <li>✅ Go online and start earning!</li>
       </ul>
     </div>
+    <label style="display:flex;align-items:flex-start;gap:9px;margin-bottom:14px;cursor:pointer">
+      <input type="checkbox" id="ds-coc" style="width:17px;height:17px;flex-shrink:0;margin-top:1px">
+      <span style="font-size:12px;color:#374151;line-height:1.5">I have read and agree to the Pink.TT <a href="/driver-agreement.html#conduct" target="_blank" style="color:var(--p);font-weight:600">Code of Conduct</a> — treating riders respectfully, prioritising their safety, and keeping my documentation accurate and current.</span>
+    </label>
     <p style="text-align:center;font-size:11px;color:#9ca3af;margin-bottom:12px">By submitting, you agree to the <a href="/driver-agreement.html" target="_blank" style="color:var(--p)">Driver Agreement</a>, confirming you're an independent contractor responsible for your own licensing and insurance.</p>
     <button class="btn bp bw" id="ds-btn" onclick="submitApp()">Submit Application 🌸</button>
   </div>
@@ -2308,7 +2332,7 @@ function renderDrvList(dps,status){
         ${d.status!=='approved'?`<button class="btn bsm" style="background:#dcfce7;color:#166534" onclick="approveDriver('${d.user_id}')">✓ Approve</button>`:''}
         ${d.status!=='rejected'&&d.status!=='suspended'?`<button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="rejectDriver('${d.user_id}')">✕ Reject</button>`:''}
         ${d.status!=='suspended'?`<button class="btn bsm" style="background:#f3f4f6;color:#6b7280" onclick="suspendDriver('${d.user_id}')">⊘ Suspend</button>`:''}
-        <button class="btn bsm" style="background:var(--pp);color:var(--p)" onclick="viewLicensePhoto('${d.user_id}')">🪪 View Licence</button>
+        <button class="btn bsm" style="background:var(--pp);color:var(--p)" onclick="viewDriverVerification('${d.user_id}')">🪪 View ID &amp; Docs</button>
       </div>
     </div>`;
   }).join('');
@@ -3417,6 +3441,69 @@ function _previewFile(inputId,boxId){
   reader.onload=()=>{const box=document.getElementById(boxId);if(box)box.innerHTML=`<img src="${reader.result}" style="width:100%;height:100%;object-fit:cover">`;};
   reader.readAsDataURL(f);
 }
+
+// ── Live portrait capture (driver signup) ───────────────────────────────────
+// Deliberately a live camera capture, not a file picker -- the point is confirming the
+// person applying is physically present at a camera right now, not accepting a photo of
+// a photo (or someone else's photo) the way a file upload would let through unchecked.
+let _portraitStream=null;
+async function _startPortraitCamera(){
+  const video=document.getElementById('ds-portrait-video');
+  const placeholder=document.getElementById('ds-portrait-placeholder');
+  const img=document.getElementById('ds-portrait-img');
+  if(!video)return;
+  try{
+    _portraitStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
+  }catch(e){
+    toast('Could not access your camera — check your browser/device permissions and try again','err');
+    return;
+  }
+  video.srcObject=_portraitStream;
+  video.style.display='block';
+  img.style.display='none';
+  placeholder.style.display='none';
+  const controls=document.getElementById('ds-portrait-controls');
+  if(controls)controls.innerHTML=`<button class="btn bp bw" onclick="_capturePortrait()">📸 Capture</button>`;
+}
+function _capturePortrait(){
+  const video=document.getElementById('ds-portrait-video');
+  const canvas=document.getElementById('ds-portrait-canvas');
+  const img=document.getElementById('ds-portrait-img');
+  if(!video||!canvas||!img||!video.videoWidth)return;
+  canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+  const ctx=canvas.getContext('2d');
+  // The live preview is mirrored (scaleX(-1), a normal front-camera/selfie feel) --
+  // un-mirror it back here so the saved capture reads the way it would to someone else
+  // looking at the driver, not flipped.
+  ctx.translate(canvas.width,0);ctx.scale(-1,1);
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  img.src=canvas.toDataURL('image/jpeg',0.85);
+  img.dataset.captured='1';
+  img.style.display='block';video.style.display='none';
+  _stopPortraitStream();
+  const controls=document.getElementById('ds-portrait-controls');
+  if(controls)controls.innerHTML=`<button class="btn bs bw" onclick="_retakePortrait()">🔄 Retake</button>`;
+}
+function _retakePortrait(){
+  const img=document.getElementById('ds-portrait-img');
+  if(img){img.style.display='none';img.removeAttribute('src');delete img.dataset.captured;}
+  const placeholder=document.getElementById('ds-portrait-placeholder');
+  if(placeholder)placeholder.style.display='block';
+  const controls=document.getElementById('ds-portrait-controls');
+  if(controls)controls.innerHTML=`<button class="btn bs bw" onclick="_startPortraitCamera()">📸 Open Camera</button>`;
+}
+function _stopPortraitStream(){
+  if(_portraitStream){_portraitStream.getTracks().forEach(t=>t.stop());_portraitStream=null;}
+}
+// Belt-and-suspenders: release the camera the moment the driver navigates away from
+// setup for any reason, not just after a successful capture -- a stream left running
+// keeps the camera's hardware light on and is exactly the kind of thing a rideshare
+// safety app should never be casual about.
+const _origGoForPortrait=go;
+go=function(page){
+  if(page!=='dsetup')_stopPortraitStream();
+  _origGoForPortrait(page);
+};
 function renderIdVerify(){
   const box=document.getElementById('idv-preview-box');
   if(box)box.innerHTML='<span style="color:#9ca3af;font-size:13px">No photo selected</span>';
@@ -3708,11 +3795,24 @@ submitApp=async function(){
     license_number:document.getElementById('ds-lic')?.value.trim()||''
   };
   if(!f.vehicle_make||!f.vehicle_model||!f.vehicle_year||!f.vehicle_color||!f.vehicle_plate||!f.license_number){toast('All fields required','err');return;}
+  const isNewApp=!S.dp;
   const licFile=document.getElementById('ds-lic-photo')?.files?.[0];
   if(!licFile){toast('Please upload a photo of your driver\'s licence','err');return;}
+  const idCardFile=document.getElementById('ds-idcard-photo')?.files?.[0];
+  if(isNewApp&&!idCardFile){toast('Please upload a photo of your ID card','err');return;}
+  const portraitImg=document.getElementById('ds-portrait-img');
+  const portraitCaptured=portraitImg?.dataset.captured==='1';
+  if(isNewApp&&!portraitCaptured){toast('Please take a live portrait photo','err');return;}
+  const cocChecked=document.getElementById('ds-coc')?.checked;
+  if(!cocChecked){toast('Please accept the Code of Conduct to continue','err');return;}
+  f.coc_accepted=true;
   const btn=document.getElementById('ds-btn');
   if(btn){btn.disabled=true;btn.innerHTML='<div class="spin"></div> Submitting...';}
   try{f.license_photo=await _fileToCompressedDataURL(licFile,900,0.85);}catch(e){toast('Could not read licence photo — please try another','err');if(btn){btn.disabled=false;btn.textContent='Submit Application 🌸';}return;}
+  if(idCardFile){
+    try{f.id_card_photo=await _fileToCompressedDataURL(idCardFile,900,0.85);}catch(e){toast('Could not read ID card photo — please try another','err');if(btn){btn.disabled=false;btn.textContent='Submit Application 🌸';}return;}
+  }
+  if(portraitCaptured)f.portrait_photo=portraitImg.src;
   const res=await _mutate('driver_apply',f);
   if(res.ok){
     toast('Application submitted! Under review within 24 hours 🌸','ok');
@@ -3765,15 +3865,17 @@ async function suspendDriver(userId){
   const res=await _mutate('suspend_driver',{user_id:userId});
   if(res.ok){toast('Driver suspended');await _pttLoadDB();loadAdmin&&loadAdmin();}
 }
-async function viewLicensePhoto(userId){
+async function viewDriverVerification(userId){
   try{
-    const attempt=await _fetchWithRetry('/api/driver-license-photo/'+userId,{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    const attempt=await _fetchWithRetry('/api/driver-verification-docs/'+userId,{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
     const box=document.getElementById('license-photo-box');
     if(!attempt.ok){box.innerHTML='<p style="text-align:center;color:var(--r);font-size:13px;padding:30px 0">Could not load — check your connection and try again.</p>';openModal('license-modal');return;}
     const data=attempt.json;
-    box.innerHTML=data.license_photo?`<img src="${data.license_photo}" style="width:100%;border-radius:14px;display:block">`:`<p style="text-align:center;color:#9ca3af;font-size:13px;padding:30px 0">No licence photo on file for this driver.</p>`;
+    const photo=(label,src)=>`<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:#6b7280;margin-bottom:6px">${label}</div>${src?`<img src="${src}" style="width:100%;border-radius:14px;display:block">`:`<p style="text-align:center;color:#9ca3af;font-size:13px;padding:20px 0;background:#f9fafb;border-radius:14px">Not on file</p>`}</div>`;
+    const coc=data.coc_accepted_at?`<p style="font-size:12px;color:#059669;font-weight:600;margin-bottom:14px">✅ Code of Conduct accepted ${new Date(data.coc_accepted_at+'Z').toLocaleString()}</p>`:`<p style="font-size:12px;color:var(--r);font-weight:600;margin-bottom:14px">⚠️ Code of Conduct not accepted</p>`;
+    box.innerHTML=coc+photo("Driver's Licence",data.license_photo)+photo('ID Card',data.id_card_photo)+photo('Live Portrait',data.portrait_photo);
     openModal('license-modal');
-  }catch(e){toast('Could not load licence photo','err');}
+  }catch(e){toast('Could not load driver verification docs','err');}
 }
 
 // ── Override rideStatus changes (for driver progress buttons) ────

@@ -108,7 +108,10 @@ const MIGRATIONS_SQL=[
   `ALTER TABLE rides ADD COLUMN driver_review TEXT DEFAULT ''`,
   `ALTER TABLE rides ADD COLUMN scheduled_for TEXT`,
   `ALTER TABLE driver_profiles ADD COLUMN tier_id TEXT`,
-  `ALTER TABLE driver_profiles ADD COLUMN active_recurring_slots INTEGER DEFAULT 0`
+  `ALTER TABLE driver_profiles ADD COLUMN active_recurring_slots INTEGER DEFAULT 0`,
+  `ALTER TABLE driver_profiles ADD COLUMN id_card_photo TEXT DEFAULT ''`,
+  `ALTER TABLE driver_profiles ADD COLUMN portrait_photo TEXT DEFAULT ''`,
+  `ALTER TABLE driver_profiles ADD COLUMN coc_accepted_at TEXT`
 ];
 // Postgres-flavored schema: same tables, but datetime('now') and COLLATE NOCASE
 // aren't valid Postgres syntax. Email case-insensitivity is handled at the app
@@ -126,7 +129,10 @@ const MIGRATIONS_SQL_PG=[
   `ALTER TABLE rides ADD COLUMN IF NOT EXISTS driver_review TEXT DEFAULT ''`,
   `ALTER TABLE rides ADD COLUMN IF NOT EXISTS scheduled_for TEXT`,
   `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS tier_id TEXT`,
-  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS active_recurring_slots INTEGER DEFAULT 0`
+  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS active_recurring_slots INTEGER DEFAULT 0`,
+  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS id_card_photo TEXT DEFAULT ''`,
+  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS portrait_photo TEXT DEFAULT ''`,
+  `ALTER TABLE driver_profiles ADD COLUMN IF NOT EXISTS coc_accepted_at TEXT`
 ];
 // Both SCHEMA_SQL and the app's query strings use SQLite syntax (`?` placeholders,
 // datetime('now')); translate to Postgres syntax (`$1,$2,...`, now()) at the call
@@ -831,11 +837,14 @@ app.post('/api/verify-id',verifyLimiter,authMW,async(req,res)=>{
   }
 });
 
-// Admin-only: fetch a pending driver's licence photo for review (kept out of the general /api/db broadcast for privacy).
-app.get('/api/driver-license-photo/:userId',authMW,async(req,res)=>{
+// Admin-only: fetch a driver's identity documents for review (licence, national ID
+// card, and the live portrait capture taken at signup, plus when they accepted the
+// Code of Conduct) -- kept out of the general /api/db broadcast for privacy, same
+// reasoning as license_photo always was.
+app.get('/api/driver-verification-docs/:userId',authMW,async(req,res)=>{
   if(req.jwt.role!=='admin')return res.status(403).json({error:'Admin only'});
-  const dp=await dbGet('SELECT license_photo FROM driver_profiles WHERE user_id=?',[req.params.userId]);
-  res.json({license_photo:dp?.license_photo||''});
+  const dp=await dbGet('SELECT license_photo,id_card_photo,portrait_photo,coc_accepted_at FROM driver_profiles WHERE user_id=?',[req.params.userId]);
+  res.json({license_photo:dp?.license_photo||'',id_card_photo:dp?.id_card_photo||'',portrait_photo:dp?.portrait_photo||'',coc_accepted_at:dp?.coc_accepted_at||null});
 });
 
 // Admin-only: audit log of sensitive admin actions (kept out of the general /api/db broadcast — no reason for every client to receive it).
@@ -857,10 +866,17 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
   const{type,data}=req.body,userId=req.jwt.id;
   try{
     if(type==='driver_apply'){
-      const{vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry,license_photo}=data;
+      const{vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry,license_photo,id_card_photo,portrait_photo,coc_accepted}=data;
+      // Enforced here, not just in the UI -- a driver can't reach the road without
+      // agreeing to the Code of Conduct or without a national ID card and a live
+      // portrait capture on file. Re-stamps coc_accepted_at on every (re)submission,
+      // including edits to an already-pending application, so the acceptance record
+      // always reflects the terms the most recent submission was actually made under.
+      if(!coc_accepted)return res.json({ok:false,error:'You must accept the Code of Conduct to apply'});
       const ex=await dbGet('SELECT id FROM driver_profiles WHERE user_id=?',[userId]);
-      if(ex)await dbRun('UPDATE driver_profiles SET vehicle_make=?,vehicle_model=?,vehicle_year=?,vehicle_color=?,vehicle_plate=?,license_number=?,license_expiry=?,license_photo=COALESCE(?,license_photo) WHERE user_id=?',[vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry||'',license_photo||null,userId]);
-      else await dbRun('INSERT INTO driver_profiles(id,user_id,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry,license_photo,status)VALUES(?,?,?,?,?,?,?,?,?,?,?)',[uuidv4(),userId,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry||'',license_photo||'','pending']);
+      if(!ex&&(!id_card_photo||!portrait_photo))return res.json({ok:false,error:'An ID card photo and a live portrait photo are required'});
+      if(ex)await dbRun("UPDATE driver_profiles SET vehicle_make=?,vehicle_model=?,vehicle_year=?,vehicle_color=?,vehicle_plate=?,license_number=?,license_expiry=?,license_photo=COALESCE(?,license_photo),id_card_photo=COALESCE(?,id_card_photo),portrait_photo=COALESCE(?,portrait_photo),coc_accepted_at=datetime('now') WHERE user_id=?",[vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry||'',license_photo||null,id_card_photo||null,portrait_photo||null,userId]);
+      else await dbRun("INSERT INTO driver_profiles(id,user_id,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry,license_photo,id_card_photo,portrait_photo,coc_accepted_at,status)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),?)",[uuidv4(),userId,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,license_number,license_expiry||'',license_photo||'',id_card_photo||'',portrait_photo||'','pending']);
     }else if(type==='book_ride'){
       // Deliberately excludes 'scheduled' -- a future scheduled ride shouldn't block
       // booking an immediate one right now, only another ride that's actually in
