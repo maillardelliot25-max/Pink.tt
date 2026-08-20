@@ -392,15 +392,16 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
 </video>
 <div class="app-bg-wash"></div>
 
-<!-- Boot splash's own backdrop clip, deliberately a different default than app-bg-video
-     above so the loading screen and the app it opens into never look like the same shot
-     even before _pickWallpaper()'s JS runs. Sits between app-bg-video (z-index 0) and
+<!-- Boot splash's own backdrop clip. Sits between app-bg-video (z-index 0) and
      #boot-splash (150) so #boot-splash's blur+tint reads *this* clip, not the one behind
      it -- same layering trick as app-bg-video/app-bg-wash, just one level up. Dropped
-     entirely by _hideBootSplash() once the splash is gone; it's never needed again. -->
-<video class="boot-bg-video" id="boot-bg-video" data-clip="pattern-bg" autoplay loop muted playsinline preload="auto">
-  <source src="/media/pattern-bg.mp4?v=5" type="video/mp4">
-  <source src="/media/pattern-bg.webm?v=5" type="video/webm">
+     entirely by _hideBootSplash() once the splash is gone; it's never needed again.
+     _pickWallpaper() picks this and app-bg-video's clip separately, deliberately
+     different once WALLPAPER_POOL has more than one entry -- both just fall back to the
+     same clip while it only has the one. -->
+<video class="boot-bg-video" id="boot-bg-video" data-clip="install-banner-bg" autoplay loop muted playsinline preload="auto">
+  <source src="/media/install-banner-bg.mp4?v=5" type="video/mp4">
+  <source src="/media/install-banner-bg.webm?v=5" type="video/webm">
 </video>
 
 <!-- Boot splash. Shown from first paint until the session is restored and a page is
@@ -2350,6 +2351,38 @@ function renderAdminSettings(body){
       <button class="btn bp bw" style="margin-top:12px" onclick="saveAdminSettings()">Save Contacts</button>
     </div>
     <div class="card" style="margin-bottom:14px">
+      <h4 style="font-size:14px;margin-bottom:4px">🎨 App Branding</h4>
+      <p style="font-size:11px;color:#9ca3af;margin-bottom:14px">Replace the logo mark and the looping background video shown throughout the app. This only changes what's inside the app itself — not the home-screen icon or browser tab icon, which are baked into the app at build time and can't be changed from here.</p>
+
+      <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Logo mark</p>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <div class="logo-dot" style="width:44px;height:44px;font-size:18px">${s.has_custom_icon?`<img src="/api/app-icon" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:'P'}</div>
+        <p style="font-size:11px;color:#9ca3af">${s.has_custom_icon?'Custom icon in use':'Using the default "P" mark'}</p>
+      </div>
+      <p style="font-size:10.5px;color:#9ca3af;line-height:1.6;margin-bottom:8px">
+        <strong>Guidelines:</strong> square image (equal width/height), at least 128×128px — 512×512px if you have it, so it stays sharp on high-density screens. PNG or JPG, under 2MB. It's shown small (around 30–70px) everywhere in the app, so keep the design simple and legible at a glance; a transparent PNG background works best if the image isn't meant to fill the whole square.
+      </p>
+      <input class="inp" id="icon-file" type="file" accept="image/*" style="margin-bottom:8px">
+      <div style="display:flex;gap:8px">
+        <button class="btn bp" style="flex:1" onclick="uploadAppIcon()">Upload Icon</button>
+        ${s.has_custom_icon?`<button class="btn bs" onclick="resetAppIcon()">Reset</button>`:''}
+      </div>
+
+      <div style="height:1px;background:rgba(17,17,17,.06);margin:18px 0"></div>
+
+      <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Background video</p>
+      ${s.has_custom_background?`<video src="/api/app-background.mp4" autoplay loop muted playsinline style="width:100%;max-width:160px;aspect-ratio:9/16;object-fit:cover;border-radius:14px;margin-bottom:8px;display:block"></video><p style="font-size:11px;color:#9ca3af;margin-bottom:8px">Custom background in use</p>`:`<p style="font-size:11px;color:#9ca3af;margin-bottom:8px">Using the default built-in wallpaper</p>`}
+      <p style="font-size:10.5px;color:#9ca3af;line-height:1.6;margin-bottom:8px">
+        <strong>Guidelines:</strong> portrait video, 9:16 aspect ratio (e.g. 612×1088 or 1080×1920) — landscape footage will look stretched or cropped. It's always played muted, so there's no need to include audio. A short, seamless loop (10–20 seconds) works best. Keep each file under about 3MB so it still loads quickly on mobile data — the .mp4 is required, the .webm is optional but usually smaller for browsers that support it. If you're not sure how to crop/compress a video to this spec, an AI assistant can prepare the files for you from raw footage.
+      </p>
+      <div class="fg"><label class="lbl">.mp4 (required)</label><input class="inp" id="bg-mp4-file" type="file" accept="video/mp4"></div>
+      <div class="fg"><label class="lbl">.webm (optional)</label><input class="inp" id="bg-webm-file" type="file" accept="video/webm"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn bp" style="flex:1" onclick="uploadAppBackground()">Upload Background</button>
+        ${s.has_custom_background?`<button class="btn bs" onclick="resetAppBackground()">Reset</button>`:''}
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:14px">
       <h4 style="font-size:14px;margin-bottom:12px">👑 Staff &amp; Admin Accounts (${staff.length})</h4>
       ${staff.map(u=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #f9fafb">
         <div><p style="font-weight:600;font-size:13px">${u.first_name} ${u.last_name}${u.id===S.user.id?' (you)':''}</p><p style="font-size:11px;color:#9ca3af">${u.email}</p></div>
@@ -2400,6 +2433,69 @@ async function saveAdminSettings(){
   const res=await _mutate('update_settings',data);
   if(res.ok){toast('Settings saved','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
   else toast(res.error||'Save failed','err');
+}
+
+// ── App Branding (custom logo mark + background) ────────────────────────────────
+function _readFileAsDataURL(file){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(r.result);
+    r.onerror=reject;
+    r.readAsDataURL(file);
+  });
+}
+// Reads a video file's pixel dimensions client-side, without uploading it, so a
+// wrong-orientation file gets caught before spending the upload -- best-effort only
+// (some browsers can't report this from a local file reliably) and never blocks the
+// actual upload, since the server enforces the real size cap regardless.
+function _probeVideoDims(file){
+  return new Promise(resolve=>{
+    const url=URL.createObjectURL(file);
+    const v=document.createElement('video');
+    v.preload='metadata';
+    v.onloadedmetadata=()=>{URL.revokeObjectURL(url);resolve({w:v.videoWidth,h:v.videoHeight});};
+    v.onerror=()=>{URL.revokeObjectURL(url);resolve(null);};
+    v.src=url;
+  });
+}
+async function uploadAppIcon(){
+  const input=document.getElementById('icon-file');
+  const file=input.files?.[0];
+  if(!file)return toast('Choose an image first','err');
+  if(file.size>2*1024*1024)return toast('Icon is over 2MB — please use a smaller image','err');
+  const dataUrl=await _readFileAsDataURL(file);
+  const res=await _mutate('update_settings',{app_icon:dataUrl});
+  // A full reload is the simplest reliable way to make every already-rendered .logo-dot
+  // pick up the change -- this is a rare admin action, not a hot path worth hand-patching
+  // a dozen scattered elements for.
+  if(res.ok){toast('Icon updated','ok');location.reload();}
+  else toast(res.error||'Upload failed','err');
+}
+async function resetAppIcon(){
+  if(!confirm('Reset the app icon back to the default "P" mark?'))return;
+  const res=await _mutate('update_settings',{app_icon:''});
+  if(res.ok){toast('Icon reset','ok');location.reload();}
+  else toast(res.error||'Reset failed','err');
+}
+async function uploadAppBackground(){
+  const mp4=document.getElementById('bg-mp4-file').files?.[0];
+  const webm=document.getElementById('bg-webm-file').files?.[0];
+  if(!mp4)return toast('Choose an .mp4 file first (required)','err');
+  if(mp4.size>6*1024*1024)return toast('.mp4 is over 6MB — please compress it first','err');
+  if(webm&&webm.size>6*1024*1024)return toast('.webm is over 6MB — please compress it first','err');
+  const dims=await _probeVideoDims(mp4);
+  if(dims&&dims.w>=dims.h)toast('That looks landscape, not portrait — it will upload, but may look stretched or cropped oddly');
+  const data={app_background_mp4:await _readFileAsDataURL(mp4)};
+  if(webm)data.app_background_webm=await _readFileAsDataURL(webm);
+  const res=await _mutate('update_settings',data);
+  if(res.ok){toast('Background updated','ok');location.reload();}
+  else toast(res.error||'Upload failed','err');
+}
+async function resetAppBackground(){
+  if(!confirm('Reset the background back to the default built-in wallpaper?'))return;
+  const res=await _mutate('update_settings',{app_background_mp4:'',app_background_webm:''});
+  if(res.ok){toast('Background reset','ok');location.reload();}
+  else toast(res.error||'Reset failed','err');
 }
 async function createStaffAccount(){
   const data={
@@ -3561,10 +3657,51 @@ doLogout=function(){
   _origLogout();
 };
 
-// ── Demo accounts panel visibility (server-controlled via SHOW_DEMO_ACCOUNTS) ──
+// ── Demo accounts panel visibility (server-controlled via SHOW_DEMO_ACCOUNTS), and
+// admin-uploaded branding (custom logo mark / background) ────────────────────────────
+// Every .logo-dot/.boot-mark already exists in the DOM at page load (go() only toggles
+// which .page is visible, it never re-renders the shells), so this only needs to run
+// once, not on every navigation.
+function _applyCustomIcon(){
+  document.querySelectorAll('.logo-dot,.boot-mark').forEach(el=>{
+    el.innerHTML='<img src="/api/app-icon" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">';
+  });
+}
+// Overrides whatever _pickWallpaper() already picked from the built-in pool -- this
+// runs after that (config is fetched async, _pickWallpaper() runs synchronously at
+// parse time so the default clip starts buffering immediately either way) and always
+// wins when a custom background is set, on boot-bg-video too since there's only one
+// custom clip to show either side of the loading screen.
+function _applyCustomBackground(){
+  ['boot-bg-video','app-bg-video','hero-bg-video'].forEach(id=>{
+    const v=document.getElementById(id);
+    // _hideBootSplash() strips boot-bg-video's source and hides it the moment the splash
+    // is gone (display:none) so it's never decoding in the background afterward -- if
+    // this config fetch resolves after that already happened, leave it alone rather than
+    // reviving a video nobody will ever see again.
+    if(!v||v.dataset.clip==='custom'||v.style.display==='none')return;
+    v.dataset.clip='custom';
+    v.innerHTML='<source src="/api/app-background.mp4" type="video/mp4"><source src="/api/app-background.webm" type="video/webm">';
+    v.load();
+    // This runs after the video was already mid-playback on its old source (unlike
+    // _pickWallpaper()'s initial pick, which sets sources before the element has ever
+    // played at all and so autoplay just handles it) -- swapping the source out from
+    // under an already-playing video doesn't reliably resume playback on its own, so it
+    // has to be reasserted explicitly or it can sit paused on the first frame until the
+    // next _keepWallpapersPlaying() heartbeat catches it, up to 10s later.
+    v.play().catch(()=>{});
+  });
+}
 async function _loadConfig(){
   let show=true;
-  try{const attempt=await _fetchWithRetry('/api/config');if(attempt.ok)show=!!attempt.json.showDemoAccounts;}catch{}
+  try{
+    const attempt=await _fetchWithRetry('/api/config');
+    if(attempt.ok){
+      show=!!attempt.json.showDemoAccounts;
+      if(attempt.json.hasCustomIcon)_applyCustomIcon();
+      if(attempt.json.hasCustomBackground)_applyCustomBackground();
+    }
+  }catch{}
   const box=document.querySelector('.demo-box');
   if(box)box.style.display=show?'':'none';
 }
@@ -3640,7 +3777,7 @@ if('serviceWorker' in navigator){
 // fading to white toward the bottom via the .hero-bg mask in CSS. Add more clips
 // by dropping matching .mp4/.webm pairs into /public/media/ and adding their
 // base filename here -- nothing else needs to change.
-const WALLPAPER_POOL=['install-banner-bg','pattern-bg'];
+const WALLPAPER_POOL=['install-banner-bg'];
 // Bump this whenever any file in WALLPAPER_POOL is re-encoded -- see the cache-busting
 // comment above the app-bg-video tag near the top of <body> for the full list of
 // places this same version number has to be kept in sync.

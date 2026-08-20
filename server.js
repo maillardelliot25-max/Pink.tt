@@ -79,8 +79,23 @@ const DEFAULT_SETTINGS={
   safety_team_phone:'',
   support_email:'support@pink.tt',
   support_phone:'',
-  ttps_integration_note:'No formal dispatch integration with TTPS exists yet. SOS alerts the Pink.TT safety team directly; a human decides whether to contact police.'
+  ttps_integration_note:'No formal dispatch integration with TTPS exists yet. SOS alerts the Pink.TT safety team directly; a human decides whether to contact police.',
+  // Admin-uploaded branding, stored as data: URIs (same base64-in-TEXT-column pattern as
+  // driver_profiles.license_photo). Never sent back out through /api/db -- buildDB()
+  // below strips these and exposes only has_custom_icon/has_custom_background booleans,
+  // and the actual bytes are served through dedicated endpoints instead. That keeps
+  // /api/db small and lets browsers cache the asset by URL like any other static file,
+  // rather than re-downloading it inside the JSON payload on every single page load.
+  app_icon:'',
+  app_background_mp4:'',
+  app_background_webm:''
 };
+// Defense in depth beyond express.json's body-size limit: caps how large a single
+// admin-uploaded branding asset can be once decoded, so one oversized upload can't bloat
+// every page load or exhaust the settings table. Values line up with the guidance shown
+// in the admin upload UI.
+const MAX_ICON_BYTES=2*1024*1024;
+const MAX_BG_VIDEO_BYTES=6*1024*1024;
 // Additive migrations for DBs created before a column existed — safe to fail if already applied.
 const MIGRATIONS_SQL=[
   `ALTER TABLE driver_profiles ADD COLUMN license_photo TEXT DEFAULT ''`,
@@ -439,6 +454,12 @@ async function buildDB(){
   const settingsRows=await dbAll('SELECT key,value FROM settings');
   const settings={...DEFAULT_SETTINGS};
   settingsRows.forEach(r=>{settings[r.key]=r.value;});
+  // Strip the actual branding bytes out of what /api/db returns -- see the comment on
+  // DEFAULT_SETTINGS above. Booleans only; the client fetches the real thing (if any)
+  // from /api/app-icon / /api/app-background.mp4|webm.
+  settings.has_custom_icon=!!settings.app_icon;
+  settings.has_custom_background=!!settings.app_background_mp4;
+  delete settings.app_icon;delete settings.app_background_mp4;delete settings.app_background_webm;
   const complaints=await dbAll('SELECT * FROM complaints ORDER BY created_at DESC');
   const recurring_schedules=(await dbAll('SELECT * FROM recurring_schedules')).map(s=>({...s,days_of_week:String(s.days_of_week||'').split(',').filter(x=>x!=='').map(Number)}));
   const scheduled_ride_legs=await dbAll('SELECT * FROM scheduled_ride_legs ORDER BY scheduled_timestamp');
@@ -496,7 +517,10 @@ if(CANONICAL_HOST){
     res.redirect(301,`https://${CANONICAL_HOST}${req.originalUrl}`);
   });
 }
-app.use(express.json({limit:'5mb'}));
+// Bumped from 5mb so an admin can upload a branding background (mp4 + optional webm) in
+// one request -- each is capped at MAX_BG_VIDEO_BYTES below, and base64 inflates that by
+// ~1.37x, so 15mb leaves comfortable headroom for both files plus the icon together.
+app.use(express.json({limit:'15mb'}));
 // index.html and sw.js must always be revalidated -- a stale cached copy of either on a
 // real device would keep serving old app code indefinitely after a fix ships. Everything
 // else in public/ (vendor assets, icons) can use normal caching.
@@ -514,7 +538,43 @@ const authLimiter=rateLimit({windowMs:15*60*1000,max:20,standardHeaders:true,leg
 const mutationLimiter=rateLimit({windowMs:60*1000,max:60,standardHeaders:true,legacyHeaders:false,message:{error:'Too many requests — please slow down'}});
 const verifyLimiter=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{error:'Too many verification attempts — please try again later'}});
 
-app.get('/api/config',(req,res)=>{res.json({showDemoAccounts:SHOW_DEMO_ACCOUNTS});});
+// Public and unauthenticated on purpose: the landing/onboarding/login pages show the
+// wallpaper and logo mark before anyone is signed in, so those pages need to know
+// whether a custom icon/background exists without going through the authenticated
+// /api/db. No bytes here, just booleans -- the assets themselves come from the two
+// endpoints below.
+app.get('/api/config',async(req,res)=>{
+  const rows=await dbAll("SELECT key,value FROM settings WHERE key IN('app_icon','app_background_mp4')");
+  const has=k=>!!rows.find(r=>r.key===k)?.value;
+  res.json({showDemoAccounts:SHOW_DEMO_ACCOUNTS,hasCustomIcon:has('app_icon'),hasCustomBackground:has('app_background_mp4')});
+});
+function _parseDataUri(value,typePrefix){
+  const m=/^data:([a-z0-9.+-]+\/[a-z0-9.+-]+);base64,([a-zA-Z0-9+/=]+)$/.exec(value||'');
+  if(!m||!m[1].startsWith(typePrefix))return null;
+  return{mime:m[1],buf:Buffer.from(m[2],'base64')};
+}
+// Public, same reasoning as /api/config -- the logo mark and background need to render
+// on pages nobody is logged in on yet. Short cache: these can change at any time an admin
+// re-uploads, and there's no version-in-URL cache-buster (unlike the static /media clips,
+// which are hand-bumped) to force an immediate refetch, so a 10-minute window is the
+// trade-off -- long enough to actually get cached, short enough that a change shows up
+// again soon without anyone needing a hard refresh.
+app.get('/api/app-icon',async(req,res)=>{
+  const row=await dbGet('SELECT value FROM settings WHERE key=?',['app_icon']);
+  const parsed=_parseDataUri(row?.value,'image/');
+  if(!parsed)return res.status(404).end();
+  res.set('Cache-Control','public, max-age=600').type(parsed.mime).send(parsed.buf);
+});
+async function _serveAppBackground(key,res){
+  const row=await dbGet('SELECT value FROM settings WHERE key=?',[key]);
+  const parsed=_parseDataUri(row?.value,'video/');
+  if(!parsed)return res.status(404).end();
+  res.set('Cache-Control','public, max-age=600').type(parsed.mime).send(parsed.buf);
+}
+// Two plain routes rather than one with a :ext(mp4|webm) param -- Express 5's router
+// (path-to-regexp v8) dropped support for that regex-constrained-param syntax.
+app.get('/api/app-background.mp4',(req,res)=>_serveAppBackground('app_background_mp4',res));
+app.get('/api/app-background.webm',(req,res)=>_serveAppBackground('app_background_webm',res));
 
 // Notifies every active admin (dashboard notification + email) that a new account
 // signed up. DB inserts are awaited so the notification is already there by the time
@@ -1000,9 +1060,21 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
     }else if(type==='update_settings'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       const allowedKeys=Object.keys(DEFAULT_SETTINGS);
+      const BRANDING_LIMITS={app_icon:{prefix:'image/',max:MAX_ICON_BYTES,label:'Icon'},app_background_mp4:{prefix:'video/',max:MAX_BG_VIDEO_BYTES,label:'Background video'},app_background_webm:{prefix:'video/',max:MAX_BG_VIDEO_BYTES,label:'Background video'}};
       for(const k of Object.keys(data||{})){
         if(!allowedKeys.includes(k))continue;
-        await setSetting(k,String(data[k]??''));
+        const val=String(data[k]??'');
+        // Branding keys get validated as real data: URIs of the right kind and size --
+        // everything else (phone numbers, emails, the TTPS note) is free text as before.
+        // An empty string is always allowed through for any key: that's how the admin
+        // clears a setting back to blank / resets branding to the built-in default.
+        const limit=BRANDING_LIMITS[k];
+        if(limit&&val){
+          const parsed=_parseDataUri(val,limit.prefix);
+          if(!parsed)return res.json({ok:false,error:`${limit.label}: not a valid ${limit.prefix}* file`});
+          if(parsed.buf.length>limit.max)return res.json({ok:false,error:`${limit.label} is ${(parsed.buf.length/1024/1024).toFixed(1)}MB -- please keep it under ${(limit.max/1024/1024).toFixed(0)}MB`});
+        }
+        await setSetting(k,val);
       }
       await logAudit(req.jwt,'update_settings','settings','',Object.keys(data||{}).filter(k=>allowedKeys.includes(k)).join(','));
     }else if(type==='resolve_sos'){

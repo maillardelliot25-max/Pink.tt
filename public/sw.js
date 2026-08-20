@@ -5,7 +5,7 @@
 // old un-versioned URL, and fetch the current one fresh instead of serving stale bytes
 // forever. Bump this again alongside VIDEO_VERSION in index.html any time the video
 // changes in the future.
-const CACHE_NAME='pinktt-shell-v5';
+const CACHE_NAME='pinktt-shell-v6';
 const OFFLINE_URL='/offline.html';
 // The offline page's backdrop video is precached too -- unlike every other use of this
 // clip, this page can genuinely be shown with zero connectivity at all, so the video
@@ -13,7 +13,7 @@ const OFFLINE_URL='/offline.html';
 // Every clip is precached, not just the offline page's hardcoded default: offline.html
 // picks up whatever the app last had in ptt_last_wallpaper, which can be any clip in the
 // pool, so any of them may need to render with zero network.
-const PRECACHE=[OFFLINE_URL,'/favicon.svg','/icons/icon-192.png','/icons/icon-512.png','/media/install-banner-bg.mp4?v=5','/media/install-banner-bg.webm?v=5','/media/pattern-bg.mp4?v=5','/media/pattern-bg.webm?v=5'];
+const PRECACHE=[OFFLINE_URL,'/favicon.svg','/icons/icon-192.png','/icons/icon-512.png','/media/install-banner-bg.mp4?v=5','/media/install-banner-bg.webm?v=5'];
 
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(PRECACHE)));
