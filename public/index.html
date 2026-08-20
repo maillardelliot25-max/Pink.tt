@@ -73,6 +73,12 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    weak on purpose so the wallpaper itself stays the thing you see rather than the tint. */
 .app-bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,20,147,.16),rgba(199,0,105,.24));pointer-events:none}
 @media (prefers-reduced-motion:reduce){.app-bg-video{display:none}}
+/* Same treatment as app-bg-video, just stacked one level higher (below #boot-splash,
+   above app-bg-video/app-bg-wash) so #boot-splash's own blur+tint reads this clip
+   instead of the one behind it -- see the comment on the <video id="boot-bg-video">
+   tag for why they're deliberately different clips. */
+.boot-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:149;opacity:1}
+@media (prefers-reduced-motion:reduce){.boot-bg-video{display:none}}
 /* Translucent + blurred rather than solid #fff so the app-bg-video shows through as an
    ambient wash on every page -- individual .card elements underneath stay fully opaque
    #fff, so nothing about their own readability changes; only the empty space around
@@ -385,6 +391,17 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
   <source src="/media/install-banner-bg.webm?v=5" type="video/webm">
 </video>
 <div class="app-bg-wash"></div>
+
+<!-- Boot splash's own backdrop clip, deliberately a different default than app-bg-video
+     above so the loading screen and the app it opens into never look like the same shot
+     even before _pickWallpaper()'s JS runs. Sits between app-bg-video (z-index 0) and
+     #boot-splash (150) so #boot-splash's blur+tint reads *this* clip, not the one behind
+     it -- same layering trick as app-bg-video/app-bg-wash, just one level up. Dropped
+     entirely by _hideBootSplash() once the splash is gone; it's never needed again. -->
+<video class="boot-bg-video" id="boot-bg-video" data-clip="pattern-bg" autoplay loop muted playsinline preload="auto">
+  <source src="/media/pattern-bg.mp4?v=5" type="video/mp4">
+  <source src="/media/pattern-bg.webm?v=5" type="video/webm">
+</video>
 
 <!-- Boot splash. Shown from first paint until the session is restored and a page is
      routed to. It is transparent apart from a soft tint, so the rotating wallpaper
@@ -3570,7 +3587,14 @@ init=async function(){
 // Dismissed once a page has actually been routed to. The timeout is a hard safety net,
 // not the normal path: a hung request must never leave someone staring at a splash they
 // cannot get past, so it clears regardless after a few seconds.
-function _hideBootSplash(){document.getElementById('boot-splash')?.classList.add('done');}
+function _hideBootSplash(){
+  document.getElementById('boot-splash')?.classList.add('done');
+  // The loading screen's own clip is only ever needed while the splash is up -- once
+  // it's gone, stop decoding it and drop its source entirely rather than leaving a
+  // second video quietly playing offscreen forever.
+  const bv=document.getElementById('boot-bg-video');
+  if(bv){bv.pause();bv.removeAttribute('src');bv.innerHTML='';bv.load();bv.style.display='none';}
+}
 setTimeout(_hideBootSplash,6000);
 
 // ── Hook renderRiderBook to init map when idle ───────────────────
@@ -3607,47 +3631,50 @@ if('serviceWorker' in navigator){
 }
 
 // ── Landing page "live wallpaper" ───────────────────────────────────────────
-// A pool of looping video backdrops for the landing hero -- one is picked at
-// random each fresh app open (sessionStorage, so it stays put for the rest of
-// that session/reloads but changes again next time the app is opened) and
-// played behind the hero copy, fading to white toward the bottom via the
-// .hero-bg mask in CSS. Add more clips by dropping matching .mp4/.webm pairs
-// into /public/media/ and adding their base filename here -- nothing else
-// needs to change.
-const WALLPAPER_POOL=['install-banner-bg'];
+// A pool of looping video backdrops -- one is picked at random each fresh app
+// open and played behind the hero copy (and everywhere else, via app-bg-video),
+// fading to white toward the bottom via the .hero-bg mask in CSS. Add more clips
+// by dropping matching .mp4/.webm pairs into /public/media/ and adding their
+// base filename here -- nothing else needs to change.
+const WALLPAPER_POOL=['install-banner-bg','pattern-bg'];
 // Bump this whenever any file in WALLPAPER_POOL is re-encoded -- see the cache-busting
 // comment above the app-bg-video tag near the top of <body> for the full list of
 // places this same version number has to be kept in sync.
 const VIDEO_VERSION='5';
+function _setClip(id,name){
+  const v=document.getElementById(id);
+  if(!v||v.dataset.clip===name)return;
+  v.dataset.clip=name;
+  v.innerHTML=`<source src="/media/${name}.mp4?v=${VIDEO_VERSION}" type="video/mp4"><source src="/media/${name}.webm?v=${VIDEO_VERSION}" type="video/webm">`;
+  v.load();
+}
 // A fresh wallpaper on every app open. It used to be pinned per browser session, so the
 // same clip came back for hours; now it re-rolls each load and, once there is more than
 // one clip, deliberately avoids repeating the one shown last (remembered in
 // localStorage) so consecutive opens actually look different rather than landing on the
 // same clip by chance.
+//
+// The loading screen and the app it opens into deliberately get *different* clips (once
+// there are at least two) rather than sharing one pick, so the app doesn't visually
+// carry straight through from loading into itself -- opening it should feel like two
+// distinct wallpapers, loading screen then app, not one continuing shot. With only one
+// clip in the pool both just fall back to the same thing, same as before this existed.
 function _pickWallpaper(){
   const last=localStorage.getItem('ptt_last_wallpaper');
-  const choices=WALLPAPER_POOL.length>1?WALLPAPER_POOL.filter(n=>n!==last):WALLPAPER_POOL;
-  const name=choices[Math.floor(Math.random()*choices.length)];
-  localStorage.setItem('ptt_last_wallpaper',name);
-  // Same picked wallpaper feeds every backdrop video on the page (the one global
-  // app-bg-video behind #shell, plus the landing hero's own copy) so it's consistent
-  // everywhere rather than a different random clip per screen.
-  //
-  // Both video tags already ship with the default clip hardcoded as real <source>
+  const appChoices=WALLPAPER_POOL.length>1?WALLPAPER_POOL.filter(n=>n!==last):WALLPAPER_POOL;
+  const appName=appChoices[Math.floor(Math.random()*appChoices.length)];
+  localStorage.setItem('ptt_last_wallpaper',appName);
+  const bootChoices=WALLPAPER_POOL.length>1?WALLPAPER_POOL.filter(n=>n!==appName):WALLPAPER_POOL;
+  const bootName=bootChoices[Math.floor(Math.random()*bootChoices.length)];
+  // Both video tags already ship with a hardcoded default clip as real <source>
   // elements in the HTML (not injected here), so the browser can start fetching/
   // buffering it the instant the page parses instead of waiting for this script to run
   // and call .load() -- that used to force a full re-buffer-from-zero on every single
   // page open, which is exactly what showed up as a ~2s freeze before the backdrop
-  // started moving. Only touch the element (and eat that reload cost) when the picked
-  // clip genuinely differs from what's already loaded -- the common case, with a single
-  // clip in the pool, is a same-clip no-op that never restarts playback.
-  ['app-bg-video','hero-bg-video'].forEach(id=>{
-    const v=document.getElementById(id);
-    if(!v||v.dataset.clip===name)return;
-    v.dataset.clip=name;
-    v.innerHTML=`<source src="/media/${name}.mp4?v=${VIDEO_VERSION}" type="video/mp4"><source src="/media/${name}.webm?v=${VIDEO_VERSION}" type="video/webm">`;
-    v.load();
-  });
+  // started moving. _setClip only touches an element (and eats that reload cost) when
+  // the picked clip genuinely differs from what's already loaded.
+  _setClip('boot-bg-video',bootName);
+  ['app-bg-video','hero-bg-video'].forEach(id=>_setClip(id,appName));
 }
 _pickWallpaper();
 
