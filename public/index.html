@@ -68,7 +68,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    gray bars on either side on any tablet/wide-screen/desktop browser. Now fills the
    full viewport everywhere; a soft width cap only kicks in on genuinely huge desktop
    monitors so text doesn't stretch into unreadably long lines. */
-.app-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:1;transition:opacity .35s ease}
+.app-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:1}
 /* Light hot-pink tint that unifies whatever clip is playing into one brand look, kept
    weak on purpose so the wallpaper itself stays the thing you see rather than the tint. */
 .app-bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,20,147,.16),rgba(199,0,105,.24));pointer-events:none}
@@ -77,7 +77,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    above app-bg-video/app-bg-wash) so #boot-splash's own blur+tint reads this clip
    instead of the one behind it -- see the comment on the <video id="boot-bg-video">
    tag for why they're deliberately different clips. */
-.boot-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:149;opacity:1;transition:opacity .35s ease}
+.boot-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:149;opacity:1}
 @media (prefers-reduced-motion:reduce){.boot-bg-video{display:none}}
 /* Translucent + blurred rather than solid #fff so the app-bg-video shows through as an
    ambient wash on every page -- individual .card elements underneath stay fully opaque
@@ -293,7 +293,7 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
 .hero-intro h1{font-size:28px;line-height:1.25;margin-bottom:10px}
 .hero-intro h1 em{color:var(--p);font-style:normal}
 .hero-intro p{color:#6b7280;font-size:14px;line-height:1.65;margin-bottom:24px}
-.hero-bg{position:absolute;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:1;transition:opacity .35s ease;-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%)}
+.hero-bg{position:absolute;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:1;-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%)}
 .hero.has-video .hero-chip{position:relative;z-index:1;background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.4);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 .hero.has-video h1{position:relative;z-index:1;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.3)}
 .hero.has-video h1 em{color:#ffe1f1}
@@ -2579,6 +2579,35 @@ function renderAdminSettings(body){
       <div id="wallpaper-gallery"><p style="font-size:12px;color:#9ca3af">Loading…</p></div>
     </div>
     <div class="card" style="margin-bottom:14px">
+      <h4 style="font-size:14px;margin-bottom:4px">✨ Daily Uplift</h4>
+      <p style="font-size:11px;color:#9ca3af;margin-bottom:12px">A once-a-day pop-up shown to every rider/driver on their first open of the day, drawing from the message pool below.</p>
+      <label style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;cursor:pointer">
+        <span style="font-size:13px;font-weight:600">Enabled</span>
+        <input type="checkbox" id="set-uplift-enabled" ${s.daily_uplift_enabled!=='false'?'checked':''} style="width:38px;height:22px">
+      </label>
+      <div class="fg"><label class="lbl">Cancer-awareness message ratio (0–100%)</label><input class="inp" id="set-uplift-ratio" type="number" min="0" max="100" value="${s.cancer_awareness_ratio||30}"></div>
+      <button class="btn bp bw" style="margin-bottom:18px" onclick="saveUpliftSettings()">Save Uplift Settings</button>
+
+      <div style="height:1px;background:rgba(17,17,17,.06);margin:4px 0 14px"></div>
+      <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Message Pool</p>
+      <div style="background:#f9fafb;border-radius:14px;padding:12px;margin-bottom:10px">
+        <textarea class="inp" id="uplift-msg-text" placeholder="Message text..." style="margin-bottom:8px;min-height:60px;resize:vertical"></textarea>
+        <select class="inp" id="uplift-msg-category" style="margin-bottom:8px">
+          <option value="motivation">Motivation</option>
+          <option value="cancer_awareness">Cancer Awareness</option>
+        </select>
+        <button class="btn bs bw" onclick="addUpliftMessage()">+ Add Message</button>
+      </div>
+      <div id="uplift-msg-list"></div>
+
+      <div style="height:1px;background:rgba(17,17,17,.06);margin:14px 0"></div>
+      <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">📣 Broadcast Push</p>
+      <p style="font-size:10.5px;color:#9ca3af;line-height:1.6;margin-bottom:8px">Sends a phone push notification to every subscribed device right now, independent of the daily uplift schedule. ${s.pushEnabled===false?"<strong style='color:var(--r)'>Push isn't configured on this server (no VAPID keys) — this will fail until it is.</strong>":''}</p>
+      <input class="inp" id="bcast-title" placeholder="Title" style="margin-bottom:8px">
+      <textarea class="inp" id="bcast-body" placeholder="Message body..." style="margin-bottom:8px;min-height:50px;resize:vertical"></textarea>
+      <button class="btn bp bw" onclick="sendBroadcastPush()">Send to All Devices</button>
+    </div>
+    <div class="card" style="margin-bottom:14px">
       <h4 style="font-size:14px;margin-bottom:12px">👑 Staff &amp; Admin Accounts (${staff.length})</h4>
       ${staff.map(u=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #f9fafb">
         <div><p style="font-weight:600;font-size:13px">${u.first_name} ${u.last_name}${u.id===S.user.id?' (you)':''}</p><p style="font-size:11px;color:#9ca3af">${u.email}</p></div>
@@ -2610,6 +2639,55 @@ function renderAdminSettings(body){
     </div>
   `;
   loadWallpaperGallery();
+  renderUpliftMsgList();
+}
+async function saveUpliftSettings(){
+  const data={
+    daily_uplift_enabled:document.getElementById('set-uplift-enabled').checked?'true':'false',
+    cancer_awareness_ratio:String(Math.max(0,Math.min(100,parseInt(document.getElementById('set-uplift-ratio').value,10)||0)))
+  };
+  const res=await _mutate('update_settings',data);
+  if(res.ok){toast('Uplift settings saved','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
+  else toast(res.error||'Save failed','err');
+}
+function renderUpliftMsgList(){
+  const box=document.getElementById('uplift-msg-list');if(!box)return;
+  const msgs=DB.daily_messages||[];
+  if(!msgs.length){box.innerHTML='<p style="font-size:12px;color:#9ca3af">No messages yet — add one above.</p>';return;}
+  box.innerHTML=msgs.map(m=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:8px 0;border-top:1px solid #f9fafb">
+    <div style="flex:1"><p style="font-size:12px;${m.is_active?'':'color:#9ca3af;text-decoration:line-through'}">${m.text}</p><p style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.3px">${m.category==='cancer_awareness'?'🎗️ Cancer Awareness':'💪 Motivation'}${m.is_active?'':' · inactive'}</p></div>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button class="btn bsm" style="background:var(--pp);color:var(--p)" onclick="toggleUpliftMessage('${m.id}')">${m.is_active?'Hide':'Show'}</button>
+      <button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="deleteUpliftMessage('${m.id}')">Delete</button>
+    </div>
+  </div>`).join('');
+}
+async function addUpliftMessage(){
+  const text=document.getElementById('uplift-msg-text').value.trim();
+  const category=document.getElementById('uplift-msg-category').value;
+  if(!text){toast('Enter message text','err');return;}
+  const res=await _mutate('add_daily_message',{text,category});
+  if(res.ok){toast('Message added','ok');document.getElementById('uplift-msg-text').value='';await _pttLoadDB();renderUpliftMsgList();}
+  else toast(res.error||'Could not add message','err');
+}
+async function toggleUpliftMessage(id){
+  const res=await _mutate('toggle_daily_message',{id});
+  if(res.ok){await _pttLoadDB();renderUpliftMsgList();}
+  else toast(res.error||'Could not update message','err');
+}
+async function deleteUpliftMessage(id){
+  if(!confirm('Delete this message?'))return;
+  const res=await _mutate('delete_daily_message',{id});
+  if(res.ok){toast('Message deleted','ok');await _pttLoadDB();renderUpliftMsgList();}
+  else toast(res.error||'Could not delete message','err');
+}
+async function sendBroadcastPush(){
+  const title=document.getElementById('bcast-title').value.trim();
+  const body=document.getElementById('bcast-body').value.trim();
+  if(!title||!body){toast('Title and message required','err');return;}
+  const res=await _mutate('broadcast_push',{title,body});
+  if(res.ok){toast(`Sent to ${res.sent}/${res.total} devices`,'ok');document.getElementById('bcast-title').value='';document.getElementById('bcast-body').value='';}
+  else toast(res.error||'Broadcast failed','err');
 }
 async function loadWallpaperGallery(){
   const box=document.getElementById('wallpaper-gallery');if(!box)return;
@@ -4219,44 +4297,6 @@ window.addEventListener('pageshow',_keepWallpapersPlaying);
   document.getElementById(id)?.addEventListener('pause',_keepWallpapersPlaying);
 });
 setInterval(_keepWallpapersPlaying,10000);
-
-// The nudge/resume tricks above fix a *paused* or stale-frame video, but do nothing for
-// the far more common real-world case on bad wifi: the video is still technically
-// "playing" but has run out of buffered data, so the browser just freezes on the last
-// decoded frame until more arrives -- a visibly "stuck" background that can last as long
-// as the connection stays slow. Rather than let that frozen frame sit there, fade the
-// video out the instant it stalls (revealing the plain tinted background underneath,
-// which is static but never looks broken) and fade it back in the moment playback
-// actually resumes. A network hiccup now reads as a brief, deliberate-looking dissolve
-// instead of a freeze -- this is the one thing that must never visibly stick.
-function _watchForStall(id){
-  const v=document.getElementById(id);
-  if(!v||v.dataset.stallWatched)return;
-  v.dataset.stallWatched='1';
-  let stallTimer=null;
-  const hide=()=>{stallTimer=setTimeout(()=>{v.style.opacity='0';},250);};
-  const show=()=>{clearTimeout(stallTimer);v.style.opacity='1';};
-  v.addEventListener('waiting',hide);
-  v.addEventListener('stalled',hide);
-  v.addEventListener('playing',show);
-  v.addEventListener('canplay',show);
-}
-['app-bg-video','boot-bg-video','hero-bg-video'].forEach(_watchForStall);
-
-// On a connection already known to be too slow for smooth video (Save-Data on, or the
-// browser's own effectiveType estimate is 2g/slow-2g), don't even attempt playback --
-// skip straight to the plain tinted background so there's nothing to buffer, stall, or
-// visibly stick in the first place. navigator.connection is Chrome/Android-only; Safari
-// and Firefox simply don't get this early check and fall back to the stall-fade above.
-try{
-  const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
-  if(conn&&(conn.saveData||['slow-2g','2g'].includes(conn.effectiveType))){
-    ['app-bg-video','boot-bg-video','hero-bg-video'].forEach(id=>{
-      const v=document.getElementById(id);
-      if(v){v.pause();v.removeAttribute('src');v.style.opacity='0';}
-    });
-  }
-}catch(e){}
 
 // ── Install-app banner ──────────────────────────────────────────────────────
 // The manifest+service-worker made the app *technically* installable, but

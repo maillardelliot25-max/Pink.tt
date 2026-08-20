@@ -94,7 +94,13 @@ const SCHEMA_SQL=[
   // One row per browser/device a user has granted push permission on -- a person can have
   // several (phone + desktop), so this is keyed by endpoint (unique per subscription, not
   // per user) rather than one slot on the users row.
-  `CREATE TABLE IF NOT EXISTS push_subscriptions(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,endpoint TEXT UNIQUE NOT NULL,p256dh TEXT NOT NULL,auth TEXT NOT NULL,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(user_id)REFERENCES users(id))`
+  `CREATE TABLE IF NOT EXISTS push_subscriptions(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,endpoint TEXT UNIQUE NOT NULL,p256dh TEXT NOT NULL,auth TEXT NOT NULL,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(user_id)REFERENCES users(id))`,
+  // Daily Uplift quote/awareness pool. category drives the cancer_awareness_ratio split
+  // client-side (settings.cancer_awareness_ratio, plain string in the settings table
+  // above) -- no CHECK constraint on category since SQLite/Postgres CHECK syntax already
+  // diverges elsewhere in this schema and app-layer validation (in the mutation handler)
+  // covers it identically for both backends.
+  `CREATE TABLE IF NOT EXISTS daily_messages(id TEXT PRIMARY KEY,text TEXT NOT NULL,category TEXT NOT NULL,is_active INTEGER DEFAULT 1,created_at TEXT DEFAULT(datetime('now')))`
 ];
 // Public-safe settings keys: readable by any authenticated user via buildDB() (e.g.
 // so a rider can see the real safety contact number). Anything more sensitive than
@@ -112,7 +118,9 @@ const DEFAULT_SETTINGS={
   // rather than re-downloading it inside the JSON payload on every single page load.
   app_icon:'',
   app_background_mp4:'',
-  app_background_webm:''
+  app_background_webm:'',
+  daily_uplift_enabled:'true',
+  cancer_awareness_ratio:'30'
 };
 // Defense in depth beyond express.json's body-size limit: caps how large a single
 // admin-uploaded branding asset can be once decoded, so one oversized upload can't bloat
@@ -505,7 +513,8 @@ async function buildDB(){
   const complaints=await dbAll('SELECT * FROM complaints ORDER BY created_at DESC');
   const recurring_schedules=(await dbAll('SELECT * FROM recurring_schedules')).map(s=>({...s,days_of_week:String(s.days_of_week||'').split(',').filter(x=>x!=='').map(Number)}));
   const scheduled_ride_legs=await dbAll('SELECT * FROM scheduled_ride_legs ORDER BY scheduled_timestamp');
-  return{users,driver_tiers,driver_profiles,complaints,recurring_schedules,scheduled_ride_legs,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings};
+  const daily_messages=(await dbAll('SELECT * FROM daily_messages ORDER BY created_at DESC')).map(m=>({...m,is_active:!!m.is_active}));
+  return{users,driver_tiers,driver_profiles,complaints,recurring_schedules,scheduled_ride_legs,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings,daily_messages};
 }
 
 async function setSetting(key,value){
@@ -855,6 +864,7 @@ function scopeDBFor(db,viewerId,role){
     complaints:db.complaints.filter(c=>c.user_id===viewerId),
     recurring_schedules:schedules,
     scheduled_ride_legs:db.scheduled_ride_legs.filter(l=>schedIds.has(l.schedule_id)),
+    daily_messages:db.daily_messages.filter(m=>m.is_active),
   };
 }
 
@@ -1314,6 +1324,37 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       await dbRun('DELETE FROM businesses WHERE id=?',[data.business_id]);
       await logAudit(req.jwt,'delete_business','business',data.business_id,'');
+    }else if(type==='add_daily_message'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const text=String(data.text||'').trim(),category=data.category;
+      if(!text)return res.json({ok:false,error:'Message text required'});
+      if(!['motivation','cancer_awareness'].includes(category))return res.json({ok:false,error:'Invalid category'});
+      const mid=uuidv4();
+      await dbRun('INSERT INTO daily_messages(id,text,category,is_active)VALUES(?,?,?,1)',[mid,text.slice(0,500),category]);
+      await logAudit(req.jwt,'add_daily_message','daily_message',mid,category);
+    }else if(type==='toggle_daily_message'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const m=await dbGet('SELECT is_active FROM daily_messages WHERE id=?',[data.id]);
+      if(!m)return res.json({ok:false,error:'Message not found'});
+      await dbRun('UPDATE daily_messages SET is_active=? WHERE id=?',[m.is_active?0:1,data.id]);
+    }else if(type==='delete_daily_message'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      await dbRun('DELETE FROM daily_messages WHERE id=?',[data.id]);
+      await logAudit(req.jwt,'delete_daily_message','daily_message',data.id,'');
+    }else if(type==='broadcast_push'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const title=String(data.title||'').trim(),body=String(data.body||'').trim();
+      if(!title||!body)return res.json({ok:false,error:'Title and body required'});
+      if(!PUSH_READY)return res.json({ok:false,error:'Push notifications are not configured on this server (VAPID keys missing)'});
+      const subs=await dbAll('SELECT * FROM push_subscriptions');
+      const payload=JSON.stringify({title,body,url:'/'});
+      let sent=0;
+      for(const s of subs){
+        try{await webpush.sendNotification({endpoint:s.endpoint,keys:{p256dh:s.p256dh,auth:s.auth}},payload);sent++;}
+        catch(e){if(e.statusCode===404||e.statusCode===410)await dbRun('DELETE FROM push_subscriptions WHERE id=?',[s.id]);}
+      }
+      await logAudit(req.jwt,'broadcast_push','','',`${title} (${sent}/${subs.length} delivered)`);
+      return res.json({ok:true,sent,total:subs.length});
     }else if(type==='admin_toggle_biz_featured'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       const biz=await dbGet('SELECT is_featured FROM businesses WHERE id=?',[data.business_id]);
