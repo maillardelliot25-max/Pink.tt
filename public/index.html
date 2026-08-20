@@ -1334,6 +1334,11 @@ function rTab(t){
 function renderRiderBook(){
   const body=document.getElementById('rider-body');
   if(!body)return;
+  // The heaviest page in the app (live map, GPS marker, tile redraws) is the one most
+  // likely to starve the video's compositor and leave it stuck on a stale frame --
+  // nudge it fresh the instant this page becomes active, on top of the standing 2s
+  // interval, rather than waiting for the next tick.
+  if(typeof _keepWallpapersPlaying==='function')_keepWallpapersPlaying();
   if(S.rideStatus&&S.rideStatus!=='completed'){
     const smap={
       searching:{bg:'#fef9c3',border:'#fde047',dot:'#f59e0b',label:'Finding your driver...'},
@@ -4296,7 +4301,13 @@ window.addEventListener('pageshow',_keepWallpapersPlaying);
 ['app-bg-video','hero-bg-video'].forEach(id=>{
   document.getElementById(id)?.addEventListener('pause',_keepWallpapersPlaying);
 });
-setInterval(_keepWallpapersPlaying,10000);
+// Was 10000ms -- too long a gap on the Book Ride page specifically, where the live
+// Leaflet map (tile layer redraws, GPS marker animation) is by far the heaviest thing
+// on screen and most likely to starve the compositor into freezing the video underneath
+// it (the backdrop-filter stale-frame bug described above). Every 2s caps a visible
+// stuck frame at a fraction of what it was, same fix, just applied far more often --
+// no fade, no visual/quality change, just less time spent stuck before the next nudge.
+setInterval(_keepWallpapersPlaying,2000);
 
 // ── Install-app banner ──────────────────────────────────────────────────────
 // The manifest+service-worker made the app *technically* installable, but
