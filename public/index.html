@@ -3223,10 +3223,14 @@ function renderRecurringCard(){
         <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px">🔁 Recurring Commutes</p>
         <button class="btn bs bsm" onclick="openRecurringForm()">+ Add</button>
       </div>
-      ${mine.length?mine.map(s=>{
+      ${mine.length?mine.map((s,i)=>{
         const upcoming=legs.filter(l=>l.schedule_id===s.id&&l.status==='queued').slice(0,3);
         const drv=DB.users.find(u=>u.id===s.primary_driver_id);
-        return `<div style="padding:10px 0;border-top:1px solid rgba(17,17,17,.06)">
+        // Each commute gets its own bounded, rounded block rather than a hairline divider --
+        // with more than one or two of these (a rider can have several: home/work, different
+        // days) a flat divided list reads as one continuous blob and it's hard to tell where
+        // one commute ends and the next begins, especially when labels/times repeat.
+        return `<div style="background:rgba(255,255,255,.55);border:1px solid rgba(17,17,17,.07);border-radius:14px;padding:12px;${i?'margin-top:10px':''}">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
             <div style="min-width:0">
               <p style="font-size:13px;font-weight:700;color:#111827">${s.label||'Recurring ride'}</p>
