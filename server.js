@@ -303,20 +303,34 @@ function calcFare(km,min){
 const PINK_POINTS_EARN_RATE=1; // 1 point per TTD $1 actually paid, before tier multiplier
 const PINK_POINTS_REDEEM_RATE=20; // 20 points = TTD $1 off
 const PINK_POINTS_MAX_REDEEM_PCT=0.5; // can't discount more than half the fare
+// Four tiers now instead of three (Reg added as the floor everyone starts on) and each
+// carries a real fare discount_rate, not just a points-earning multiplier -- riders
+// asked for tiers that actually reduce what they pay, not just how fast they earn more
+// points. Silver/Gold keep their original 500/2000 lifetime-point thresholds and
+// multipliers unchanged so no existing rider's standing tier moves backward.
+const PINK_POINTS_TIERS=[
+  {name:'Reg',   min:0,   multiplier:1.0, discount_rate:0},
+  {name:'Bronze',min:100, multiplier:1.1, discount_rate:0.05},
+  {name:'Silver',min:500, multiplier:1.25,discount_rate:0.10},
+  {name:'Gold',  min:2000,multiplier:1.5, discount_rate:0.15},
+];
 function pinkPointsTier(lifetimePoints){
-  if(lifetimePoints>=2000)return{name:'Gold',multiplier:1.5};
-  if(lifetimePoints>=500)return{name:'Silver',multiplier:1.25};
-  return{name:'Bronze',multiplier:1.0};
+  const p=lifetimePoints||0;
+  return[...PINK_POINTS_TIERS].reverse().find(t=>p>=t.min)||PINK_POINTS_TIERS[0];
 }
 
 // ── Driver tiers ──────────────────────────────────────────────────────────────
 // Seeded once at boot; thresholds/rates are editable in the DB afterwards without a
-// redeploy. Standard is the floor everyone starts on (20% platform cut, same as the
-// hardcoded rate this replaces, so existing drivers see no change until they earn up).
+// redeploy. Commission is now a flat 20% platform cut for every driver regardless of
+// tier -- a driver keeping 85-90% (the old preferred/vip rates) left too thin a margin
+// for the business. Tiers still exist and still have to be earned (rating + completed
+// trips), they just no longer change the driver's own payout cut -- only the perk of
+// recurring-booking eligibility. See driverCommissionRate below for the flat rate.
+const DRIVER_COMMISSION_RATE=0.20;
 const DEFAULT_DRIVER_TIERS=[
-  {name:'standard', label:'Standard', commission_rate:0.20, min_rating:0,   min_completed_trips:0,   can_accept_recurring:0, sort_order:1},
-  {name:'preferred',label:'Preferred',commission_rate:0.15, min_rating:4.6, min_completed_trips:50,  can_accept_recurring:1, sort_order:2},
-  {name:'vip',      label:'VIP',      commission_rate:0.10, min_rating:4.85,min_completed_trips:200, can_accept_recurring:1, sort_order:3},
+  {name:'standard', label:'Standard', commission_rate:DRIVER_COMMISSION_RATE, min_rating:0,   min_completed_trips:0,   can_accept_recurring:0, sort_order:1},
+  {name:'preferred',label:'Preferred',commission_rate:DRIVER_COMMISSION_RATE, min_rating:4.6, min_completed_trips:50,  can_accept_recurring:1, sort_order:2},
+  {name:'vip',      label:'VIP',      commission_rate:DRIVER_COMMISSION_RATE, min_rating:4.85,min_completed_trips:200, can_accept_recurring:1, sort_order:3},
 ];
 // Picks the best tier a driver currently qualifies for. Pure function over an
 // already-loaded tier list so it can be reused per-row in buildDB without extra queries.
@@ -324,16 +338,13 @@ function resolveDriverTier(tiers,driver){
   const rating=driver?.rating??0,trips=driver?.total_trips??0;
   const eligible=(tiers||[]).filter(t=>rating>=(t.min_rating||0)&&trips>=(t.min_completed_trips||0));
   const best=eligible.sort((a,b)=>(b.sort_order||0)-(a.sort_order||0))[0];
-  return best?{...best,can_accept_recurring:!!best.can_accept_recurring}:{name:'standard',label:'Standard',commission_rate:0.20,can_accept_recurring:false,sort_order:1};
+  return best?{...best,can_accept_recurring:!!best.can_accept_recurring}:{name:'standard',label:'Standard',commission_rate:DRIVER_COMMISSION_RATE,can_accept_recurring:false,sort_order:1};
 }
-// Commission lookup for payout time -- falls back to the historical flat 20% if the
-// tier table somehow isn't populated, so earnings can never silently compute as 0.
+// Flat for every driver -- see the comment on DRIVER_COMMISSION_RATE above. Kept as its
+// own function (rather than inlining the constant at the one call site) so payout code
+// doesn't care whether the rate is flat or tiered.
 async function driverCommissionRate(driverUserId){
-  try{
-    const tiers=await dbAll('SELECT * FROM driver_tiers ORDER BY sort_order');
-    const dp=await dbGet('SELECT rating,total_trips FROM driver_profiles WHERE user_id=?',[driverUserId]);
-    return resolveDriverTier(tiers,dp).commission_rate??0.20;
-  }catch{return 0.20;}
+  return DRIVER_COMMISSION_RATE;
 }
 // Converts a requested point redemption into an actual (points,discount$) pair,
 // clamped to what the rider actually has and the per-ride redemption cap.
@@ -482,7 +493,7 @@ async function getRoute(pickup,destination){
 }
 
 async function buildDB(){
-  const users=(await dbAll('SELECT id,email,first_name,last_name,phone,role,gender,is_verified,is_active,emergency_contact_name,emergency_contact_phone,wallet_balance,total_rides,pink_points,pink_points_lifetime,created_at FROM users')).map(u=>({...u,is_verified:!!u.is_verified,is_active:!!u.is_active,pink_points:u.pink_points||0,pink_points_lifetime:u.pink_points_lifetime||0,pink_points_tier:pinkPointsTier(u.pink_points_lifetime||0).name}));
+  const users=(await dbAll('SELECT id,email,first_name,last_name,phone,role,gender,is_verified,is_active,emergency_contact_name,emergency_contact_phone,wallet_balance,total_rides,pink_points,pink_points_lifetime,created_at FROM users')).map(u=>({...u,is_verified:!!u.is_verified,is_active:!!u.is_active,pink_points:u.pink_points||0,pink_points_lifetime:u.pink_points_lifetime||0,pink_points_tier:pinkPointsTier(u.pink_points_lifetime||0).name,pink_points_discount_rate:pinkPointsTier(u.pink_points_lifetime||0).discount_rate}));
   const driver_tiers=(await dbAll('SELECT * FROM driver_tiers ORDER BY sort_order')).map(t=>({...t,can_accept_recurring:!!t.can_accept_recurring}));
   const driver_profiles=(await dbAll('SELECT id,user_id,license_number,license_expiry,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status,is_online,current_lat,current_lng,total_trips,total_earnings,balance,today_earnings,rating,rating_count,tier_id,active_recurring_slots,created_at FROM driver_profiles')).map(d=>{
     // Resolve the tier live from the driver's current stats rather than trusting the
@@ -643,7 +654,7 @@ const geoLimiter=rateLimit({windowMs:60*1000,max:60,standardHeaders:true,legacyH
 app.get('/api/config',async(req,res)=>{
   const rows=await dbAll("SELECT key,value FROM settings WHERE key IN('app_icon','app_background_mp4')");
   const has=k=>!!rows.find(r=>r.key===k)?.value;
-  res.json({showDemoAccounts:SHOW_DEMO_ACCOUNTS,hasCustomIcon:has('app_icon'),hasCustomBackground:has('app_background_mp4'),pushEnabled:PUSH_READY});
+  res.json({showDemoAccounts:SHOW_DEMO_ACCOUNTS,hasCustomIcon:has('app_icon'),hasCustomBackground:has('app_background_mp4'),pushEnabled:PUSH_READY,pinkPointsTiers:PINK_POINTS_TIERS});
 });
 
 // Public: the client needs this to call pushManager.subscribe() -- it's not a secret,
@@ -1046,9 +1057,11 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const d=isValidTTCoord(data.destination_lat,data.destination_lng)?[data.destination_lat,data.destination_lng]:(await resolveCoord(data.destination_address)).coord;
       const route=await getRoute(p,d);
       const km=route.km,min=route.min,fullFare=calcFare(km,min);
-      const rider=await dbGet('SELECT pink_points FROM users WHERE id=?',[userId]);
-      const{points,discount}=clampPointsRedemption(data.points_to_redeem,rider?.pink_points||0,fullFare);
-      const fare=Math.round((fullFare-discount)*100)/100;
+      const rider=await dbGet('SELECT pink_points,pink_points_lifetime FROM users WHERE id=?',[userId]);
+      const riderTier=pinkPointsTier(rider?.pink_points_lifetime||0);
+      const afterTier=Math.max(0,Math.round(fullFare*(1-(riderTier.discount_rate||0))*100)/100);
+      const{points,discount}=clampPointsRedemption(data.points_to_redeem,rider?.pink_points||0,afterTier);
+      const fare=Math.round((afterTier-discount)*100)/100;
       if(points>0)await dbRun('UPDATE users SET pink_points=pink_points-? WHERE id=?',[points,userId]);
       const rideId=uuidv4();
       await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,points_redeemed,points_discount)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[rideId,userId,'requested',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,points,discount]);
@@ -1065,7 +1078,10 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const p=isValidTTCoord(data.pickup_lat,data.pickup_lng)?[data.pickup_lat,data.pickup_lng]:(await resolveCoord(data.pickup_address)).coord;
       const d=isValidTTCoord(data.destination_lat,data.destination_lng)?[data.destination_lat,data.destination_lng]:(await resolveCoord(data.destination_address)).coord;
       const route=await getRoute(p,d);
-      const km=route.km,min=route.min,fare=calcFare(km,min);
+      const km=route.km,min=route.min,fullFare=calcFare(km,min);
+      const rider=await dbGet('SELECT pink_points_lifetime FROM users WHERE id=?',[userId]);
+      const riderTier=pinkPointsTier(rider?.pink_points_lifetime||0);
+      const fare=Math.max(0,Math.round(fullFare*(1-(riderTier.discount_rate||0))*100)/100);
       const rideId=uuidv4();
       await dbRun('INSERT INTO rides(id,rider_id,status,pickup_address,pickup_lat,pickup_lng,destination_address,destination_lat,destination_lng,estimated_fare,distance_km,duration_minutes,scheduled_for)VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',[rideId,userId,'scheduled',data.pickup_address,p[0],p[1],data.destination_address,d[0],d[1],fare,km,min,when.toISOString()]);
     }else if(type==='submit_complaint'){

@@ -20,7 +20,7 @@ h1{font-family:'Playfair Display',Georgia,serif}
    bar, and the safe-area padding keeps the actual text/button clear of the notch/gesture
    bar while the video+wash behind them still go edge-to-edge. */
 #shell{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;height:100dvh;width:100%;margin:0 auto;padding:calc(32px + env(safe-area-inset-top,0px)) 24px calc(32px + env(safe-area-inset-bottom,0px));text-align:center;position:relative;overflow:hidden}
-.bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:.6}
+.bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate3d(-50%,-50%,0);will-change:transform;object-fit:cover;z-index:0;opacity:.6}
 .bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,47,168,.35),rgba(122,18,99,.55));pointer-events:none}
 #shell>:not(.bg-video):not(.bg-wash){position:relative;z-index:1}
 .logo-dot{width:56px;height:56px;border-radius:16px;background:#fff;color:var(--p);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:26px;margin-bottom:18px;box-shadow:0 8px 24px rgba(0,0,0,.25)}

@@ -68,7 +68,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    gray bars on either side on any tablet/wide-screen/desktop browser. Now fills the
    full viewport everywhere; a soft width cap only kicks in on genuinely huge desktop
    monitors so text doesn't stretch into unreadably long lines. */
-.app-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:1}
+.app-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate3d(-50%,-50%,0);will-change:transform;object-fit:cover;z-index:0;opacity:1}
 /* Light hot-pink tint that unifies whatever clip is playing into one brand look, kept
    weak on purpose so the wallpaper itself stays the thing you see rather than the tint. */
 .app-bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,20,147,.16),rgba(199,0,105,.24));pointer-events:none}
@@ -77,7 +77,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    above app-bg-video/app-bg-wash) so #boot-splash's own blur+tint reads this clip
    instead of the one behind it -- see the comment on the <video id="boot-bg-video">
    tag for why they're deliberately different clips. */
-.boot-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:149;opacity:1}
+.boot-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate3d(-50%,-50%,0);will-change:transform;object-fit:cover;z-index:149;opacity:1}
 @media (prefers-reduced-motion:reduce){.boot-bg-video{display:none}}
 /* Translucent + blurred rather than solid #fff so the app-bg-video shows through as an
    ambient wash on every page -- individual .card elements underneath stay fully opaque
@@ -293,7 +293,7 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
 .hero-intro h1{font-size:28px;line-height:1.25;margin-bottom:10px}
 .hero-intro h1 em{color:var(--p);font-style:normal}
 .hero-intro p{color:#6b7280;font-size:14px;line-height:1.65;margin-bottom:24px}
-.hero-bg{position:absolute;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:1;-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%)}
+.hero-bg{position:absolute;top:50%;left:50%;width:124%;height:124%;transform:translate3d(-50%,-50%,0);will-change:transform;object-fit:cover;z-index:0;opacity:1;-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%)}
 .hero.has-video .hero-chip{position:relative;z-index:1;background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.4);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 .hero.has-video h1{position:relative;z-index:1;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.3)}
 .hero.has-video h1 em{color:#ffe1f1}
@@ -501,6 +501,15 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
     <h3 style="font-size:18px;margin-bottom:14px">Notifications 🔔</h3>
     <div id="notif-list" style="max-height:50vh;overflow-y:auto"></div>
     <button class="btn bs bw" style="margin-top:12px" onclick="closeModal('notif-modal')">Close</button>
+  </div>
+</div>
+
+<!-- My Tier & Points Modal (Rider) -->
+<div class="overlay" id="tier-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:14px">My Tier &amp; Points 🌸</h3>
+    <div id="tier-modal-body" style="max-height:60vh;overflow-y:auto"></div>
+    <button class="btn bs bw" style="margin-top:12px" onclick="closeModal('tier-modal')">Close</button>
   </div>
 </div>
 
@@ -1284,6 +1293,7 @@ function doLogout(){
 
 function showMenu(){
   const menu=[
+    {label:'🌸 My Tier & Points',action:()=>{showTierModal()}},
     {label:'💳 Payments & Promos',action:()=>{rTab('pay')}},
     {label:'💅 Discover Businesses',action:()=>{go('discover');renderDiscover()}},
     {label:'🔔 Notifications',action:()=>{showNotifs()}},
@@ -1311,6 +1321,40 @@ async function showNotifs(){
     await _pttLoadDB();
     _updateNotifDots();
   }
+}
+// Fallback mirrors PINK_POINTS_TIERS server-side in case /api/config hasn't resolved yet
+// (e.g. modal opened in the same tick as first load) -- kept in sync by hand since this
+// is static reference data, not something that changes per-request.
+const _DEFAULT_TIER_LADDER=[{name:'Reg',min:0,discount_rate:0},{name:'Bronze',min:100,discount_rate:0.05},{name:'Silver',min:500,discount_rate:0.10},{name:'Gold',min:2000,discount_rate:0.15}];
+function showTierModal(){
+  const tiers=window._pinkPointsTiers||_DEFAULT_TIER_LADDER;
+  const lifetime=S.user?.pink_points_lifetime||0;
+  const currentIdx=tiers.reduce((best,t,i)=>lifetime>=t.min?i:best,0);
+  const current=tiers[currentIdx];
+  const next=tiers[currentIdx+1];
+  const body=document.getElementById('tier-modal-body');
+  let html=`<div style="background:linear-gradient(135deg,var(--pp),#fff);border:1.5px solid var(--pb);border-radius:16px;padding:16px;margin-bottom:16px;text-align:center">
+    <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px">Current Tier</p>
+    <p style="font-size:26px;font-weight:800;color:var(--p);margin:4px 0">${current.name}</p>
+    <p style="font-size:13px;color:#374151">${current.discount_rate>0?`${Math.round(current.discount_rate*100)}% off every ride`:'Take rides to start earning discounts'}</p>
+    <p style="font-size:12px;color:#9ca3af;margin-top:6px">${S.user?.pink_points||0} points available · ${lifetime} lifetime</p>
+  </div>`;
+  if(next){
+    const need=Math.max(0,next.min-lifetime);
+    const span=next.min-current.min||1;
+    const pct=Math.min(100,Math.round(((lifetime-current.min)/span)*100));
+    html+=`<div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-bottom:6px"><span>${current.name}</span><span>${need} points to ${next.name} (${Math.round(next.discount_rate*100)}% off)</span></div>
+      <div style="background:#f3f4f6;border-radius:8px;height:8px;overflow:hidden"><div style="background:var(--p);height:100%;width:${pct}%"></div></div>
+    </div>`;
+  }
+  html+='<p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">All Tiers</p>';
+  html+=tiers.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid #f9fafb">
+    <div><p style="font-size:13px;font-weight:700;${t.name===current.name?'color:var(--p)':''}">${t.name}${t.name===current.name?' (you)':''}</p><p style="font-size:11px;color:#9ca3af">${t.min}+ lifetime points</p></div>
+    <p style="font-size:13px;font-weight:700;color:${t.discount_rate>0?'#059669':'#9ca3af'}">${t.discount_rate>0?Math.round(t.discount_rate*100)+'% off':'—'}</p>
+  </div>`).join('');
+  body.innerHTML=html;
+  openModal('tier-modal');
 }
 // Toggles the unread-notification dot for whichever role is currently signed in.
 function _updateNotifDots(){
@@ -1461,7 +1505,7 @@ function renderRiderBook(){
             <div style="width:34px;height:34px;flex-shrink:0;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 2px 6px rgba(233,30,140,.18)">🌸</div>
             <div>
               <p style="font-size:13px;font-weight:700;color:#111827">${S.user?.pink_points||0} Pink Points</p>
-              <p style="font-size:10px;color:#c2185b;font-weight:700;text-transform:uppercase;letter-spacing:.4px">${S.user?.pink_points_tier||'Bronze'} Tier</p>
+              <p style="font-size:10px;color:#c2185b;font-weight:700;text-transform:uppercase;letter-spacing:.4px">${S.user?.pink_points_tier||'Reg'} Tier${S.user?.pink_points_discount_rate>0?` · ${Math.round(S.user.pink_points_discount_rate*100)}% off`:''}</p>
             </div>
           </div>
           ${S.user?.pink_points>0?`<label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--p);cursor:pointer;white-space:nowrap">
@@ -3379,7 +3423,17 @@ function _urlBase64ToUint8Array(base64String){
   for(let i=0;i<rawData.length;i++)arr[i]=rawData.charCodeAt(i);
   return arr;
 }
+let _pushSetupAttempted=false;
 async function _setupPushNotifications(){
+  // The permission prompt this triggers is native browser chrome, not part of the app's
+  // own UI -- firing it synchronously in the middle of the login transition made the
+  // whole page read as frozen/jammed to anyone who didn't immediately recognize it as a
+  // permission dialog. Deferred until just after the login/route transition has visually
+  // settled, and gated to at most once per page load (login, register, and session-restore
+  // all call this) so it can never stack a second prompt on top of a still-pending one.
+  if(_pushSetupAttempted)return;
+  _pushSetupAttempted=true;
+  await new Promise(r=>setTimeout(r,1500));
   try{
     if(!('serviceWorker' in navigator)||!('PushManager' in window))return;
     if(Notification.permission==='denied')return;
@@ -4136,6 +4190,7 @@ async function _loadConfig(){
       show=!!attempt.json.showDemoAccounts;
       if(attempt.json.hasCustomIcon)_applyCustomIcon();
       if(attempt.json.hasCustomBackground)_applyCustomBackground();
+      if(Array.isArray(attempt.json.pinkPointsTiers))window._pinkPointsTiers=attempt.json.pinkPointsTiers;
     }
   }catch{}
   const box=document.querySelector('.demo-box');
