@@ -70,7 +70,12 @@ const SCHEMA_SQL=[
   `CREATE TABLE IF NOT EXISTS scheduled_ride_legs(id TEXT PRIMARY KEY,schedule_id TEXT,assigned_driver_id TEXT,scheduled_timestamp TEXT,status TEXT DEFAULT'queued',ride_id TEXT,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(schedule_id)REFERENCES recurring_schedules(id))`,
   // Complaints/support from either riders or drivers. Deliberately one table for both
   // roles -- the admin queue should be a single place to look, not two.
-  `CREATE TABLE IF NOT EXISTS complaints(id TEXT PRIMARY KEY,user_id TEXT,user_role TEXT DEFAULT'',category TEXT DEFAULT'',subject TEXT DEFAULT'',message TEXT DEFAULT'',ride_id TEXT,about_user_id TEXT,status TEXT DEFAULT'open',admin_notes TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')),resolved_at TEXT)`
+  `CREATE TABLE IF NOT EXISTS complaints(id TEXT PRIMARY KEY,user_id TEXT,user_role TEXT DEFAULT'',category TEXT DEFAULT'',subject TEXT DEFAULT'',message TEXT DEFAULT'',ride_id TEXT,about_user_id TEXT,status TEXT DEFAULT'open',admin_notes TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')),resolved_at TEXT)`,
+  // History of every background video an admin has ever uploaded (not just the one
+  // currently live) -- so switching wallpapers is picking from a gallery of past
+  // uploads, not re-uploading the same file. The currently-active one is still just a
+  // row here; which one is active is tracked by the settings.active_wallpaper_id key.
+  `CREATE TABLE IF NOT EXISTS app_wallpapers(id TEXT PRIMARY KEY,mp4 TEXT NOT NULL,webm TEXT DEFAULT'',label TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`
 ];
 // Public-safe settings keys: readable by any authenticated user via buildDB() (e.g.
 // so a rider can see the real safety contact number). Anything more sensitive than
@@ -592,6 +597,15 @@ async function _serveAppBackground(key,res){
 // (path-to-regexp v8) dropped support for that regex-constrained-param syntax.
 app.get('/api/app-background.mp4',(req,res)=>_serveAppBackground('app_background_mp4',res));
 app.get('/api/app-background.webm',(req,res)=>_serveAppBackground('app_background_webm',res));
+// Admin-only: metadata (no bytes) for every background an admin has ever uploaded, so
+// the branding panel can offer "switch back to a previous wallpaper" instead of only
+// upload-or-reset-to-default.
+app.get('/api/wallpapers',authMW,async(req,res)=>{
+  if(req.jwt.role!=='admin')return res.status(403).json({error:'Admin only'});
+  const rows=await dbAll('SELECT id,label,created_at FROM app_wallpapers ORDER BY created_at DESC');
+  const activeId=(await dbGet("SELECT value FROM settings WHERE key='active_wallpaper_id'"))?.value||'';
+  res.json({wallpapers:rows.map(r=>({...r,is_active:r.id===activeId}))});
+});
 
 // Notifies every active admin (dashboard notification + email) that a new account
 // signed up. DB inserts are awaited so the notification is already there by the time
@@ -1103,7 +1117,37 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
         }
         await setSetting(k,val);
       }
+      // A new background upload (not a reset-to-blank) also joins the wallpaper
+      // history gallery and becomes the active one; an explicit reset clears which
+      // history entry (if any) is currently active, without deleting the history itself.
+      if('app_background_mp4' in (data||{})){
+        if(data.app_background_mp4){
+          const wpId=uuidv4();
+          await dbRun('INSERT INTO app_wallpapers(id,mp4,webm,label)VALUES(?,?,?,?)',[wpId,data.app_background_mp4,data.app_background_webm||'',String(data.wallpaper_label||'').trim().slice(0,60)||('Wallpaper '+new Date().toISOString().slice(0,10))]);
+          await setSetting('active_wallpaper_id',wpId);
+        }else{
+          await setSetting('active_wallpaper_id','');
+        }
+      }
       await logAudit(req.jwt,'update_settings','settings','',Object.keys(data||{}).filter(k=>allowedKeys.includes(k)).join(','));
+    }else if(type==='activate_wallpaper'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const wp=await dbGet('SELECT * FROM app_wallpapers WHERE id=?',[data.id]);
+      if(!wp)return res.json({ok:false,error:'Wallpaper not found'});
+      await setSetting('app_background_mp4',wp.mp4);
+      await setSetting('app_background_webm',wp.webm||'');
+      await setSetting('active_wallpaper_id',wp.id);
+      await logAudit(req.jwt,'activate_wallpaper','wallpaper',wp.id,wp.label||'');
+    }else if(type==='delete_wallpaper'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const activeRow=await dbGet("SELECT value FROM settings WHERE key='active_wallpaper_id'");
+      await dbRun('DELETE FROM app_wallpapers WHERE id=?',[data.id]);
+      if(activeRow?.value===data.id){
+        await setSetting('app_background_mp4','');
+        await setSetting('app_background_webm','');
+        await setSetting('active_wallpaper_id','');
+      }
+      await logAudit(req.jwt,'delete_wallpaper','wallpaper',data.id,'');
     }else if(type==='resolve_sos'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       await dbRun("UPDATE sos_events SET status='resolved' WHERE id=?",[data.sos_id]);

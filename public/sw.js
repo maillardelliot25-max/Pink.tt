@@ -60,10 +60,31 @@ async function _mediaNetworkFirst(request){
     return hit||Response.error();
   }
 }
+// Same network-first idea as _mediaNetworkFirst, but for the admin's custom background
+// (/api/app-background.mp4|webm) -- this one can't be precached at install time since its
+// content changes whenever an admin uploads a new one, so instead it's cached on the fly:
+// every successful online fetch updates the cached copy, so the *last seen* custom
+// background is what's available if the device later goes offline. Without this, offline.html
+// requesting a custom background it was never able to cache would just fail straight
+// through to its next <source> (the always-precached built-in default) -- correct, but
+// loses the "same wallpaper everywhere" consistency the admin actually set.
+async function _customBgNetworkFirst(request){
+  try{
+    const res=await fetch(request);
+    if(res.ok){const cache=await caches.open(CACHE_NAME);cache.put(request,res.clone());}
+    return res;
+  }catch(e){
+    const hit=await caches.match(request);
+    return hit||Response.error();
+  }
+}
 self.addEventListener('fetch',e=>{
+  const pathname=new URL(e.request.url).pathname;
   if(e.request.mode==='navigate'){
     e.respondWith(_navigateWithRetry(e.request));
-  }else if(/^\/media\/.+\.(mp4|webm)$/.test(new URL(e.request.url).pathname)){
+  }else if(/^\/media\/.+\.(mp4|webm)$/.test(pathname)){
     e.respondWith(_mediaNetworkFirst(e.request));
+  }else if(/^\/api\/app-background\.(mp4|webm)$/.test(pathname)){
+    e.respondWith(_customBgNetworkFirst(e.request));
   }
 });

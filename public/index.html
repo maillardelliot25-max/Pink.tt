@@ -2564,12 +2564,18 @@ function renderAdminSettings(body){
       <p style="font-size:10.5px;color:#9ca3af;line-height:1.6;margin-bottom:8px">
         <strong>Guidelines:</strong> portrait video, 9:16 aspect ratio (e.g. 612×1088 or 1080×1920) — landscape footage will look stretched or cropped. It's always played muted, so there's no need to include audio. A short, seamless loop (10–20 seconds) works best. Keep each file under about 3MB so it still loads quickly on mobile data — the .mp4 is required, the .webm is optional but usually smaller for browsers that support it. If you're not sure how to crop/compress a video to this spec, an AI assistant can prepare the files for you from raw footage.
       </p>
+      <div class="fg"><label class="lbl">Label (optional)</label><input class="inp" id="bg-label" placeholder="e.g. Diwali theme"></div>
       <div class="fg"><label class="lbl">.mp4 (required)</label><input class="inp" id="bg-mp4-file" type="file" accept="video/mp4"></div>
       <div class="fg"><label class="lbl">.webm (optional)</label><input class="inp" id="bg-webm-file" type="file" accept="video/webm"></div>
       <div style="display:flex;gap:8px">
-        <button class="btn bp" style="flex:1" onclick="uploadAppBackground()">Upload Background</button>
-        ${s.has_custom_background?`<button class="btn bs" onclick="resetAppBackground()">Reset</button>`:''}
+        <button class="btn bp" style="flex:1" onclick="uploadAppBackground()">Upload New Background</button>
+        ${s.has_custom_background?`<button class="btn bs" onclick="resetAppBackground()">Reset to Default</button>`:''}
       </div>
+
+      <div style="height:1px;background:rgba(17,17,17,.06);margin:18px 0"></div>
+      <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Wallpaper History</p>
+      <p style="font-size:10.5px;color:#9ca3af;line-height:1.6;margin-bottom:10px">Every background you've ever uploaded stays here — switch back to a previous one any time without re-uploading it. Applies everywhere the background shows: the loading screen, the app itself, and the offline page.</p>
+      <div id="wallpaper-gallery"><p style="font-size:12px;color:#9ca3af">Loading…</p></div>
     </div>
     <div class="card" style="margin-bottom:14px">
       <h4 style="font-size:14px;margin-bottom:12px">👑 Staff &amp; Admin Accounts (${staff.length})</h4>
@@ -2602,6 +2608,34 @@ function renderAdminSettings(body){
       <button class="btn bw" style="background:#fee2e2;color:var(--r)" onclick="resetTestData()">Delete All Ride &amp; Payment History</button>
     </div>
   `;
+  loadWallpaperGallery();
+}
+async function loadWallpaperGallery(){
+  const box=document.getElementById('wallpaper-gallery');if(!box)return;
+  try{
+    const attempt=await _fetchWithRetry('/api/wallpapers',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    if(!attempt.ok){box.innerHTML='<p style="font-size:12px;color:var(--r)">Could not load wallpaper history.</p>';return;}
+    const list=attempt.json.wallpapers||[];
+    if(!list.length){box.innerHTML='<p style="font-size:12px;color:#9ca3af">No uploads yet — the first one you upload above starts the history.</p>';return;}
+    box.innerHTML=list.map(w=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #f9fafb">
+      <div><p style="font-size:12px;font-weight:600">${w.label||'Untitled'}${w.is_active?' <span style="color:var(--p)">· Active</span>':''}</p><p style="font-size:10px;color:#9ca3af">${fmtDate(w.created_at)}</p></div>
+      <div style="display:flex;gap:6px">
+        ${w.is_active?'':`<button class="btn bsm" style="background:var(--pp);color:var(--p)" onclick="activateWallpaper('${w.id}')">Use</button>`}
+        <button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="deleteWallpaper('${w.id}')">Delete</button>
+      </div>
+    </div>`).join('');
+  }catch(e){box.innerHTML='<p style="font-size:12px;color:var(--r)">Could not load wallpaper history.</p>';}
+}
+async function activateWallpaper(id){
+  const res=await _mutate('activate_wallpaper',{id});
+  if(res.ok){toast('Wallpaper switched','ok');location.reload();}
+  else toast(res.error||'Could not switch wallpaper','err');
+}
+async function deleteWallpaper(id){
+  if(!confirm('Delete this wallpaper from history? This cannot be undone.'))return;
+  const res=await _mutate('delete_wallpaper',{id});
+  if(res.ok){toast('Wallpaper deleted','ok');await _pttLoadDB();renderAdminSettings(document.getElementById('admin-body'));}
+  else toast(res.error||'Could not delete wallpaper','err');
 }
 async function resetTestData(){
   if(!confirm('This permanently deletes ALL rides and payments on the platform and resets earnings/points to zero. This cannot be undone. Continue?'))return;
@@ -2674,7 +2708,7 @@ async function uploadAppBackground(){
   if(webm&&webm.size>6*1024*1024)return toast('.webm is over 6MB — please compress it first','err');
   const dims=await _probeVideoDims(mp4);
   if(dims&&dims.w>=dims.h)toast('That looks landscape, not portrait — it will upload, but may look stretched or cropped oddly');
-  const data={app_background_mp4:await _readFileAsDataURL(mp4)};
+  const data={app_background_mp4:await _readFileAsDataURL(mp4),wallpaper_label:document.getElementById('bg-label')?.value.trim()||''};
   if(webm)data.app_background_webm=await _readFileAsDataURL(webm);
   const res=await _mutate('update_settings',data);
   if(res.ok){toast('Background updated','ok');location.reload();}
