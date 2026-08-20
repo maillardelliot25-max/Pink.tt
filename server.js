@@ -14,6 +14,7 @@ else console.warn('⚠️  VAPID keys not set (VAPID_PUBLIC_KEY/VAPID_PRIVATE_KE
 const PORT=process.env.PORT||3000;
 const JWT_SECRET=process.env.JWT_SECRET||'pinktt_2025_secure';
 if(!process.env.JWT_SECRET)console.warn('⚠️  JWT_SECRET not set — using an insecure default. Set JWT_SECRET in production.');
+if(!process.env.ANTHROPIC_API_KEY&&!process.env.GEMINI_API_KEY)console.warn('⚠️  No ID verification key set (ANTHROPIC_API_KEY or GEMINI_API_KEY) — the admin review queue still works, it just won\'t show an AI hint alongside each photo.');
 const TWILIO_READY=!!(process.env.TWILIO_ACCOUNT_SID&&process.env.TWILIO_AUTH_TOKEN&&process.env.TWILIO_FROM_NUMBER);
 if(!TWILIO_READY)console.warn('⚠️  Twilio not configured (TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER) — SOS will log to the database and notify the admin panel only, no real call/SMS will be sent.');
 const SHOW_DEMO_ACCOUNTS=process.env.SHOW_DEMO_ACCOUNTS==='true'||(process.env.NODE_ENV!=='production'&&process.env.SHOW_DEMO_ACCOUNTS!=='false');
@@ -950,7 +951,51 @@ app.get('/api/route',geoLimiter,async(req,res)=>{
   res.json(route);
 });
 
-// ── ID verification (server-side; every submission is decided by an admin, not an AI) ──
+// ── ID verification (server-side; the AI is only ever a hint -- an admin decides every
+// single submission, nothing auto-approves) ──────────────────────────────────────────
+const ID_VERIFY_PROMPT='This photo was submitted for identity verification on a women-only rideshare platform. Respond with exactly one lowercase word and nothing else: "female", "male", or "unclear" — describing the apparent gender presentation of the person in the photo.';
+
+// Best-effort only -- returns the model's lowercase answer, or null on any failure
+// (wrong/expired key, network error, no key configured, etc). Never throws: the caller
+// treats a null hint exactly like an empty one, since the admin decides regardless.
+async function classifyWithAnthropic(mediaType,base64Data){
+  try{
+    const apiRes=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:10,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:mediaType,data:base64Data}},
+          {type:'text',text:ID_VERIFY_PROMPT}
+        ]}]
+      })
+    });
+    if(!apiRes.ok){console.error('Anthropic verify-id hint error',apiRes.status,await apiRes.text());return null;}
+    const apiData=await apiRes.json();
+    return(apiData.content?.[0]?.text||'').trim().toLowerCase();
+  }catch(e){console.error('Anthropic verify-id hint error',e.message);return null;}
+}
+async function classifyWithGemini(mediaType,base64Data){
+  const model=process.env.GEMINI_MODEL||'gemini-3.6-flash';
+  try{
+    const apiRes=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contents:[{parts:[
+          {inline_data:{mime_type:mediaType,data:base64Data}},
+          {text:ID_VERIFY_PROMPT}
+        ]}],
+        generationConfig:{maxOutputTokens:10}
+      })
+    });
+    if(!apiRes.ok){console.error('Gemini verify-id hint error',apiRes.status,await apiRes.text());return null;}
+    const apiData=await apiRes.json();
+    return(apiData.candidates?.[0]?.content?.parts?.[0]?.text||'').trim().toLowerCase();
+  }catch(e){console.error('Gemini verify-id hint error',e.message);return null;}
+}
 
 app.post('/api/verify-id',verifyLimiter,authMW,async(req,res)=>{
   const{image}=req.body;
@@ -959,14 +1004,16 @@ app.post('/api/verify-id',verifyLimiter,authMW,async(req,res)=>{
   if(!m)return res.status(400).json({ok:false,error:'Invalid image format — please upload a JPEG, PNG, or WebP photo'});
   const[,mediaType,base64Data]=m;
 
-  // Every submission goes to the admin for a personal decision -- no AI auto-approval at
-  // all. This used to try an AI vision model as a fast-path approval first, but asking a
-  // model to guess a real person's gender from a photo is inherently unreliable (models
-  // are trained to hedge on exactly that kind of judgment) and, more importantly, the
-  // admin explicitly wants to be the one deciding who gets into the app, not an API call.
+  // Every submission goes to the admin for a personal decision -- the AI (if configured)
+  // is only ever a hint shown alongside the photo in the review queue, never an
+  // auto-approval. A failed/unconfigured AI call just means no hint, and never blocks
+  // or delays the submission itself.
   try{
+    let hint=null;
+    if(process.env.ANTHROPIC_API_KEY)hint=await classifyWithAnthropic(mediaType,base64Data);
+    if(hint===null&&process.env.GEMINI_API_KEY)hint=await classifyWithGemini(mediaType,base64Data);
     const verId=uuidv4();
-    await dbRun('INSERT INTO id_verifications(id,user_id,photo,ai_result,status)VALUES(?,?,?,?,?)',[verId,req.jwt.id,image,'','pending']);
+    await dbRun('INSERT INTO id_verifications(id,user_id,photo,ai_result,status)VALUES(?,?,?,?,?)',[verId,req.jwt.id,image,hint||'','pending']);
     const admins=await dbAll("SELECT id FROM users WHERE role='admin' AND is_active=1");
     for(const a of admins){
       await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),a.id,'id_verify',`🪪 New identity verification needs review — ${req.jwt.email}`]);
