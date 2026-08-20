@@ -513,6 +513,24 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
   </div>
 </div>
 
+<!-- My Tier & Perks Modal (Driver) -->
+<div class="overlay" id="driver-tier-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:14px">My Tier &amp; Perks 🏅</h3>
+    <div id="driver-tier-modal-body" style="max-height:60vh;overflow-y:auto"></div>
+    <button class="btn bs bw" style="margin-top:12px" onclick="closeModal('driver-tier-modal')">Close</button>
+  </div>
+</div>
+
+<!-- First-open role slides (shown once per role after the very first login) -->
+<div class="overlay" id="role-slides-modal">
+  <div class="sheet">
+    <div id="role-slides-body"></div>
+    <div id="role-slides-dots" style="display:flex;justify-content:center;gap:6px;margin:14px 0"></div>
+    <button class="btn bp bw" id="role-slides-btn" onclick="_advanceRoleSlide()">Next</button>
+  </div>
+</div>
+
 <!-- Add Business Modal (Admin) -->
 <div class="overlay" id="biz-modal">
   <div class="sheet">
@@ -1220,6 +1238,49 @@ function routeUser(user){
   if(!user.is_verified){go('idverify');renderIdVerify&&renderIdVerify();return;}
   if(user.role==='driver'){go('driver');loadDriver();}
   else{go('rider');renderRiderBook();}
+  _maybeShowRoleSlides(user.role);
+}
+
+// Tailored explainer slides, shown once per role the first time that account reaches
+// its home page -- riders learn about Pink Points tiers/discounts, drivers learn about
+// the tier ladder and Peak Bonus Hours. Gated by a per-role localStorage flag rather
+// than per-account, so it survives across different accounts sharing a device without
+// re-showing the same role's slides twice, but shows the other role's slides the first
+// time someone logs into that role on this device.
+const _ROLE_SLIDES={
+  rider:[
+    {emoji:'🌸',title:'Welcome to Pink.TT',body:'Trinidad & Tobago\'s women-only rideshare. Book a ride, track it live, and stay safe with one-tap SOS.'},
+    {emoji:'💎',title:'Pink Points & Tiers',body:'Every ride earns Pink Points that grow your tier — Reg → Bronze → Silver → Gold. Higher tiers get a real discount on every fare: Bronze 5% off, Silver 10% off, Gold 15% off. Check your progress anytime from the menu → My Tier & Points.'},
+  ],
+  driver:[
+    {emoji:'🚗',title:'Welcome, Driver',body:'Pink.TT keeps a flat 20% platform fee for every driver — no tiered commission, no surprises.'},
+    {emoji:'🏅',title:'Driver Tiers',body:'Standard → Preferred (4.6★, 50 trips) → VIP (4.85★, 200 trips). Preferred and VIP unlock recurring bookings and Peak Bonus Hours — an extra 10% on every fare during weekday rush hour and Friday/Saturday nights. Check your progress anytime from Earnings → My Tier & Perks.'},
+  ],
+};
+let _roleSlideIdx=0,_roleSlideList=[];
+function _maybeShowRoleSlides(role){
+  if(role!=='rider'&&role!=='driver')return;
+  const key='ptt_seen_slides_'+role;
+  try{if(localStorage.getItem(key))return;}catch(e){return;}
+  _roleSlideList=_ROLE_SLIDES[role];
+  _roleSlideIdx=0;
+  _renderRoleSlide();
+  openModal('role-slides-modal');
+  try{localStorage.setItem(key,'1');}catch(e){}
+}
+function _renderRoleSlide(){
+  const s=_roleSlideList[_roleSlideIdx];
+  document.getElementById('role-slides-body').innerHTML=`<div style="text-align:center;padding:10px 4px 4px">
+    <div style="font-size:48px;margin-bottom:10px">${s.emoji}</div>
+    <h3 style="font-size:19px;margin-bottom:10px">${s.title}</h3>
+    <p style="font-size:13px;color:#6b7280;line-height:1.6">${s.body}</p>
+  </div>`;
+  document.getElementById('role-slides-dots').innerHTML=_roleSlideList.map((_,i)=>`<span style="width:7px;height:7px;border-radius:50%;background:${i===_roleSlideIdx?'var(--p)':'#f0f0f0'}"></span>`).join('');
+  document.getElementById('role-slides-btn').textContent=_roleSlideIdx===_roleSlideList.length-1?"Let's go 🌸":'Next';
+}
+function _advanceRoleSlide(){
+  if(_roleSlideIdx<_roleSlideList.length-1){_roleSlideIdx++;_renderRoleSlide();}
+  else closeModal('role-slides-modal');
 }
 
 // ─── TOASTS ─────────────────────────────────────────────────────
@@ -1357,6 +1418,37 @@ function showTierModal(){
   body.innerHTML=html;
   openModal('tier-modal');
 }
+function openDriverTierModal(){
+  const dp=S.dp;
+  const tiers=(DB.driver_tiers||[]).slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+  const current=dp?.tier||tiers[0]||{label:'Standard',can_accept_recurring:false};
+  const next=tiers.find(t=>(t.sort_order||0)>(current.sort_order||0));
+  const peakOn=!!DB.peakBonusActive,peakPct=Math.round((DB.peakBonusRate||0.10)*100);
+  let html=`<div style="background:linear-gradient(135deg,var(--pp),#fff);border:1.5px solid var(--pb);border-radius:16px;padding:16px;margin-bottom:16px;text-align:center">
+    <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px">Current Tier</p>
+    <p style="font-size:26px;font-weight:800;color:var(--p);margin:4px 0">${current.label}</p>
+    <p style="font-size:13px;color:#374151">Flat 20% platform fee — same for every driver, every tier</p>
+  </div>`;
+  if(next){
+    html+=`<div style="background:#f9fafb;border-radius:12px;padding:12px;margin-bottom:16px;font-size:12px;color:#374151">
+      Reach <strong style="color:var(--p)">${next.label}</strong> at ${next.min_rating}★ and ${next.min_completed_trips} completed trips
+      <span style="color:#9ca3af">(you're at ${(dp?.rating||5).toFixed(2)}★, ${dp?.total_trips||0} trips)</span>
+      ${next.can_accept_recurring&&!current.can_accept_recurring?' to unlock recurring bookings and Peak Bonus Hours.':'.'}
+    </div>`;
+  }
+  html+=`<div style="border-radius:14px;padding:14px;margin-bottom:16px;background:${peakOn?'#dcfce7':'#f9fafb'};border:1.5px solid ${peakOn?'#86efac':'#f0f0f0'}">
+    <p style="font-size:13px;font-weight:700;color:${peakOn?'#166534':'#111827'}">⚡ Peak Bonus Hours ${peakOn?'— Active Now!':''}</p>
+    <p style="font-size:11px;color:#6b7280;margin-top:4px">Preferred and VIP drivers earn an extra ${peakPct}% on every fare during weekday rush hour (7-9am, 4-7pm) and Friday/Saturday nights (9pm-1am) — the busiest times riders need you most.</p>
+    ${!current.can_accept_recurring?`<p style="font-size:11px;color:#9ca3af;margin-top:6px">Reach Preferred tier to start earning this.</p>`:''}
+  </div>`;
+  html+='<p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">All Tiers</p>';
+  html+=tiers.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid #f9fafb">
+    <div><p style="font-size:13px;font-weight:700;${t.label===current.label?'color:var(--p)':''}">${t.label}${t.label===current.label?' (you)':''}</p><p style="font-size:11px;color:#9ca3af">${t.min_rating}★ · ${t.min_completed_trips}+ trips</p></div>
+    <p style="font-size:12px;font-weight:700;color:${t.can_accept_recurring?'#059669':'#9ca3af'}">${t.can_accept_recurring?'Recurring + Peak Bonus':'—'}</p>
+  </div>`).join('');
+  document.getElementById('driver-tier-modal-body').innerHTML=html;
+  openModal('driver-tier-modal');
+}
 // Toggles the unread-notification dot for whichever role is currently signed in.
 function _updateNotifDots(){
   if(!S.user)return;
@@ -1376,9 +1468,34 @@ function rTab(t){
   else renderRiderPromo(body);
 }
 
+// A rider must rate every completed ride before doing anything else in the app --
+// checked directly against DB.rides (real server state) rather than S.rideStatus,
+// which only reflects whatever ride is currently "active" and goes blank the moment
+// a ride finishes, well before this gate needs to matter (e.g. after closing the app
+// and reopening later with an old unrated ride still sitting in their history).
+function _unratedCompletedRide(){
+  if(!S.user||S.user.role!=='rider')return null;
+  return DB.rides.find(r=>r.rider_id===S.user.id&&r.status==='completed'&&!r.rider_rating)||null;
+}
 function renderRiderBook(){
   const body=document.getElementById('rider-body');
   if(!body)return;
+  const unrated=_unratedCompletedRide();
+  if(unrated){
+    S.rideToRate=unrated.id;
+    body.innerHTML=`
+      <div style="text-align:center;padding:40px 16px">
+        <div style="font-size:56px;margin-bottom:12px">🌸</div>
+        <h2 style="font-size:22px;margin-bottom:8px">Ride Complete!</h2>
+        <p style="color:#6b7280;font-size:14px;margin-bottom:8px">You arrived safely.</p>
+        <p style="font-size:22px;font-weight:700;color:var(--p);margin-bottom:20px">${fmtFare(unrated.final_fare||0)}</p>
+        <p style="color:#6b7280;font-size:13px;margin-bottom:16px">Please rate your last ride before booking another.</p>
+        <button class="btn bp bw" onclick="openRateModal()">⭐ Rate Your Ride</button>
+      </div>
+    `;
+    openRateModal();
+    return;
+  }
   // The heaviest page in the app (live map, GPS marker, tile redraws) is the one most
   // likely to starve the video's compositor and leave it stuck on a stale frame --
   // nudge it fresh the instant this page becomes active, on top of the standing 2s
@@ -1768,7 +1885,7 @@ async function submitComplaint(){
 }
 
 // Rating
-function openRateModal(){S.rideToRate=S.activeRide?.id;openModal('rate-modal');}
+function openRateModal(){if(!S.rideToRate)S.rideToRate=S.activeRide?.id;openModal('rate-modal');}
 function setRating(n){S.rating=n;document.querySelectorAll('.star').forEach((s,i)=>s.classList.toggle('on',i<n));}
 async function submitRate(){
   if(!S.rating){toast('Please select a rating','err');return;}
@@ -2231,19 +2348,20 @@ function renderDriverEarnings(body){
           <div style="width:38px;height:38px;flex-shrink:0;border-radius:12px;background:linear-gradient(150deg,var(--pl),var(--p) 55%,var(--pd));display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 10px -2px rgba(196,0,111,.5)">🏅</div>
           <div style="min-width:0">
             <p style="font-size:14px;font-weight:700;color:#111827">${tier.label||'Standard'} Driver</p>
-            <p style="font-size:11px;color:#6b7280">You keep ${Math.round((1-(tier.commission_rate??0.20))*100)}% of every fare</p>
+            <p style="font-size:11px;color:#6b7280">Pink.TT keeps a flat 20% platform fee — same for every driver, every tier</p>
           </div>
         </div>
         ${tier.can_accept_recurring?`<span class="badge bpink" style="flex-shrink:0">Recurring ✓</span>`:''}
       </div>
       ${nextTier?`
         <div style="border-top:1px solid rgba(233,30,140,.15);margin:12px 0 10px"></div>
-        <p style="font-size:11px;color:#6b7280">Next: <strong style="color:var(--p)">${nextTier.label}</strong> — keep ${Math.round((1-(nextTier.commission_rate??0))*100)}% at ${nextTier.min_rating}★ and ${nextTier.min_completed_trips} trips
+        <p style="font-size:11px;color:#6b7280">Next: <strong style="color:var(--p)">${nextTier.label}</strong> at ${nextTier.min_rating}★ and ${nextTier.min_completed_trips} trips — unlocks${nextTier.can_accept_recurring?' recurring bookings':' more perks'}
         <span style="color:#9ca3af">(you're at ${(dp?.rating||5).toFixed(2)}★, ${dp?.total_trips||0} trips)</span></p>
       `:`
         <div style="border-top:1px solid rgba(233,30,140,.15);margin:12px 0 10px"></div>
-        <p style="font-size:11px;color:#6b7280">🌸 You're at the top tier — the best commission rate on Pink.TT.</p>
+        <p style="font-size:11px;color:#6b7280">🌸 You're at the top tier — full access to every perk on Pink.TT.</p>
       `}
+      <button class="btn bs bsm bw" style="margin-top:10px" onclick="openDriverTierModal()">🏅 My Tier &amp; Perks</button>
     </div>
     <div class="earn-grid" style="margin-bottom:12px">
       <div class="earn-card"><div style="font-size:20px;font-weight:700;color:var(--g)">TTD $${net.toFixed(0)}</div><div style="font-size:11px;color:#9ca3af">Net This Week</div></div>
@@ -3739,6 +3857,8 @@ async function submitIdVerify(){
 // ── Override bookRide to hit server ─────────────────────────────
 const _origBookRide=bookRide;
 bookRide=async function(){
+  const unrated=_unratedCompletedRide();
+  if(unrated){toast('Please rate your last ride first','err');S.rideToRate=unrated.id;openRateModal();renderRiderBook();return;}
   const pickup=document.getElementById('ride-pickup')?.value.trim();
   const dest=document.getElementById('ride-dest')?.value.trim();
   if(!pickup||!dest){toast('Enter pickup and destination','err');return;}

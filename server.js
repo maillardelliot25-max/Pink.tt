@@ -346,6 +346,19 @@ function resolveDriverTier(tiers,driver){
 async function driverCommissionRate(driverUserId){
   return DRIVER_COMMISSION_RATE;
 }
+// Peak Bonus Hours: a real incentive (not just a tier badge) to get Preferred/VIP
+// drivers online exactly when riders need them most. +10% of the fare, paid by the
+// platform out of its own margin during these windows, on top of normal earnings --
+// weekday rush hours plus Friday/Saturday nightlife, in Trinidad & Tobago local time
+// (UTC-4, no DST observed, so a fixed offset is correct year-round).
+const PEAK_BONUS_RATE=0.10;
+function isPeakBonusHour(d=new Date()){
+  const tt=new Date(d.getTime()-4*3600000);
+  const day=tt.getUTCDay(),hour=tt.getUTCHours();
+  if(day>=1&&day<=5&&((hour>=7&&hour<9)||(hour>=16&&hour<19)))return true;
+  if((day===5||day===6)&&(hour>=21||hour<1))return true;
+  return false;
+}
 // Converts a requested point redemption into an actual (points,discount$) pair,
 // clamped to what the rider actually has and the per-ride redemption cap.
 function clampPointsRedemption(requestedPoints,availablePoints,fare){
@@ -525,7 +538,7 @@ async function buildDB(){
   const recurring_schedules=(await dbAll('SELECT * FROM recurring_schedules')).map(s=>({...s,days_of_week:String(s.days_of_week||'').split(',').filter(x=>x!=='').map(Number)}));
   const scheduled_ride_legs=await dbAll('SELECT * FROM scheduled_ride_legs ORDER BY scheduled_timestamp');
   const daily_messages=(await dbAll('SELECT * FROM daily_messages ORDER BY created_at DESC')).map(m=>({...m,is_active:!!m.is_active}));
-  return{users,driver_tiers,driver_profiles,complaints,recurring_schedules,scheduled_ride_legs,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings,daily_messages};
+  return{users,driver_tiers,driver_profiles,complaints,recurring_schedules,scheduled_ride_legs,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings,daily_messages,peakBonusActive:isPeakBonusHour(),peakBonusRate:PEAK_BONUS_RATE};
 }
 
 async function setSetting(key,value){
@@ -1053,6 +1066,10 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       // motion should.
       const ex=await dbGet("SELECT id FROM rides WHERE rider_id=? AND status IN('requested','accepted','arriving','in_progress')",[userId]);
       if(ex)return res.json({ok:false,error:'You already have an active ride'});
+      // Rating every completed ride is mandatory -- enforced here too, not just in the
+      // client's UI gate, so a direct API call can't bypass it.
+      const unratedRide=await dbGet("SELECT id FROM rides WHERE rider_id=? AND status='completed' AND rider_rating IS NULL",[userId]);
+      if(unratedRide)return res.json({ok:false,error:'Please rate your last ride before booking another'});
       const p=isValidTTCoord(data.pickup_lat,data.pickup_lng)?[data.pickup_lat,data.pickup_lng]:(await resolveCoord(data.pickup_address)).coord;
       const d=isValidTTCoord(data.destination_lat,data.destination_lng)?[data.destination_lat,data.destination_lng]:(await resolveCoord(data.destination_address)).coord;
       const route=await getRoute(p,d);
@@ -1180,10 +1197,18 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
         // fare = what the rider actually pays (estimated_fare already has any points
         // discount baked in). Driver earnings are calculated from the full pre-discount
         // fare (fare + points_discount) so a points redemption never reduces payout.
-        // Platform cut now comes from the driver's tier (20/15/10%) instead of a flat
-        // 20% -- better-rated, higher-volume drivers keep more of each fare.
+        // Flat 20% platform cut for every driver regardless of tier (see
+        // DRIVER_COMMISSION_RATE) -- tiers no longer affect commission, only perk
+        // eligibility (recurring bookings, Peak Bonus Hours below).
         const commission=await driverCommissionRate(ride.driver_id);
-        const fare=ride.final_fare||ride.estimated_fare||18,fullFare=fare+(ride.points_discount||0),earn=fullFare*(1-commission);
+        const fare=ride.final_fare||ride.estimated_fare||18,fullFare=fare+(ride.points_discount||0);
+        let earn=fullFare*(1-commission);
+        if(isPeakBonusHour()){
+          const driverRow=await dbGet('SELECT rating,total_trips FROM driver_profiles WHERE user_id=?',[ride.driver_id]);
+          const tiersList=await dbAll('SELECT * FROM driver_tiers ORDER BY sort_order');
+          const driverTier=resolveDriverTier(tiersList,driverRow);
+          if(driverTier?.can_accept_recurring)earn+=fare*PEAK_BONUS_RATE;
+        }
         const rider=await dbGet('SELECT pink_points,pink_points_lifetime FROM users WHERE id=?',[ride.rider_id]);
         const tier=pinkPointsTier(rider?.pink_points_lifetime||0);
         const pointsEarned=Math.round(fare*PINK_POINTS_EARN_RATE*tier.multiplier);
