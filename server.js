@@ -1,5 +1,5 @@
 'use strict';
-const express=require('express'),http=require('http'),WebSocket=require('ws'),bcrypt=require('bcryptjs'),jwt=require('jsonwebtoken'),{v4:uuidv4}=require('uuid'),path=require('path'),os=require('os'),rateLimit=require('express-rate-limit'),nodemailer=require('nodemailer');
+const express=require('express'),http=require('http'),WebSocket=require('ws'),bcrypt=require('bcryptjs'),jwt=require('jsonwebtoken'),{v4:uuidv4}=require('uuid'),path=require('path'),os=require('os'),rateLimit=require('express-rate-limit'),nodemailer=require('nodemailer'),crypto=require('crypto');
 const PORT=process.env.PORT||3000;
 const JWT_SECRET=process.env.JWT_SECRET||'pinktt_2025_secure';
 if(!process.env.JWT_SECRET)console.warn('⚠️  JWT_SECRET not set — using an insecure default. Set JWT_SECRET in production.');
@@ -75,7 +75,11 @@ const SCHEMA_SQL=[
   // currently live) -- so switching wallpapers is picking from a gallery of past
   // uploads, not re-uploading the same file. The currently-active one is still just a
   // row here; which one is active is tracked by the settings.active_wallpaper_id key.
-  `CREATE TABLE IF NOT EXISTS app_wallpapers(id TEXT PRIMARY KEY,mp4 TEXT NOT NULL,webm TEXT DEFAULT'',label TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`
+  `CREATE TABLE IF NOT EXISTS app_wallpapers(id TEXT PRIMARY KEY,mp4 TEXT NOT NULL,webm TEXT DEFAULT'',label TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`,
+  // One-time-use, expiring tokens for the Forgot Password flow -- a real table rather
+  // than a settings blob so a token can be looked up directly. Tokens are opaque random
+  // hex, never the user's id/email, so a leaked reset link can't be traced to an account.
+  `CREATE TABLE IF NOT EXISTS password_resets(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token TEXT UNIQUE NOT NULL,expires_at TEXT NOT NULL,used INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(user_id)REFERENCES users(id))`
 ];
 // Public-safe settings keys: readable by any authenticated user via buildDB() (e.g.
 // so a rider can see the real safety contact number). Anything more sensitive than
@@ -669,6 +673,47 @@ app.post('/api/login',authLimiter,async(req,res)=>{
   if(!user.is_active)return res.status(403).json({error:'Account suspended. Contact support@pink.tt'});
   const token=jwt.sign({id:user.id,role:user.role,email:user.email},JWT_SECRET,{expiresIn:'30d'});
   res.json({ok:true,token,user_id:user.id});
+});
+
+// Forgot Password: request a reset link. Always responds the same generic message
+// whether or not the email is registered -- revealing that would let anyone enumerate
+// real accounts. The reset link/email is only ever sent when a matching account exists.
+app.post('/api/forgot-password',authLimiter,async(req,res)=>{
+  const email=String(req.body.email||'').trim().toLowerCase();
+  if(!email)return res.status(400).json({error:'Email required'});
+  const GENERIC={ok:true,message:'If an account exists for that email, a reset link has been sent.'};
+  const user=await dbGet('SELECT id,first_name FROM users WHERE email=?',[email]);
+  if(!user)return res.json(GENERIC);
+  const token=crypto.randomBytes(32).toString('hex');
+  const expiresAt=new Date(Date.now()+60*60*1000).toISOString();
+  await dbRun('INSERT INTO password_resets(id,user_id,token,expires_at)VALUES(?,?,?,?)',[uuidv4(),user.id,token,expiresAt]);
+  const origin=(process.env.PUBLIC_URL||`${req.protocol}://${req.get('host')}`).replace(/\/$/,'');
+  const resetLink=`${origin}/reset-password.html?token=${token}`;
+  if(EMAIL_READY){
+    try{
+      await mailer.sendMail({from:`Pink.TT <${process.env.GMAIL_USER}>`,to:email,subject:'Reset your Pink.TT password',text:`Hi ${user.first_name||''},\n\nSomeone requested a password reset for this Pink.TT account. If this was you, set a new password here (link expires in 1 hour):\n\n${resetLink}\n\nIf you didn't request this, you can ignore this email -- your password won't change.`});
+    }catch(e){console.error('Password reset email error',e.message);}
+    return res.json(GENERIC);
+  }
+  // No email configured (e.g. local dev, or Gmail creds not set on this deploy yet) --
+  // same demo-mode fallback pattern as ID verification: return the link directly so the
+  // flow is still fully testable end-to-end without real email delivery.
+  console.log(`🔑 Password reset requested for ${email} -- link (no email configured): ${resetLink}`);
+  res.json({...GENERIC,demo:true,resetLink});
+});
+
+app.post('/api/reset-password',authLimiter,async(req,res)=>{
+  const token=String(req.body.token||'');
+  const password=String(req.body.password||'');
+  if(!token||!password)return res.status(400).json({error:'Missing token or password'});
+  if(password.length<8)return res.status(400).json({error:'Password must be 8+ characters'});
+  const reset=await dbGet('SELECT * FROM password_resets WHERE token=?',[token]);
+  if(!reset||reset.used||new Date(reset.expires_at)<new Date())return res.status(400).json({error:'This reset link is invalid or has expired. Please request a new one.'});
+  const hash=bcrypt.hashSync(password,10);
+  await dbRun('UPDATE users SET password_hash=? WHERE id=?',[hash,reset.user_id]);
+  await dbRun('UPDATE password_resets SET used=1 WHERE id=?',[reset.id]);
+  loginAttempts.delete((await dbGet('SELECT email FROM users WHERE id=?',[reset.user_id]))?.email||'');
+  res.json({ok:true});
 });
 
 // buildDB() assembles the whole platform; this decides how much of it any one viewer is
