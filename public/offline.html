@@ -53,12 +53,22 @@ try{
     vid.load();
   }
 }catch(e){}
+// Also nudges currentTime forward by one frame when the video is still technically
+// playing (paused stays false) but may be stuck on a stale frame -- same fix as the
+// main app's _keepWallpapersPlaying, brought here for parity since this screen can sit
+// open even longer than a normal page visit.
 function keepLoopAlive(){
-  if(document.visibilityState === 'visible' && vid.paused) vid.play().catch(()=>{});
+  if(document.visibilityState !== 'visible') return;
+  if(vid.paused){vid.play().catch(()=>{});return;}
+  if(vid.readyState>=2&&vid.duration>0){
+    const nudged=vid.currentTime+0.033;
+    vid.currentTime=nudged<vid.duration?nudged:0;
+  }
 }
 document.addEventListener('visibilitychange', keepLoopAlive);
 window.addEventListener('pageshow', keepLoopAlive);
 vid.addEventListener('pause', keepLoopAlive);
+setInterval(keepLoopAlive, 10000);
 
 // The whole point of this screen is "come back on its own once wifi returns" rather
 // than making someone remember to tap Try Again -- listen for the browser's own
