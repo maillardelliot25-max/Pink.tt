@@ -4460,16 +4460,20 @@ _pickWallpaper();
 //    Runs on the same visibility/pageshow triggers as #1 (that's when a paused-tab-switch
 //    freeze would have happened) plus a standing interval, since this failure mode can
 //    also occur without any visibility change at all.
+// The forced currentTime nudge that used to live here (seeking one frame forward every
+// tick to force a repaint) was the fix for a stale-frame bug that's now actually solved
+// at the source -- app-bg-video/boot-bg-video/hero-bg are promoted onto their own GPU
+// compositor layer (translate3d + will-change:transform), so they're never caught in a
+// backdrop-filter recomposite in the first place. Running that seek every 2s on top of
+// an already-fixed video was itself the problem: forcing a decoder seek that often reads
+// as a visible micro-stutter, i.e. exactly "sticking every 2 seconds". All that's left
+// to actually handle here is a genuinely paused video (e.g. after the tab was backgrounded
+// long enough for the OS to pause media) -- resume it, nothing more.
 function _keepWallpapersPlaying(){
   if(document.visibilityState!=='visible')return;
   ['app-bg-video','hero-bg-video'].forEach(id=>{
     const v=document.getElementById(id);
-    if(!v)return;
-    if(v.paused){v.play().catch(()=>{});return;}
-    if(v.readyState>=2&&v.duration>0){
-      const nudged=v.currentTime+0.033;
-      v.currentTime=nudged<v.duration?nudged:0;
-    }
+    if(v&&v.paused)v.play().catch(()=>{});
   });
 }
 document.addEventListener('visibilitychange',_keepWallpapersPlaying);
@@ -4477,13 +4481,10 @@ window.addEventListener('pageshow',_keepWallpapersPlaying);
 ['app-bg-video','hero-bg-video'].forEach(id=>{
   document.getElementById(id)?.addEventListener('pause',_keepWallpapersPlaying);
 });
-// Was 10000ms -- too long a gap on the Book Ride page specifically, where the live
-// Leaflet map (tile layer redraws, GPS marker animation) is by far the heaviest thing
-// on screen and most likely to starve the compositor into freezing the video underneath
-// it (the backdrop-filter stale-frame bug described above). Every 2s caps a visible
-// stuck frame at a fraction of what it was, same fix, just applied far more often --
-// no fade, no visual/quality change, just less time spent stuck before the next nudge.
-setInterval(_keepWallpapersPlaying,2000);
+// Just a cheap pause-check now (see comment above), so a short interval costs nothing --
+// catches a video an OS/browser paused in the background well before the next
+// visibilitychange/pageshow event would.
+setInterval(_keepWallpapersPlaying,10000);
 
 // ── Install-app banner ──────────────────────────────────────────────────────
 // The manifest+service-worker made the app *technically* installable, but
