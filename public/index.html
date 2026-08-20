@@ -752,16 +752,16 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
     <p style="text-align:center;margin-top:18px;font-size:13px;color:#9ca3af">Don't have an account? <a onclick="go('register')" style="color:var(--p);font-weight:600;cursor:pointer">Sign up free</a></p>
     <div style="border-top:1px solid #f0f0f0;margin:18px 0"></div>
     <div class="demo-box">
-      <p>Demo Accounts — Click to fill</p>
+      <p>Demo Accounts — Tap to sign in instantly</p>
       <div class="demo-row"><span>Admin:</span><code style="font-size:10px">admin@pink.tt / Admin@PinkTT2024</code></div>
       <div class="demo-row"><span>Rider:</span><code style="font-size:10px">sarah@demo.pink.tt / Rider@2024</code></div>
       <div class="demo-row"><span>Driver ✓:</span><code style="font-size:10px">aminah@demo.pink.tt / Driver@2024</code></div>
       <div class="demo-row"><span>Driver ⏳:</span><code style="font-size:10px">priya@demo.pink.tt / Driver@2024</code></div>
       <div class="demo-btns">
-        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('admin@pink.tt','Admin@PinkTT2024')">Admin</button>
-        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('sarah@demo.pink.tt','Rider@2024')">Rider</button>
-        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('aminah@demo.pink.tt','Driver@2024')">Driver ✓</button>
-        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="fill('priya@demo.pink.tt','Driver@2024')">Pending</button>
+        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('admin@pink.tt','Admin@PinkTT2024')">Admin</button>
+        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('sarah@demo.pink.tt','Rider@2024')">Rider</button>
+        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('aminah@demo.pink.tt','Driver@2024')">Driver ✓</button>
+        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('priya@demo.pink.tt','Driver@2024')">Pending</button>
       </div>
     </div>
    </div>
@@ -1237,6 +1237,7 @@ function closeModal(id){document.getElementById(id).classList.remove('show')}
 
 // ─── AUTH ────────────────────────────────────────────────────────
 function fill(email,pass){document.getElementById('l-email').value=email;document.getElementById('l-pass').value=pass;}
+function quickLoginDemo(email,pass){fill(email,pass);doLogin();}
 
 function doLogin(){
   const email=document.getElementById('l-email').value.trim().toLowerCase();
