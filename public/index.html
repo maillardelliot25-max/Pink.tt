@@ -806,7 +806,7 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
 <div class="page" id="pg-idverify">
   <div class="topbar">
     <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
-    <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">⎋</button>
+    <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:34px;height:34px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">🚪</button>
   </div>
   <div class="scroll" style="padding:20px 18px">
     <div style="text-align:center;margin-bottom:22px">
@@ -851,7 +851,7 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
       <button class="sosbtn" onclick="openModal('sos-modal')">SOS</button>
       <div id="tog" class="tog" onclick="toggleOnline()"></div>
       <span id="tog-lbl" style="font-size:11px;color:#9ca3af;font-weight:600">Offline</span>
-      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">⎋</button>
+      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">🚪</button>
     </div>
   </div>
   <div id="driver-banner" style="display:none"></div>
@@ -963,7 +963,7 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
       <div id="admin-sos-badge" style="display:none;background:var(--r);color:#fff;font-size:10px;font-weight:800;padding:4px 9px;border-radius:20px;cursor:pointer;animation:sosp 1.5s infinite" onclick="aTab('safety')">🚨 SOS</div>
       <button onclick="showNotifs()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:14px;position:relative" aria-label="Notifications">🔔<span id="admin-notif-dot" class="notif-dot" style="display:none"></span></button>
       <button onclick="go('discover')" style="background:var(--pp);border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:14px" title="Marketplace">💅</button>
-      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">⎋</button>
+      <button onclick="doLogout()" style="background:#f3f4f6;border:none;cursor:pointer;width:30px;height:30px;border-radius:50%;font-size:13px" title="Sign out" aria-label="Sign out">🚪</button>
     </div>
   </div>
   <div class="tabs" style="overflow-x:auto;flex-shrink:0">
@@ -1298,7 +1298,7 @@ function showMenu(){
     {label:'💳 Payments & Promos',action:()=>{rTab('pay')}},
     {label:'💅 Discover Businesses',action:()=>{go('discover');renderDiscover()}},
     {label:'🔔 Notifications',action:()=>{showNotifs()}},
-    {label:'⎋ Sign Out',action:doLogout,red:true},
+    {label:'🚪 Sign Out',action:doLogout,red:true},
   ];
   let html='<div style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300" onclick="closeUserMenu()"></div><div style="position:fixed;top:54px;right:12px;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.25);z-index:301;min-width:210px;overflow:hidden" id="user-menu">';
   html+=`<div style="padding:12px 16px;border-bottom:1px solid #f0f0f0"><p style="font-weight:600;font-size:13px">${S.user.first_name} ${S.user.last_name}</p><p style="font-size:11px;color:#9ca3af">${S.user.email}</p></div>`;
