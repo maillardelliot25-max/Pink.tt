@@ -20,7 +20,7 @@ h1{font-family:'Playfair Display',Georgia,serif}
    bar, and the safe-area padding keeps the actual text/button clear of the notch/gesture
    bar while the video+wash behind them still go edge-to-edge. */
 #shell{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;height:100dvh;width:100%;margin:0 auto;padding:calc(32px + env(safe-area-inset-top,0px)) 24px calc(32px + env(safe-area-inset-bottom,0px));text-align:center;position:relative;overflow:hidden}
-.bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:.6}
+.bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:.6;transition:opacity .35s ease}
 .bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,47,168,.35),rgba(122,18,99,.55));pointer-events:none}
 #shell>:not(.bg-video):not(.bg-wash){position:relative;z-index:1}
 .logo-dot{width:56px;height:56px;border-radius:16px;background:#fff;color:var(--p);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:26px;margin-bottom:18px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
@@ -77,6 +77,16 @@ document.addEventListener('visibilitychange', keepLoopAlive);
 window.addEventListener('pageshow', keepLoopAlive);
 vid.addEventListener('pause', keepLoopAlive);
 setInterval(keepLoopAlive, 10000);
+
+// Same reasoning as the main app: a buffer stall freezes on the last decoded frame
+// rather than looking broken, which on a page whose whole point is "the connection is
+// bad" is exactly the wrong moment for a visibly stuck background. Fade out on stall,
+// back to the normal .6 opacity the instant playback actually resumes.
+let stallTimer=null;
+vid.addEventListener('waiting', ()=>{stallTimer=setTimeout(()=>{vid.style.opacity='0';},250);});
+vid.addEventListener('stalled', ()=>{stallTimer=setTimeout(()=>{vid.style.opacity='0';},250);});
+vid.addEventListener('playing', ()=>{clearTimeout(stallTimer);vid.style.opacity='.6';});
+vid.addEventListener('canplay', ()=>{clearTimeout(stallTimer);vid.style.opacity='.6';});
 
 // The whole point of this screen is "come back on its own once wifi returns" rather
 // than making someone remember to tap Try Again -- listen for the browser's own

@@ -68,7 +68,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    gray bars on either side on any tablet/wide-screen/desktop browser. Now fills the
    full viewport everywhere; a soft width cap only kicks in on genuinely huge desktop
    monitors so text doesn't stretch into unreadably long lines. */
-.app-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:1}
+.app-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:1;transition:opacity .35s ease}
 /* Light hot-pink tint that unifies whatever clip is playing into one brand look, kept
    weak on purpose so the wallpaper itself stays the thing you see rather than the tint. */
 .app-bg-wash{position:fixed;inset:0;z-index:0;background:linear-gradient(165deg,rgba(255,20,147,.16),rgba(199,0,105,.24));pointer-events:none}
@@ -77,7 +77,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',Georgia,serif}
    above app-bg-video/app-bg-wash) so #boot-splash's own blur+tint reads this clip
    instead of the one behind it -- see the comment on the <video id="boot-bg-video">
    tag for why they're deliberately different clips. */
-.boot-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:149;opacity:1}
+.boot-bg-video{position:fixed;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:149;opacity:1;transition:opacity .35s ease}
 @media (prefers-reduced-motion:reduce){.boot-bg-video{display:none}}
 /* Translucent + blurred rather than solid #fff so the app-bg-video shows through as an
    ambient wash on every page -- individual .card elements underneath stay fully opaque
@@ -293,7 +293,7 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
 .hero-intro h1{font-size:28px;line-height:1.25;margin-bottom:10px}
 .hero-intro h1 em{color:var(--p);font-style:normal}
 .hero-intro p{color:#6b7280;font-size:14px;line-height:1.65;margin-bottom:24px}
-.hero-bg{position:absolute;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%)}
+.hero-bg{position:absolute;top:50%;left:50%;width:124%;height:124%;transform:translate(-50%,-50%);object-fit:cover;z-index:0;opacity:1;transition:opacity .35s ease;-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%);mask-image:linear-gradient(to bottom,#000 0%,#000 var(--fade-start,55%),transparent 100%)}
 .hero.has-video .hero-chip{position:relative;z-index:1;background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.4);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 .hero.has-video h1{position:relative;z-index:1;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.3)}
 .hero.has-video h1 em{color:#ffe1f1}
@@ -4187,6 +4187,44 @@ window.addEventListener('pageshow',_keepWallpapersPlaying);
   document.getElementById(id)?.addEventListener('pause',_keepWallpapersPlaying);
 });
 setInterval(_keepWallpapersPlaying,10000);
+
+// The nudge/resume tricks above fix a *paused* or stale-frame video, but do nothing for
+// the far more common real-world case on bad wifi: the video is still technically
+// "playing" but has run out of buffered data, so the browser just freezes on the last
+// decoded frame until more arrives -- a visibly "stuck" background that can last as long
+// as the connection stays slow. Rather than let that frozen frame sit there, fade the
+// video out the instant it stalls (revealing the plain tinted background underneath,
+// which is static but never looks broken) and fade it back in the moment playback
+// actually resumes. A network hiccup now reads as a brief, deliberate-looking dissolve
+// instead of a freeze -- this is the one thing that must never visibly stick.
+function _watchForStall(id){
+  const v=document.getElementById(id);
+  if(!v||v.dataset.stallWatched)return;
+  v.dataset.stallWatched='1';
+  let stallTimer=null;
+  const hide=()=>{stallTimer=setTimeout(()=>{v.style.opacity='0';},250);};
+  const show=()=>{clearTimeout(stallTimer);v.style.opacity='1';};
+  v.addEventListener('waiting',hide);
+  v.addEventListener('stalled',hide);
+  v.addEventListener('playing',show);
+  v.addEventListener('canplay',show);
+}
+['app-bg-video','boot-bg-video','hero-bg-video'].forEach(_watchForStall);
+
+// On a connection already known to be too slow for smooth video (Save-Data on, or the
+// browser's own effectiveType estimate is 2g/slow-2g), don't even attempt playback --
+// skip straight to the plain tinted background so there's nothing to buffer, stall, or
+// visibly stick in the first place. navigator.connection is Chrome/Android-only; Safari
+// and Firefox simply don't get this early check and fall back to the stall-fade above.
+try{
+  const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+  if(conn&&(conn.saveData||['slow-2g','2g'].includes(conn.effectiveType))){
+    ['app-bg-video','boot-bg-video','hero-bg-video'].forEach(id=>{
+      const v=document.getElementById(id);
+      if(v){v.pause();v.removeAttribute('src');v.style.opacity='0';}
+    });
+  }
+}catch(e){}
 
 // ── Install-app banner ──────────────────────────────────────────────────────
 // The manifest+service-worker made the app *technically* installable, but
