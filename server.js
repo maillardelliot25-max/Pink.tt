@@ -532,6 +532,19 @@ const app=express();
 // exactly one hop reads the real client IP from Render's X-Forwarded-For without
 // opening up IP spoofing to the outside world.
 app.set('trust proxy',1);
+// Basic hardening headers on every response, including static files -- registered before
+// express.static below since that middleware ends the response itself for any matched
+// file, so anything registered after it never runs for those requests. Cheap and
+// independent of everything else here: stops the app being framed in a hostile iframe
+// (clickjacking), stops browsers guessing/sniffing a content type other than what's
+// declared, and avoids leaking full referrer URLs (which can contain ride addresses in
+// query params) to whatever site a link was clicked from.
+app.use((req,res,next)=>{
+  res.setHeader('X-Content-Type-Options','nosniff');
+  res.setHeader('X-Frame-Options','DENY');
+  res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
+  next();
+});
 // Cheap, unauthenticated, no DB touch -- exists purely so an external keep-alive pinger
 // (see .github/workflows/keepalive.yml) can hit the app every few minutes and stop
 // Render's free-plan instance from spinning down after 15 minutes idle, without eating
@@ -570,6 +583,13 @@ function authMW(req,res,next){const t=(req.headers.authorization||'').replace('B
 const authLimiter=rateLimit({windowMs:15*60*1000,max:20,standardHeaders:true,legacyHeaders:false,message:{error:'Too many attempts — please try again in a few minutes'}});
 const mutationLimiter=rateLimit({windowMs:60*1000,max:60,standardHeaders:true,legacyHeaders:false,message:{error:'Too many requests — please slow down'}});
 const verifyLimiter=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{error:'Too many verification attempts — please try again later'}});
+// The fare/geocode/reverse-geocode/route endpoints are unauthenticated by necessity (the
+// booking screen needs live fare estimates before login) and proxy out to Nominatim/OSRM
+// on every call -- without a limiter, anyone (not just app users) could hammer them in a
+// loop, which both runs up unbounded outbound requests on this server and risks getting
+// this app's server IP rate-limited or banned by Nominatim's free usage policy, breaking
+// geocoding for every real user at once.
+const geoLimiter=rateLimit({windowMs:60*1000,max:60,standardHeaders:true,legacyHeaders:false,message:{error:'Too many requests — please slow down'}});
 
 // Public and unauthenticated on purpose: the landing/onboarding/login pages show the
 // wallpaper and logo mark before anyone is signed in, so those pages need to know
@@ -639,6 +659,11 @@ async function notifyAdminsOfSignup(user){
 app.post('/api/register',authLimiter,async(req,res)=>{
   const{first_name,last_name,email,password,phone,role,emergency_contact_name,emergency_contact_phone}=req.body;
   if(!first_name||!last_name||!email||!password)return res.status(400).json({error:'Missing required fields'});
+  // Client already has type="email" on this field, but that's trivially bypassed by
+  // anyone hitting this endpoint directly -- a couple of garbage non-email rows (no @, no
+  // domain) turned up in production from exactly that gap. Same simple check used by the
+  // browser's own built-in email validation, not a full RFC 5322 parser.
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({error:'Please enter a valid email address'});
   if(password.length<8)return res.status(400).json({error:'Password must be 8+ characters'});
   if(!['rider','driver'].includes(role))return res.status(400).json({error:'Invalid role'});
   if(await dbGet('SELECT id FROM users WHERE email=?',[email.toLowerCase()]))return res.status(400).json({error:'Email already registered'});
@@ -783,7 +808,7 @@ app.get('/api/db',authMW,async(req,res)=>{
   res.json({db:scopeDBFor(full,req.jwt.id,req.jwt.role),user});
 });
 
-app.post('/api/fare',async(req,res)=>{
+app.post('/api/fare',geoLimiter,async(req,res)=>{
   const{pickup,destination,pickup_lat,pickup_lng,destination_lat,destination_lng,pickup_precise,destination_precise}=req.body;
   // pickup_precise/destination_precise come from the address-suggest dropdown (which now
   // flags each suggestion's own precision) when the rider picked a suggestion rather than
@@ -800,13 +825,13 @@ app.post('/api/fare',async(req,res)=>{
 });
 
 // Address suggestions dropdown -- returns up to 6 candidate addresses as the rider types.
-app.get('/api/geocode-suggest',async(req,res)=>{
+app.get('/api/geocode-suggest',geoLimiter,async(req,res)=>{
   const results=await suggestAddresses(req.query.q||'');
   res.json({results});
 });
 
 // Reverse geocode a dropped map pin into a human-readable address (map-pin picker).
-app.get('/api/reverse-geocode',async(req,res)=>{
+app.get('/api/reverse-geocode',geoLimiter,async(req,res)=>{
   const lat=parseFloat(req.query.lat),lng=parseFloat(req.query.lng);
   if(!isValidTTCoord(lat,lng))return res.status(400).json({error:'Invalid coordinates'});
   const label=await reverseGeocode(lat,lng);
@@ -815,7 +840,7 @@ app.get('/api/reverse-geocode',async(req,res)=>{
 
 // Route geometry for an existing ride's pickup/destination -- used to (re)draw the map
 // (e.g. on page reload, or when a driver accepts and needs the same route the rider sees).
-app.get('/api/route',async(req,res)=>{
+app.get('/api/route',geoLimiter,async(req,res)=>{
   const{pickup_lat,pickup_lng,dest_lat,dest_lng}=req.query;
   const p=[parseFloat(pickup_lat),parseFloat(pickup_lng)],d=[parseFloat(dest_lat),parseFloat(dest_lng)];
   if(!isValidTTCoord(p[0],p[1])||!isValidTTCoord(d[0],d[1]))return res.status(400).json({error:'Invalid coordinates'});
