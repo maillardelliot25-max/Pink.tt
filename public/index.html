@@ -4284,8 +4284,12 @@ function _applyCustomIcon(){
 // wins when a custom background is set, on boot-bg-video too since there's only one
 // custom clip to show either side of the loading screen.
 function _applyCustomBackground(){
-  ['boot-bg-video','app-bg-video','hero-bg-video'].forEach(id=>{
-    const v=document.getElementById(id);
+  window._pttHasCustomBg=true;
+  // The install banner's own backdrop video (.ib-bg, built dynamically in
+  // showInstallBanner -- no fixed id since only one exists at a time) was never
+  // included here, so it kept showing the built-in default clip forever regardless of
+  // any custom background an admin set, visibly mismatched against the rest of the app.
+  [...document.querySelectorAll('#boot-bg-video,#app-bg-video,#hero-bg-video,.ib-bg')].forEach(v=>{
     // _hideBootSplash() strips boot-bg-video's source and hides it the moment the splash
     // is gone (display:none) so it's never decoding in the background afterward -- if
     // this config fetch resolves after that already happened, leave it alone rather than
@@ -4506,7 +4510,13 @@ function showInstallBanner(kind){
   if(existing){existing.dataset.kind=kind;return;}
   const el=document.createElement('div');
   el.id='install-banner';el.dataset.kind=kind;
-  const bg=`<video class="ib-bg" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4?v=${VIDEO_VERSION}" type="video/mp4"><source src="/media/install-banner-bg.webm?v=${VIDEO_VERSION}" type="video/webm"></video>`;
+  // If a custom background was already confirmed (by _loadConfig, which usually runs
+  // before this banner ever appears) use it straight away instead of the built-in
+  // default -- avoids a flash of the wrong clip before _applyCustomBackground() would
+  // otherwise catch up to a banner created after that config check already ran.
+  const bg=window._pttHasCustomBg
+    ?`<video class="ib-bg" autoplay loop muted playsinline data-clip="custom"><source src="/api/app-background.mp4" type="video/mp4"><source src="/api/app-background.webm" type="video/webm"></video>`
+    :`<video class="ib-bg" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4?v=${VIDEO_VERSION}" type="video/mp4"><source src="/media/install-banner-bg.webm?v=${VIDEO_VERSION}" type="video/webm"></video>`;
   const icon=`<div class="ib-icon"><img src="/icons/icon-192.png" alt="Pink.TT"></div>`;
   el.innerHTML=bg+(kind==='ios'
     ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap ⬆️ Share, then "Add to Home Screen"</span></div>`
