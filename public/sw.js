@@ -37,8 +37,19 @@ self.addEventListener('activate',e=>{
 async function _navigateWithRetry(request){
   const attempts=3,delays=[800,1600];
   for(let i=0;i<attempts;i++){
-    try{return await fetch(request);}
-    catch(e){if(i<attempts-1)await new Promise(r=>setTimeout(r,delays[i]));}
+    try{
+      const res=await fetch(request);
+      // fetch() only rejects on a genuine network failure (DNS, connection refused,
+      // offline) -- an HTTP 502/503/504 from the host itself (e.g. a free-tier cold
+      // start, or the brief gap during a redeploy) resolves *successfully* with
+      // ok:false, so without this check that raw platform error page (Render's ugly
+      // "502 Bad Gateway") was being returned straight through untouched, on the very
+      // first attempt, with no retry and no fallback to the app's own offline page ever
+      // triggering. Treating a gateway-class status the same as a thrown network error
+      // is what actually makes the retry-then-fallback logic below fire for this case.
+      if([502,503,504].includes(res.status))throw new Error('gateway status '+res.status);
+      return res;
+    }catch(e){if(i<attempts-1)await new Promise(r=>setTimeout(r,delays[i]));}
   }
   return caches.match(OFFLINE_URL);
 }
