@@ -3281,6 +3281,38 @@ function _wsConnect(){
   _PTT_WS.onmessage=e=>{try{_handleWS(JSON.parse(e.data));}catch{}};
   setInterval(()=>{if(_PTT_WS_OK)_PTT_WS.send(JSON.stringify({type:'ping'}));},25000);
 }
+
+// Real phone push (rider, driver, and admin alike) -- the WebSocket above only reaches a
+// tab that's actually open, so a driver whose phone is locked would never see a new ride
+// request until they happened to reopen the app. Called right after every successful
+// login/register/session-restore; best-effort throughout (any failure here should never
+// block getting into the app) and a no-op if the browser doesn't support push, permission
+// was already denied, or the server has no VAPID keys configured.
+function _urlBase64ToUint8Array(base64String){
+  const padding='='.repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+  const rawData=atob(base64);
+  const arr=new Uint8Array(rawData.length);
+  for(let i=0;i<rawData.length;i++)arr[i]=rawData.charCodeAt(i);
+  return arr;
+}
+async function _setupPushNotifications(){
+  try{
+    if(!('serviceWorker' in navigator)||!('PushManager' in window))return;
+    if(Notification.permission==='denied')return;
+    const cfg=await(await fetch('/api/vapid-public-key')).json();
+    if(!cfg.publicKey)return;
+    if(Notification.permission==='default'){
+      const perm=await Notification.requestPermission();
+      if(perm!=='granted')return;
+    }
+    if(Notification.permission!=='granted')return;
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:_urlBase64ToUint8Array(cfg.publicKey)});
+    await fetch('/api/push-subscribe',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_PTT_TOKEN},body:JSON.stringify(sub.toJSON())});
+  }catch(e){}
+}
 function _handleWS(msg){
   if(msg.type==='db_update'){
     // Merge server DB into local DB
@@ -3412,7 +3444,7 @@ doLogin=async function(){
     await _pttLoadDB();
     const user=DB.users.find(u=>u.id===data.user_id);
     if(!user){toast('Account not found','err');if(btn){btn.disabled=false;btn.textContent='Sign In';}return;}
-    S.user=user;save();_wsConnect();
+    S.user=user;save();_wsConnect();_setupPushNotifications();
     toast('Welcome back, '+user.first_name+'! 🌸','ok');
     routeUser(user);
   }catch(e){toast('Network error — is the server running?','err');}
@@ -3442,7 +3474,7 @@ doRegister=async function(){
     await _pttLoadDB();
     const user=DB.users.find(u=>u.id===data.user_id);
     if(!user){toast('Error loading account','err');return;}
-    S.user=user;save();_wsConnect();
+    S.user=user;save();_wsConnect();_setupPushNotifications();
     toast('Welcome to Pink.TT, '+first+'! 🌸','ok');
     routeUser(user);
   }catch(e){toast('Network error — is the server running?','err');}
@@ -4049,7 +4081,7 @@ init=async function(){
   if(_PTT_TOKEN){
     await _pttLoadDB();
     const fresh=DB.users.find(u=>u.id===S.user?.id);
-    if(fresh&&fresh.is_active){S.user=fresh;_wsConnect();routeUser(fresh);}
+    if(fresh&&fresh.is_active){S.user=fresh;_wsConnect();_setupPushNotifications();routeUser(fresh);}
     else{localStorage.removeItem('ptt_token');_PTT_TOKEN=null;go('land');}
   }else{go('land');}
   await configPromise;

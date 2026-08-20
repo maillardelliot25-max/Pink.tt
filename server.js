@@ -1,5 +1,16 @@
 'use strict';
-const express=require('express'),http=require('http'),WebSocket=require('ws'),bcrypt=require('bcryptjs'),jwt=require('jsonwebtoken'),{v4:uuidv4}=require('uuid'),path=require('path'),os=require('os'),rateLimit=require('express-rate-limit'),nodemailer=require('nodemailer'),crypto=require('crypto');
+const express=require('express'),http=require('http'),WebSocket=require('ws'),bcrypt=require('bcryptjs'),jwt=require('jsonwebtoken'),{v4:uuidv4}=require('uuid'),path=require('path'),os=require('os'),rateLimit=require('express-rate-limit'),nodemailer=require('nodemailer'),crypto=require('crypto'),webpush=require('web-push');
+// Real phone push notifications (the WebSocket connection above only reaches a rider or
+// driver while the app is actually open/foregrounded -- a driver whose phone is locked
+// would never see a new ride request in time). VAPID is the standard, free, no-account-
+// needed way to send browser/PWA push: a keypair identifies this server to the push
+// service, no per-message cost, no third-party signup required. Generate a pair once with
+// `node -e "console.log(require('web-push').generateVAPIDKeys())"` and set both as Render
+// env vars -- push is silently disabled (logged once, no crash) until they're set.
+const VAPID_PUBLIC_KEY=process.env.VAPID_PUBLIC_KEY||'',VAPID_PRIVATE_KEY=process.env.VAPID_PRIVATE_KEY||'';
+const PUSH_READY=!!(VAPID_PUBLIC_KEY&&VAPID_PRIVATE_KEY);
+if(PUSH_READY)webpush.setVapidDetails('mailto:'+(process.env.ADMIN_NOTIFICATION_EMAIL||'support@pink.tt'),VAPID_PUBLIC_KEY,VAPID_PRIVATE_KEY);
+else console.warn('⚠️  VAPID keys not set (VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY) — phone push notifications are disabled.');
 const PORT=process.env.PORT||3000;
 const JWT_SECRET=process.env.JWT_SECRET||'pinktt_2025_secure';
 if(!process.env.JWT_SECRET)console.warn('⚠️  JWT_SECRET not set — using an insecure default. Set JWT_SECRET in production.');
@@ -79,7 +90,11 @@ const SCHEMA_SQL=[
   // One-time-use, expiring tokens for the Forgot Password flow -- a real table rather
   // than a settings blob so a token can be looked up directly. Tokens are opaque random
   // hex, never the user's id/email, so a leaked reset link can't be traced to an account.
-  `CREATE TABLE IF NOT EXISTS password_resets(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token TEXT UNIQUE NOT NULL,expires_at TEXT NOT NULL,used INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(user_id)REFERENCES users(id))`
+  `CREATE TABLE IF NOT EXISTS password_resets(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token TEXT UNIQUE NOT NULL,expires_at TEXT NOT NULL,used INTEGER DEFAULT 0,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(user_id)REFERENCES users(id))`,
+  // One row per browser/device a user has granted push permission on -- a person can have
+  // several (phone + desktop), so this is keyed by endpoint (unique per subscription, not
+  // per user) rather than one slot on the users row.
+  `CREATE TABLE IF NOT EXISTS push_subscriptions(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,endpoint TEXT UNIQUE NOT NULL,p256dh TEXT NOT NULL,auth TEXT NOT NULL,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(user_id)REFERENCES users(id))`
 ];
 // Public-safe settings keys: readable by any authenticated user via buildDB() (e.g.
 // so a rider can see the real safety contact number). Anything more sensitive than
@@ -339,6 +354,7 @@ async function pingDriversForRide(ride){
     if(!isValidTTCoord(d.current_lat,d.current_lng))continue;
     if(dist([ride.pickup_lat,ride.pickup_lng],[d.current_lat,d.current_lng])<=DRIVER_MAX_RADIUS_KM){
       broadcastTo(d.user_id,{type:'ride_ping',ride_id:ride.id});
+      pushToUser(d.user_id,'🌸 New ride request','A rider nearby needs a ride — tap to view.','/');
     }
   }
 }
@@ -502,6 +518,25 @@ async function logAudit(admin,action,targetType,targetId,details){
   await dbRun('INSERT INTO audit_log(id,admin_id,admin_email,action,target_type,target_id,details)VALUES(?,?,?,?,?,?,?)',[uuidv4(),admin.id,admin.email,action,targetType||'',targetId||'',details||'']);
 }
 
+// Sends a real phone push to every device a user has subscribed on (rider, driver, or
+// admin -- same helper for all three). Silently a no-op if VAPID isn't configured, so it
+// never breaks the caller. A subscription that comes back 404/410 means the browser
+// itself dropped it (uninstalled, permission revoked, etc.) -- cleaned up here rather
+// than left to fail forever on every future push to that user.
+async function pushToUser(userId,title,body,url){
+  if(!PUSH_READY)return;
+  const subs=await dbAll('SELECT * FROM push_subscriptions WHERE user_id=?',[userId]);
+  const payload=JSON.stringify({title,body,url:url||'/'});
+  for(const s of subs){
+    try{
+      await webpush.sendNotification({endpoint:s.endpoint,keys:{p256dh:s.p256dh,auth:s.auth}},payload);
+    }catch(e){
+      if(e.statusCode===404||e.statusCode===410)await dbRun('DELETE FROM push_subscriptions WHERE id=?',[s.id]);
+      else console.error('Push send error',e.message);
+    }
+  }
+}
+
 function escapeXml(s){return String(s).replace(/[<>&'"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));}
 
 // Automated safety-team call + SMS via Twilio. Never contacts real police/emergency
@@ -599,7 +634,29 @@ const geoLimiter=rateLimit({windowMs:60*1000,max:60,standardHeaders:true,legacyH
 app.get('/api/config',async(req,res)=>{
   const rows=await dbAll("SELECT key,value FROM settings WHERE key IN('app_icon','app_background_mp4')");
   const has=k=>!!rows.find(r=>r.key===k)?.value;
-  res.json({showDemoAccounts:SHOW_DEMO_ACCOUNTS,hasCustomIcon:has('app_icon'),hasCustomBackground:has('app_background_mp4')});
+  res.json({showDemoAccounts:SHOW_DEMO_ACCOUNTS,hasCustomIcon:has('app_icon'),hasCustomBackground:has('app_background_mp4'),pushEnabled:PUSH_READY});
+});
+
+// Public: the client needs this to call pushManager.subscribe() -- it's not a secret,
+// only the private key (never sent anywhere) can actually send a push as this server.
+app.get('/api/vapid-public-key',(req,res)=>res.json({publicKey:VAPID_PUBLIC_KEY}));
+
+app.post('/api/push-subscribe',authMW,async(req,res)=>{
+  const{endpoint,keys}=req.body||{};
+  if(!endpoint||!keys?.p256dh||!keys?.auth)return res.status(400).json({error:'Invalid subscription'});
+  const ex=await dbGet('SELECT id FROM push_subscriptions WHERE endpoint=?',[endpoint]);
+  // Upsert on endpoint, not insert-or-fail: the same browser re-subscribing (permission
+  // re-granted, service worker updated) reuses the same endpoint, and re-registering
+  // should just refresh the row rather than 500 on the unique constraint.
+  if(ex)await dbRun('UPDATE push_subscriptions SET user_id=?,p256dh=?,auth=? WHERE endpoint=?',[req.jwt.id,keys.p256dh,keys.auth,endpoint]);
+  else await dbRun('INSERT INTO push_subscriptions(id,user_id,endpoint,p256dh,auth)VALUES(?,?,?,?,?)',[uuidv4(),req.jwt.id,endpoint,keys.p256dh,keys.auth]);
+  res.json({ok:true});
+});
+
+app.post('/api/push-unsubscribe',authMW,async(req,res)=>{
+  const{endpoint}=req.body||{};
+  if(endpoint)await dbRun('DELETE FROM push_subscriptions WHERE endpoint=? AND user_id=?',[endpoint,req.jwt.id]);
+  res.json({ok:true});
 });
 function _parseDataUri(value,typePrefix){
   const m=/^data:([a-z0-9.+-]+\/[a-z0-9.+-]+);base64,([a-zA-Z0-9+/=]+)$/.exec(value||'');
@@ -648,6 +705,7 @@ async function notifyAdminsOfSignup(user){
   const msg=`🆕 New ${user.role} signup: ${user.first_name} ${user.last_name} (${user.email})`;
   for(const a of admins){
     await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),a.id,'signup',msg]);
+    pushToUser(a.id,'🆕 New signup',msg,'/');
   }
   sendAdminEmail(
     `New Pink.TT ${user.role} signup — ${user.first_name} ${user.last_name}`,
@@ -1023,6 +1081,7 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
         // the whole submission after the complaint row had already been written.
         await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',
           [uuidv4(),a.id,'complaint',`📮 New complaint (${category}) from ${me?.first_name||'a user'} ${me?.last_name||''}`.trim()]);
+        pushToUser(a.id,'📮 New complaint',`(${category}) from ${me?.first_name||'a user'} ${me?.last_name||''}`.trim(),'/');
         broadcastTo(a.id,{type:'complaint_received',complaint_id:cid});
       }
       // ...and an email to the Pink.TT inbox, so nothing depends on someone happening to
@@ -1085,6 +1144,7 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       if(!dp||dp.status!=='approved')return res.json({ok:false,error:'Your account is pending approval'});
       await dbRun("UPDATE rides SET driver_id=?,status='accepted',accepted_at=datetime('now') WHERE id=?",[userId,data.ride_id]);
       broadcastTo(ride.rider_id,{type:'ride_accepted',ride_id:data.ride_id});
+      pushToUser(ride.rider_id,'🚗 Driver on the way','A driver accepted your ride request.','/');
     }else if(type==='ride_status'){
       const ride=await dbGet('SELECT * FROM rides WHERE id=?',[data.ride_id]);
       if(!ride)return res.json({ok:false,error:'Ride not found'});
@@ -1131,6 +1191,7 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const msg=`🚨 SOS from ${u.first_name} ${u.last_name} (${u.phone}) — GPS: ${data.lat}, ${data.lng}`;
       for(const a of admins){
         await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),a.id,'sos',msg]);
+        pushToUser(a.id,'🚨 SOS ALERT',msg,'/');
       }
       const mapLink=`https://www.google.com/maps?q=${data.lat},${data.lng}`;
       sendAdminEmail(`🚨 Pink.TT SOS — ${u.first_name} ${u.last_name}`,`${msg}\n\nLive location: ${mapLink}\n\nReview immediately in the admin dashboard.`);
@@ -1143,6 +1204,7 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       await dbRun("UPDATE driver_profiles SET status='approved' WHERE user_id=?",[data.user_id]);
       await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),data.user_id,'approval','✅ Your Pink.TT driver account has been approved! Log in and go online to start accepting rides.']);
+      pushToUser(data.user_id,'✅ Driver account approved','You can now go online and start accepting rides.','/');
       broadcastTo(data.user_id,{type:'driver_approved'});
     }else if(type==='reject_driver'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});

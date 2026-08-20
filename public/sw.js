@@ -88,3 +88,29 @@ self.addEventListener('fetch',e=>{
     e.respondWith(_customBgNetworkFirst(e.request));
   }
 });
+
+// Real phone push -- fires even when the app isn't open, which is the entire point (a
+// driver's phone locked in their pocket still needs to hear about a new ride request).
+// The server always sends {title,body,url} as its JSON payload (see pushToUser in
+// server.js); falls back to a generic notification if a push somehow arrives malformed
+// rather than throwing and dropping it silently.
+self.addEventListener('push',e=>{
+  let data={title:'Pink.TT',body:'You have a new notification',url:'/'};
+  try{if(e.data)data={...data,...e.data.json()};}catch(err){}
+  e.waitUntil(self.registration.showNotification(data.title,{
+    body:data.body,
+    icon:'/icons/icon-192.png',
+    badge:'/icons/icon-192.png',
+    data:{url:data.url||'/'}
+  }));
+});
+// Focuses an already-open app tab rather than always opening a new one, same as any
+// native app's notification tap behaviour.
+self.addEventListener('notificationclick',e=>{
+  e.notification.close();
+  const url=e.notification.data?.url||'/';
+  e.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{
+    for(const c of list){if('focus' in c)return c.focus();}
+    if(self.clients.openWindow)return self.clients.openWindow(url);
+  }));
+});
