@@ -14,7 +14,6 @@ else console.warn('⚠️  VAPID keys not set (VAPID_PUBLIC_KEY/VAPID_PRIVATE_KE
 const PORT=process.env.PORT||3000;
 const JWT_SECRET=process.env.JWT_SECRET||'pinktt_2025_secure';
 if(!process.env.JWT_SECRET)console.warn('⚠️  JWT_SECRET not set — using an insecure default. Set JWT_SECRET in production.');
-if(!process.env.ANTHROPIC_API_KEY&&!process.env.GEMINI_API_KEY)console.warn('⚠️  No ID verification key set (ANTHROPIC_API_KEY or GEMINI_API_KEY) — ID verification will run in DEMO MODE (auto-approves).');
 const TWILIO_READY=!!(process.env.TWILIO_ACCOUNT_SID&&process.env.TWILIO_AUTH_TOKEN&&process.env.TWILIO_FROM_NUMBER);
 if(!TWILIO_READY)console.warn('⚠️  Twilio not configured (TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER) — SOS will log to the database and notify the admin panel only, no real call/SMS will be sent.');
 const SHOW_DEMO_ACCOUNTS=process.env.SHOW_DEMO_ACCOUNTS==='true'||(process.env.NODE_ENV!=='production'&&process.env.SHOW_DEMO_ACCOUNTS!=='false');
@@ -951,50 +950,7 @@ app.get('/api/route',geoLimiter,async(req,res)=>{
   res.json(route);
 });
 
-// ── ID verification (server-side, key never reaches the client) ──────────────
-const ID_VERIFY_PROMPT='This photo was submitted for identity verification on a women-only rideshare platform. Respond with exactly one lowercase word and nothing else: "female", "male", or "unclear" — describing the apparent gender presentation of the person in the photo.';
-
-// Returns the model's lowercase answer, or null if this provider couldn't be reached/failed
-// (caller falls back to the next configured provider rather than failing the request outright).
-async function classifyWithAnthropic(mediaType,base64Data){
-  try{
-    const apiRes=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
-      body:JSON.stringify({
-        model:'claude-haiku-4-5-20251001',
-        max_tokens:10,
-        messages:[{role:'user',content:[
-          {type:'image',source:{type:'base64',media_type:mediaType,data:base64Data}},
-          {type:'text',text:ID_VERIFY_PROMPT}
-        ]}]
-      })
-    });
-    if(!apiRes.ok){console.error('Anthropic verify-id error',apiRes.status,await apiRes.text());return null;}
-    const apiData=await apiRes.json();
-    return(apiData.content?.[0]?.text||'').trim().toLowerCase();
-  }catch(e){console.error('Anthropic verify-id error',e.message);return null;}
-}
-
-async function classifyWithGemini(mediaType,base64Data){
-  const model=process.env.GEMINI_MODEL||'gemini-3.6-flash';
-  try{
-    const apiRes=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        contents:[{parts:[
-          {inline_data:{mime_type:mediaType,data:base64Data}},
-          {text:ID_VERIFY_PROMPT}
-        ]}],
-        generationConfig:{maxOutputTokens:10}
-      })
-    });
-    if(!apiRes.ok){console.error('Gemini verify-id error',apiRes.status,await apiRes.text());return null;}
-    const apiData=await apiRes.json();
-    return(apiData.candidates?.[0]?.content?.parts?.[0]?.text||'').trim().toLowerCase();
-  }catch(e){console.error('Gemini verify-id error',e.message);return null;}
-}
+// ── ID verification (server-side; every submission is decided by an admin, not an AI) ──
 
 app.post('/api/verify-id',verifyLimiter,authMW,async(req,res)=>{
   const{image}=req.body;
@@ -1003,41 +959,23 @@ app.post('/api/verify-id',verifyLimiter,authMW,async(req,res)=>{
   if(!m)return res.status(400).json({ok:false,error:'Invalid image format — please upload a JPEG, PNG, or WebP photo'});
   const[,mediaType,base64Data]=m;
 
-  if(!process.env.ANTHROPIC_API_KEY&&!process.env.GEMINI_API_KEY){
-    console.warn(`⚠️  DEMO MODE: no verification key set — auto-approving ID verification for ${req.jwt.email}`);
-    await dbRun('UPDATE users SET is_verified=1 WHERE id=?',[req.jwt.id]);
-    broadcastDBUpdate();
-    return res.json({ok:true,verified:true,demo:true});
-  }
-
+  // Every submission goes to the admin for a personal decision -- no AI auto-approval at
+  // all. This used to try an AI vision model as a fast-path approval first, but asking a
+  // model to guess a real person's gender from a photo is inherently unreliable (models
+  // are trained to hedge on exactly that kind of judgment) and, more importantly, the
+  // admin explicitly wants to be the one deciding who gets into the app, not an API call.
   try{
-    let answer=null;
-    if(process.env.ANTHROPIC_API_KEY)answer=await classifyWithAnthropic(mediaType,base64Data);
-    if(answer===null&&process.env.GEMINI_API_KEY)answer=await classifyWithGemini(mediaType,base64Data);
-
-    // The AI is only ever a fast-path *approval* -- a confident "female" reading skips
-    // straight to verified. Anything else (an explicit "male" reading, "unclear", or the
-    // verification service being unreachable) goes to a human admin instead of an
-    // automatic rejection: vision models are trained to be cautious about (or outright
-    // refuse) judging a real person's gender from a photo, and a false AI rejection would
-    // unfairly lock out a legitimate user with no recourse but re-submitting the same
-    // photo into the same unreliable check.
-    if(answer!==null&&answer.includes('female')){
-      await dbRun('UPDATE users SET is_verified=1 WHERE id=?',[req.jwt.id]);
-      broadcastDBUpdate();
-      return res.json({ok:true,verified:true});
-    }
     const verId=uuidv4();
-    await dbRun('INSERT INTO id_verifications(id,user_id,photo,ai_result,status)VALUES(?,?,?,?,?)',[verId,req.jwt.id,image,answer||'','pending']);
+    await dbRun('INSERT INTO id_verifications(id,user_id,photo,ai_result,status)VALUES(?,?,?,?,?)',[verId,req.jwt.id,image,'','pending']);
     const admins=await dbAll("SELECT id FROM users WHERE role='admin' AND is_active=1");
     for(const a of admins){
       await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),a.id,'id_verify',`🪪 New identity verification needs review — ${req.jwt.email}`]);
       pushToUser(a.id,'🪪 ID verification needs review',req.jwt.email,'/');
     }
-    return res.json({ok:true,pending:true,message:"We couldn't confirm this automatically, so it's been sent for a quick manual review — you'll be notified as soon as it's approved (usually within a few hours). You can also retake the photo to try again instantly."});
+    return res.json({ok:true,pending:true,message:"Thanks! Your photo has been sent to the Pink.TT team for review — you'll be notified the moment you're approved."});
   }catch(e){
     console.error('verify-id error',e.message);
-    res.status(500).json({ok:false,error:'Verification failed — please try again'});
+    res.status(500).json({ok:false,error:'Something went wrong submitting your photo — please try again'});
   }
 });
 

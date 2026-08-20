@@ -843,7 +843,7 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
     <input type="file" accept="image/*" id="idv-photo" style="display:none" onchange="_previewFile('idv-photo','idv-preview-box')">
     <button class="btn bs bw" style="margin-bottom:10px" onclick="document.getElementById('idv-photo').click()">📷 Choose Photo</button>
     <button class="btn bp bw" id="idv-btn" onclick="submitIdVerify()">Verify My Identity 🌸</button>
-    <p style="text-align:center;font-size:11px;color:#9ca3af;margin-top:14px;line-height:1.6">Your photo is used only to confirm eligibility and is not stored after review.</p>
+    <p style="text-align:center;font-size:11px;color:#9ca3af;margin-top:14px;line-height:1.6">Your photo is reviewed personally by the Pink.TT team to confirm eligibility, and is only ever used for that.</p>
   </div>
 </div>
 
@@ -3889,17 +3889,12 @@ async function submitIdVerify(){
     const attempt=await _fetchWithRetry('/api/verify-id',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_PTT_TOKEN},body:JSON.stringify({image:dataUrl})});
     if(!attempt.ok){toast('Network error — check your connection and try again','err');if(btn){btn.disabled=false;btn.textContent='Verify My Identity 🌸';}return;}
     const data=attempt.json;
-    if(data.ok&&data.verified){
-      toast(data.demo?'Verified (demo mode) 🌸':'Identity verified! 🌸','ok');
-      await _pttLoadDB();
-      const fresh=DB.users.find(u=>u.id===S.user.id);if(fresh)S.user=fresh;save();
-      routeUser(S.user);
-    }else if(data.ok&&data.pending){
-      toast(data.message||"Sent for a quick manual review — you'll be notified once approved.",'ok');
-      document.getElementById('idv-preview-box').innerHTML='<span style="color:#9ca3af;font-size:13px">⏳ Waiting for review — check back soon, or retake to try again</span>';
+    if(data.ok&&data.pending){
+      toast(data.message||"Sent to the Pink.TT team for review — you'll be notified once approved.",'ok');
+      document.getElementById('idv-preview-box').innerHTML='<span style="color:#9ca3af;font-size:13px">⏳ Submitted — waiting on the Pink.TT team to review it</span>';
       document.getElementById('idv-photo').value='';
     }else{
-      toast(data.error||'Verification failed — please try again','err');
+      toast(data.error||'Something went wrong — please try again','err');
     }
   }catch(e){toast('Network error — please try again','err');}
   if(btn){btn.disabled=false;btn.textContent='Verify My Identity 🌸';}
