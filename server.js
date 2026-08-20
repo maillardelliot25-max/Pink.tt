@@ -335,8 +335,10 @@ async function pingDriversForRide(ride){
 // one-off dispatch this deliberately ignores is_online -- a commute three mornings
 // from now shouldn't only match whoever happens to be driving at the moment it's booked.
 async function matchRecurringDrivers(lat,lng){
-  const rows=await dbAll("SELECT dp.user_id,dp.current_lat,dp.current_lng,dp.rating,dp.total_trips,dp.active_recurring_slots FROM driver_profiles dp WHERE dp.status='approved'");
-  const tiers=await dbAll('SELECT * FROM driver_tiers ORDER BY sort_order');
+  const[rows,tiers]=await Promise.all([
+    dbAll("SELECT dp.user_id,dp.current_lat,dp.current_lng,dp.rating,dp.total_trips,dp.active_recurring_slots FROM driver_profiles dp WHERE dp.status='approved'"),
+    dbAll('SELECT * FROM driver_tiers ORDER BY sort_order')
+  ]);
   const eligible=rows
     .filter(d=>resolveDriverTier(tiers,d).can_accept_recurring)
     .map(d=>({...d,_km:isValidTTCoord(d.current_lat,d.current_lng)?dist([lat,lng],[d.current_lat,d.current_lng]):Infinity}))
@@ -357,6 +359,7 @@ async function generateLegsForSchedule(scheduleId){
   if(isNaN(hh)||isNaN(mm))return;
   const existing=new Set((await dbAll('SELECT scheduled_timestamp FROM scheduled_ride_legs WHERE schedule_id=?',[scheduleId])).map(r=>r.scheduled_timestamp));
   const endDate=s.end_date?new Date(s.end_date+'T23:59:59') : null;
+  const toInsert=[];
   for(let i=0;i<RECURRING_HORIZON_DAYS;i++){
     const day=new Date();day.setDate(day.getDate()+i);day.setHours(hh,mm,0,0);
     if(!days.includes(day.getDay()))continue;
@@ -364,8 +367,16 @@ async function generateLegsForSchedule(scheduleId){
     if(endDate&&day.getTime()>endDate.getTime())break;
     const ts=day.toISOString();
     if(existing.has(ts))continue;
-    await dbRun('INSERT INTO scheduled_ride_legs(id,schedule_id,assigned_driver_id,scheduled_timestamp,status)VALUES(?,?,?,?,?)',[uuidv4(),scheduleId,s.primary_driver_id||null,ts,'queued']);
+    toInsert.push(ts);
   }
+  // These rows are independent of each other (different ids, no shared state), so firing
+  // all the inserts concurrently instead of one sequential round-trip per day is what
+  // makes creating a schedule -- up to RECURRING_HORIZON_DAYS/7*5 of these for a weekday
+  // pattern -- feel instant instead of visibly laggy. Each round-trip carries real network
+  // latency on production Postgres; this was the main cost in the whole mutation.
+  await Promise.all(toInsert.map(ts=>
+    dbRun('INSERT INTO scheduled_ride_legs(id,schedule_id,assigned_driver_id,scheduled_timestamp,status)VALUES(?,?,?,?,?)',[uuidv4(),scheduleId,s.primary_driver_id||null,ts,'queued'])
+  ));
 }
 
 // Address suggestions as the rider types (Nominatim search, up to 6 candidates) -- so
