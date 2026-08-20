@@ -100,7 +100,14 @@ const SCHEMA_SQL=[
   // above) -- no CHECK constraint on category since SQLite/Postgres CHECK syntax already
   // diverges elsewhere in this schema and app-layer validation (in the mutation handler)
   // covers it identically for both backends.
-  `CREATE TABLE IF NOT EXISTS daily_messages(id TEXT PRIMARY KEY,text TEXT NOT NULL,category TEXT NOT NULL,is_active INTEGER DEFAULT 1,created_at TEXT DEFAULT(datetime('now')))`
+  `CREATE TABLE IF NOT EXISTS daily_messages(id TEXT PRIMARY KEY,text TEXT NOT NULL,category TEXT NOT NULL,is_active INTEGER DEFAULT 1,created_at TEXT DEFAULT(datetime('now')))`,
+  // Holds any ID-verification photo the automated AI check couldn't confidently approve --
+  // vision models are trained to be cautious about (or outright refuse) guessing a real
+  // person's gender from a photo, so "unclear" AND an explicit "male" reading are both
+  // routed here for a human admin to actually look at, rather than either auto-approving
+  // on a guess or, worse, auto-rejecting a real user based on an AI misread. The AI is
+  // only ever used as a fast-path *approval* shortcut, never a fast-path rejection.
+  `CREATE TABLE IF NOT EXISTS id_verifications(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,photo TEXT NOT NULL,ai_result TEXT DEFAULT'',status TEXT DEFAULT'pending',created_at TEXT DEFAULT(datetime('now')),reviewed_at TEXT,FOREIGN KEY(user_id)REFERENCES users(id))`
 ];
 // Public-safe settings keys: readable by any authenticated user via buildDB() (e.g.
 // so a rider can see the real safety contact number). Anything more sensitive than
@@ -538,7 +545,10 @@ async function buildDB(){
   const recurring_schedules=(await dbAll('SELECT * FROM recurring_schedules')).map(s=>({...s,days_of_week:String(s.days_of_week||'').split(',').filter(x=>x!=='').map(Number)}));
   const scheduled_ride_legs=await dbAll('SELECT * FROM scheduled_ride_legs ORDER BY scheduled_timestamp');
   const daily_messages=(await dbAll('SELECT * FROM daily_messages ORDER BY created_at DESC')).map(m=>({...m,is_active:!!m.is_active}));
-  return{users,driver_tiers,driver_profiles,complaints,recurring_schedules,scheduled_ride_legs,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings,daily_messages,peakBonusActive:isPeakBonusHour(),peakBonusRate:PEAK_BONUS_RATE};
+  // Photo excluded here same as every other identity document in this app -- fetched
+  // separately via the admin-only /api/id-verification-photo/:id endpoint instead.
+  const id_verifications=await dbAll('SELECT id,user_id,ai_result,status,created_at,reviewed_at FROM id_verifications ORDER BY created_at DESC');
+  return{users,driver_tiers,driver_profiles,complaints,recurring_schedules,scheduled_ride_legs,rides,payments,sos_events,notifications,promotions,businesses,business_services:[],business_discounts:[],reports:[],trip_shares:[],settings,daily_messages,id_verifications,peakBonusActive:isPeakBonusHour(),peakBonusRate:PEAK_BONUS_RATE};
 }
 
 async function setSetting(key,value){
@@ -889,6 +899,7 @@ function scopeDBFor(db,viewerId,role){
     recurring_schedules:schedules,
     scheduled_ride_legs:db.scheduled_ride_legs.filter(l=>schedIds.has(l.schedule_id)),
     daily_messages:db.daily_messages.filter(m=>m.is_active),
+    id_verifications:[],
   };
 }
 
@@ -1003,17 +1014,27 @@ app.post('/api/verify-id',verifyLimiter,authMW,async(req,res)=>{
     let answer=null;
     if(process.env.ANTHROPIC_API_KEY)answer=await classifyWithAnthropic(mediaType,base64Data);
     if(answer===null&&process.env.GEMINI_API_KEY)answer=await classifyWithGemini(mediaType,base64Data);
-    if(answer===null)return res.status(502).json({ok:false,error:'Verification service is temporarily unavailable — please try again shortly'});
 
-    if(answer.includes('female')){
+    // The AI is only ever a fast-path *approval* -- a confident "female" reading skips
+    // straight to verified. Anything else (an explicit "male" reading, "unclear", or the
+    // verification service being unreachable) goes to a human admin instead of an
+    // automatic rejection: vision models are trained to be cautious about (or outright
+    // refuse) judging a real person's gender from a photo, and a false AI rejection would
+    // unfairly lock out a legitimate user with no recourse but re-submitting the same
+    // photo into the same unreliable check.
+    if(answer!==null&&answer.includes('female')){
       await dbRun('UPDATE users SET is_verified=1 WHERE id=?',[req.jwt.id]);
       broadcastDBUpdate();
       return res.json({ok:true,verified:true});
-    }else if(answer.includes('male')){
-      return res.json({ok:false,verified:false,error:'This photo did not pass verification. Pink.TT is a women-only platform — contact support@pink.tt if you believe this is an error.'});
-    }else{
-      return res.json({ok:false,verified:false,retry:true,error:'Could not verify clearly — please retake the photo in good lighting with your face visible.'});
     }
+    const verId=uuidv4();
+    await dbRun('INSERT INTO id_verifications(id,user_id,photo,ai_result,status)VALUES(?,?,?,?,?)',[verId,req.jwt.id,image,answer||'','pending']);
+    const admins=await dbAll("SELECT id FROM users WHERE role='admin' AND is_active=1");
+    for(const a of admins){
+      await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),a.id,'id_verify',`🪪 New identity verification needs review — ${req.jwt.email}`]);
+      pushToUser(a.id,'🪪 ID verification needs review',req.jwt.email,'/');
+    }
+    return res.json({ok:true,pending:true,message:"We couldn't confirm this automatically, so it's been sent for a quick manual review — you'll be notified as soon as it's approved (usually within a few hours). You can also retake the photo to try again instantly."});
   }catch(e){
     console.error('verify-id error',e.message);
     res.status(500).json({ok:false,error:'Verification failed — please try again'});
@@ -1028,6 +1049,13 @@ app.get('/api/driver-verification-docs/:userId',authMW,async(req,res)=>{
   if(req.jwt.role!=='admin')return res.status(403).json({error:'Admin only'});
   const dp=await dbGet('SELECT license_photo,id_card_photo,portrait_photo,coc_accepted_at FROM driver_profiles WHERE user_id=?',[req.params.userId]);
   res.json({license_photo:dp?.license_photo||'',id_card_photo:dp?.id_card_photo||'',portrait_photo:dp?.portrait_photo||'',coc_accepted_at:dp?.coc_accepted_at||null});
+});
+// Admin-only: the actual photo for a pending/reviewed identity verification -- kept out
+// of the general /api/db broadcast (same reasoning as every other photo in this app).
+app.get('/api/id-verification-photo/:verificationId',authMW,async(req,res)=>{
+  if(req.jwt.role!=='admin')return res.status(403).json({error:'Admin only'});
+  const ver=await dbGet('SELECT photo FROM id_verifications WHERE id=?',[req.params.verificationId]);
+  res.json({photo:ver?.photo||''});
 });
 
 // Admin-only: audit log of sensitive admin actions (kept out of the general /api/db broadcast — no reason for every client to receive it).
@@ -1260,6 +1288,23 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
     }else if(type==='reject_driver'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       await dbRun("UPDATE driver_profiles SET status='rejected' WHERE user_id=?",[data.user_id]);
+    }else if(type==='approve_id_verification'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const ver=await dbGet('SELECT * FROM id_verifications WHERE id=?',[data.verification_id]);
+      if(!ver)return res.json({ok:false,error:'Verification not found'});
+      await dbRun("UPDATE id_verifications SET status='approved',reviewed_at=datetime('now') WHERE id=?",[ver.id]);
+      await dbRun('UPDATE users SET is_verified=1 WHERE id=?',[ver.user_id]);
+      await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),ver.user_id,'id_verify','✅ Your identity has been verified! Reopen the app to continue.']);
+      pushToUser(ver.user_id,'✅ Identity verified','Reopen Pink.TT to continue.','/');
+      broadcastTo(ver.user_id,{type:'id_verified'});
+      broadcastDBUpdate();
+    }else if(type==='reject_id_verification'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const ver=await dbGet('SELECT * FROM id_verifications WHERE id=?',[data.verification_id]);
+      if(!ver)return res.json({ok:false,error:'Verification not found'});
+      await dbRun("UPDATE id_verifications SET status='rejected',reviewed_at=datetime('now') WHERE id=?",[ver.id]);
+      await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),ver.user_id,'id_verify','Your identity verification photo could not be approved. Please try again with a clear, well-lit photo of your face, or contact support@pink.tt.']);
+      pushToUser(ver.user_id,'Identity verification needed','Please retake your verification photo.','/');
     }else if(type==='suspend_driver'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       await dbRun("UPDATE driver_profiles SET status='suspended',is_online=0 WHERE user_id=?",[data.user_id]);

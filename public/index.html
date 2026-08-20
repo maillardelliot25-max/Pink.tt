@@ -2513,8 +2513,44 @@ function renderDrvList(dps,status){
 }
 
 function renderAdminUsers(body){
-  body.innerHTML=`<div style="display:flex;gap:8px;margin-bottom:12px"><input class="inp" id="usr-search" placeholder="Search..." style="flex:1;font-size:16px;padding:9px 12px" oninput="renderUsrList(this.value)"><button class="btn bp bsm" onclick="renderUsrList(document.getElementById('usr-search').value)">Search</button></div><div id="usr-list"></div>`;
+  const pending=(DB.id_verifications||[]).filter(v=>v.status==='pending');
+  body.innerHTML=`
+    ${pending.length?`<div class="card" style="margin-bottom:14px;border:1.5px solid var(--pb)">
+      <p style="font-size:13px;font-weight:700;margin-bottom:10px">🪪 ID Verifications Needing Review (${pending.length})</p>
+      <div id="idver-list"></div>
+    </div>`:''}
+    <div style="display:flex;gap:8px;margin-bottom:12px"><input class="inp" id="usr-search" placeholder="Search..." style="flex:1;font-size:16px;padding:9px 12px" oninput="renderUsrList(this.value)"><button class="btn bp bsm" onclick="renderUsrList(document.getElementById('usr-search').value)">Search</button></div>
+    <div id="usr-list"></div>`;
   renderUsrList('');
+  if(pending.length)renderIdVerList(pending);
+}
+function renderIdVerList(pending){
+  const el=document.getElementById('idver-list');if(!el)return;
+  el.innerHTML=pending.map(v=>{
+    const u=DB.users.find(u=>u.id===v.user_id);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #f9fafb">
+      <div style="min-width:0"><p style="font-size:12px;font-weight:700">${u?`${u.first_name} ${u.last_name}`:'Unknown user'}</p><p style="font-size:11px;color:#9ca3af">${u?.email||''} · ${fmtDate(v.created_at)}${v.ai_result?` · AI said "${v.ai_result}"`:''}</p></div>
+      <button class="btn bsm" style="background:var(--pp);color:var(--p);flex-shrink:0" onclick="viewIdVerification('${v.id}')">View Photo</button>
+    </div>`;
+  }).join('');
+}
+async function viewIdVerification(verId){
+  try{
+    const attempt=await _fetchWithRetry('/api/id-verification-photo/'+verId,{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    const box=document.getElementById('license-photo-box');
+    if(!attempt.ok||!attempt.json.photo){box.innerHTML='<p style="text-align:center;color:var(--r);font-size:13px;padding:30px 0">Could not load photo.</p>';openModal('license-modal');return;}
+    box.innerHTML=`<img src="${attempt.json.photo}" style="width:100%;border-radius:14px;display:block;margin-bottom:14px">
+      <div style="display:flex;gap:8px">
+        <button class="btn bw" style="flex:1;background:#dcfce7;color:#166534" onclick="reviewIdVerification('${verId}',true)">✓ Approve</button>
+        <button class="btn bw" style="flex:1;background:#fee2e2;color:var(--r)" onclick="reviewIdVerification('${verId}',false)">✕ Reject</button>
+      </div>`;
+    openModal('license-modal');
+  }catch(e){toast('Could not load photo','err');}
+}
+async function reviewIdVerification(verId,approve){
+  const res=await _mutate(approve?'approve_id_verification':'reject_id_verification',{verification_id:verId});
+  if(res.ok){toast(approve?'Approved':'Rejected','ok');closeModal('license-modal');await _pttLoadDB();renderAdminUsers(document.getElementById('admin-body'));}
+  else toast(res.error||'Could not update','err');
 }
 function renderUsrList(q){
   const el=document.getElementById('usr-list');if(!el)return;
@@ -3588,6 +3624,12 @@ function _handleWS(msg){
     toast('Ride was cancelled');S.activeRide=null;S.rideStatus=null;_pttLoadDB();
   }else if(msg.type==='ride_completed'){
     toast('✅ Ride complete! TTD $'+parseFloat(msg.fare||0).toFixed(2),'ok');_pttLoadDB();
+  }else if(msg.type==='id_verified'){
+    toast('✅ Your identity has been verified! 🌸','ok');
+    _pttLoadDB().then(()=>{
+      const fresh=DB.users.find(u=>u.id===S.user?.id);
+      if(fresh){S.user=fresh;save();routeUser(fresh);}
+    });
   }else if(msg.type==='driver_approved'){
     toast('✅ Your driver account is approved! Go online to start.','ok');_pttLoadDB();
   }else if(msg.type==='driver_location'){
@@ -3852,6 +3894,10 @@ async function submitIdVerify(){
       await _pttLoadDB();
       const fresh=DB.users.find(u=>u.id===S.user.id);if(fresh)S.user=fresh;save();
       routeUser(S.user);
+    }else if(data.ok&&data.pending){
+      toast(data.message||"Sent for a quick manual review — you'll be notified once approved.",'ok');
+      document.getElementById('idv-preview-box').innerHTML='<span style="color:#9ca3af;font-size:13px">⏳ Waiting for review — check back soon, or retake to try again</span>';
+      document.getElementById('idv-photo').value='';
     }else{
       toast(data.error||'Verification failed — please try again','err');
     }
