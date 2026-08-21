@@ -3795,7 +3795,10 @@ function _carIcon(){return L.divIcon({html:'<div style="font-size:22px;filter:dr
 // car emoji itself (emoji glyphs render with their own fixed colors per platform/font,
 // so a CSS filter hue-rotate is unreliable) -- guarantees the same pink everywhere.
 function _pinkCarIcon(){return L.divIcon({html:'<div style="background:var(--p);width:26px;height:26px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(233,30,140,.5);display:flex;align-items:center;justify-content:center;font-size:13px">🚗</div>',iconSize:[26,26],iconAnchor:[13,13],className:''});}
-function _meIcon(){return L.divIcon({html:'<div style="background:#3b82f6;width:15px;height:15px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.3)"></div>',iconSize:[15,15],iconAnchor:[7.5,7.5],className:''});}
+// Was a generic Google-Maps-style blue dot -- doesn't match a pink-branded app, and
+// Elliot asked for it explicitly: this is the rider's actual current location, so it
+// should read as Pink.TT pink, not a borrowed blue.
+function _meIcon(){return L.divIcon({html:'<div style="background:#E91E8C;width:15px;height:15px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 4px rgba(233,30,140,.3)"></div>',iconSize:[15,15],iconAnchor:[7.5,7.5],className:''});}
 // Used in place of the plain pickup dot while a ride is still unassigned -- the rider's
 // own spot becomes the Pink.TT logo with a fading pink glow so "we're looking for your
 // driver" is legible from the map itself, not just the status text above it.
@@ -3813,25 +3816,36 @@ let _ME_MARKER=null;
 // switches, live WebSocket updates while sitting on that tab, etc.), which re-asked the
 // browser for location every time -- on Android that can re-surface the permission
 // dialog on each call instead of asking once. This now asks at most once per app
-// session: once we have a location, or the user has denied/dismissed the request, we
-// never call getCurrentPosition again until the page is reloaded.
+// session for a *decision*: once we have a location, or the user has actually denied
+// permission, we never call getCurrentPosition again until the page is reloaded.
+// A timeout or momentary GPS unavailability is NOT a denial though -- it used to be
+// treated exactly like one (give up forever), which meant a single bad GPS fix left the
+// rider with no pink "you are here" dot and the map picker falling back to a generic
+// city-wide view for the rest of the session, no matter how long they waited. Now
+// retries up to 2 more times (1.5s apart) before actually giving up, and only a real
+// PERMISSION_DENIED (err.code===1) stops it immediately.
 let _locateAsked=false;
+let _locateInFlight=false;
+let _locateAttempts=0;
 function _locateRider(){
   const input=document.getElementById('ride-pickup');
-  if(_locateAsked||typeof S.myLat==='number'){
-    if(_MAP_IDLE&&typeof S.myLat==='number'&&!_ME_MARKER){
+  if(typeof S.myLat==='number'){
+    if(_MAP_IDLE&&!_ME_MARKER){
       _MAP_IDLE.setView([S.myLat,S.myLng],15);
       _ME_MARKER=L.marker([S.myLat,S.myLng],{icon:_meIcon()}).addTo(_MAP_IDLE).bindPopup('📍 You are here');
     }
     return;
   }
+  if(_locateAsked||_locateInFlight)return;
   if(!navigator.geolocation){
+    _locateAsked=true;
     if(input&&!input.value)input.placeholder='Enter pickup location';
     return;
   }
-  _locateAsked=true;
+  _locateInFlight=true;
   navigator.geolocation.getCurrentPosition(
     pos=>{
+      _locateInFlight=false;
       S.myLat=pos.coords.latitude;S.myLng=pos.coords.longitude;
       const el=document.getElementById('ride-pickup');
       if(el&&!el.value)el.value='Current Location';
@@ -3840,11 +3854,27 @@ function _locateRider(){
         if(_ME_MARKER)try{_ME_MARKER.remove();}catch{}
         _ME_MARKER=L.marker([S.myLat,S.myLng],{icon:_meIcon()}).addTo(_MAP_IDLE).bindPopup('📍 You are here');
       }
+      if(_mapPickerTarget==='pickup'&&_MAP_PICKER){
+        _placeMapPickerMeMarker();
+        if(_mapPickerHadNoStartCoord){_MAP_PICKER.setView([S.myLat,S.myLng],16);_mapPickerHadNoStartCoord=false;}
+      }
     },
     err=>{
+      _locateInFlight=false;
       console.warn('Geolocation unavailable:',err.message);
       const el=document.getElementById('ride-pickup');
-      if(el&&!el.value)el.placeholder='Enter pickup location';
+      if(err.code===1){ // PERMISSION_DENIED -- a real, permanent no
+        _locateAsked=true;
+        if(el&&!el.value)el.placeholder='Enter pickup location';
+        return;
+      }
+      _locateAttempts++;
+      if(_locateAttempts>=3){
+        _locateAsked=true;
+        if(el&&!el.value)el.placeholder='Enter pickup location';
+        return;
+      }
+      setTimeout(_locateRider,1500);
     },
     {enableHighAccuracy:true,timeout:10000,maximumAge:60000}
   );
@@ -4089,6 +4119,19 @@ function updateIdleMap(d){
 // than being limited to whatever Nominatim's address search happens to match. The pin
 // coordinate is always what's reverse-geocoded and confirmed, never a typed guess.
 let _MAP_PICKER=null,_mapPickerTarget='pickup',_mapPickerCoord=null,_mapPickerAddrTimer=null;
+// True whenever the picker opened with no real coordinate to start from (no earlier
+// address suggestion AND no GPS fix yet) -- it fell back to a wide, generic city-wide
+// view of Port of Spain with nothing on it, which read as "the map has no idea where I
+// am" even though it was technically working. _locateRider()'s success callback checks
+// this flag to recenter the picker onto the real fix the moment one arrives, but only
+// that once, so it never yanks the view out from under someone who's already panned it.
+let _mapPickerHadNoStartCoord=false;
+let _MAP_PICKER_ME_MARKER=null;
+function _placeMapPickerMeMarker(){
+  if(!_MAP_PICKER||typeof S.myLat!=='number')return;
+  if(_MAP_PICKER_ME_MARKER)try{_MAP_PICKER_ME_MARKER.remove();}catch{}
+  _MAP_PICKER_ME_MARKER=L.marker([S.myLat,S.myLng],{icon:_meIcon()}).addTo(_MAP_PICKER).bindPopup('📍 You are here');
+}
 function openMapPicker(target){
   _mapPickerTarget=target;
   _mapPickerCoord=null;
@@ -4098,13 +4141,19 @@ function openMapPicker(target){
   const startCoord=target==='dest'
     ?(S._destSuggest?[S._destSuggest.lat,S._destSuggest.lng]:null)
     :(S._pickupSuggest?[S._pickupSuggest.lat,S._pickupSuggest.lng]:(typeof S.myLat==='number'?[S.myLat,S.myLng]:null));
+  _mapPickerHadNoStartCoord=!startCoord;
+  // Opening the pickup picker without a GPS fix yet used to just silently show that
+  // generic wide view forever -- actively (re)try acquiring location here rather than
+  // depending on the Book Ride screen having already done it (and having succeeded).
+  if(target==='pickup'&&typeof S.myLat!=='number')_locateRider();
   _initLeaflet().then(()=>{
     const el=document.getElementById('map-picker-map');if(!el)return;
-    if(_MAP_PICKER){try{_MAP_PICKER.remove();}catch{}}_MAP_PICKER=null;
+    if(_MAP_PICKER){try{_MAP_PICKER.remove();}catch{}}_MAP_PICKER=null;_MAP_PICKER_ME_MARKER=null;
     _MAP_PICKER=L.map(el,{zoomControl:false,attributionControl:false}).setView(startCoord||[10.6549,-61.5019],startCoord?16:12);
     _watchTiles(_MAP_PICKER,el);
     _tileLayer(_MAP_PICKER);L.control.zoom({position:'bottomright'}).addTo(_MAP_PICKER);
     _MAP_PICKER.on('moveend',_onMapPickerMove);
+    if(target==='pickup')_placeMapPickerMeMarker();
     setTimeout(()=>{_MAP_PICKER&&_MAP_PICKER.invalidateSize();_onMapPickerMove();},250);
   }).catch(()=>{
     const el=document.getElementById('map-picker-map');
