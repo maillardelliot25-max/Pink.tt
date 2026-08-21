@@ -3662,17 +3662,34 @@ let _LOC_INTERVAL = null;
 // TILE IMAGES still come from CARTO at runtime (no realistic way to self-host global
 // map tiles) -- _watchTiles below shows a small non-blocking note if those specifically
 // fail to load, without hiding the rest of the ride info.
-let _leafletLoadPromise=null;
-function _initLeaflet(){
-  if(window.L)return Promise.resolve();
-  if(_leafletLoadPromise)return _leafletLoadPromise;
-  _leafletLoadPromise=new Promise((resolve,reject)=>{
+function _loadLeafletScript(){
+  return new Promise((resolve,reject)=>{
     const s=document.createElement('script');
     s.src='/vendor/leaflet/leaflet.js';
     s.onload=()=>resolve();
-    s.onerror=()=>{_leafletLoadPromise=null;s.remove();reject(new Error('Failed to load map library'));};
+    s.onerror=()=>{s.remove();reject(new Error('Failed to load map library'));};
     document.head.appendChild(s);
   });
+}
+let _leafletLoadPromise=null;
+// A single failed <script> load used to permanently fail the map for that page view --
+// the only recovery was the manual "Retry" button in _showMapError, so a one-off network
+// blip fetching this ~150KB file (a slow mobile connection, a brief hiccup) showed a
+// broken map card on the very first try instead of just quietly trying again. Now
+// retries twice with a short backoff before actually giving up and showing that error.
+function _initLeaflet(){
+  if(window.L)return Promise.resolve();
+  if(_leafletLoadPromise)return _leafletLoadPromise;
+  _leafletLoadPromise=(async()=>{
+    const delays=[0,600,1500];
+    let lastErr;
+    for(const delay of delays){
+      if(delay)await new Promise(r=>setTimeout(r,delay));
+      try{await _loadLeafletScript();return;}catch(e){lastErr=e;}
+    }
+    _leafletLoadPromise=null;
+    throw lastErr;
+  })();
   return _leafletLoadPromise;
 }
 function _tileLayer(map){
@@ -3885,14 +3902,20 @@ let _activePoliceReports=[];
 let _policeMarkersIdle={},_policeMarkersTrack={},_policeMarkersDriver={};
 function _syncPoliceMarkersOnMap(map,markerStore){
   if(!map||!window.L)return;
-  const seen=new Set();
-  _activePoliceReports.forEach(r=>{
-    seen.add(r.id);
-    const existing=markerStore[r.id];
-    if(existing){existing.setLatLng([r.lat,r.lng]);return;}
-    markerStore[r.id]=L.marker([r.lat,r.lng],{icon:_policeIcon()}).addTo(map).bindPopup('🚓 Police reported here');
-  });
-  Object.keys(markerStore).forEach(id=>{if(!seen.has(id)){markerStore[id].remove();delete markerStore[id];}});
+  // Wrapped defensively: this runs inline inside each map's _initLeaflet().then(...), and
+  // an uncaught throw here would fall through to that chain's .catch() and wipe out an
+  // otherwise-successfully-loaded map with the "Map couldn't load" error card -- a bug in
+  // this one feature should never be able to take the whole map down.
+  try{
+    const seen=new Set();
+    _activePoliceReports.forEach(r=>{
+      seen.add(r.id);
+      const existing=markerStore[r.id];
+      if(existing){existing.setLatLng([r.lat,r.lng]);return;}
+      markerStore[r.id]=L.marker([r.lat,r.lng],{icon:_policeIcon()}).addTo(map).bindPopup('🚓 Police reported here');
+    });
+    Object.keys(markerStore).forEach(id=>{if(!seen.has(id)){markerStore[id].remove();delete markerStore[id];}});
+  }catch(e){}
 }
 function _syncAllPoliceMarkers(){
   _syncPoliceMarkersOnMap(_MAP_IDLE,_policeMarkersIdle);
