@@ -274,6 +274,22 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
 .ios-tut-newicon img{width:100%;height:100%;border-radius:9px;box-shadow:0 4px 10px rgba(0,0,0,.2)}
 @keyframes iosTutDrop{0%{transform:translateY(-16px) scale(.7);opacity:0}100%{transform:translateY(0) scale(1);opacity:1}}
 .ios-tut-caption{text-align:center;font-size:12px;font-weight:700;color:var(--pd);padding:8px 10px calc(10px + env(safe-area-inset-bottom,0px))}
+/* Android's install path is Chrome's own menu, not a share sheet, so its walkthrough
+   scenes are different content -- but it reuses the same phone/screen/scene/ring/caption
+   scaffolding above rather than duplicating it. */
+.and-tut-topbar{margin-top:22px;display:flex;align-items:center;justify-content:space-between;padding:0 14px}
+.and-tut-topbar .and-tut-url{font-size:9.5px;color:#6b7280;background:rgba(255,255,255,.7);border-radius:8px;padding:4px 8px;flex:1;margin-right:8px}
+.and-tut-dots{position:relative;font-size:16px;color:#374151}
+.and-tut-menu{position:absolute;top:56px;right:14px;width:132px;background:#fff;border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.2);padding:6px;z-index:2}
+.and-tut-menu-row{display:flex;align-items:center;gap:6px;font-size:10px;color:#374151;padding:6px;border-radius:6px}
+.and-tut-menu-row.hl{background:var(--pp);font-weight:700;color:var(--pd);position:relative}
+.and-tut-installdlg{margin:auto;width:80%;background:#fff;border-radius:14px;padding:14px;box-shadow:0 8px 22px rgba(0,0,0,.18);text-align:center}
+.and-tut-installdlg img{width:36px;height:36px;border-radius:9px;margin-bottom:8px}
+.and-tut-installdlg p{font-size:11px;font-weight:700;color:#111827;margin-bottom:12px}
+.and-tut-installdlg-btns{display:flex;gap:8px;justify-content:center}
+.and-tut-installdlg-btns span{font-size:10.5px;font-weight:700;padding:6px 12px;border-radius:8px;position:relative}
+.and-tut-installdlg-btns .cancel{color:#6b7280}
+.and-tut-installdlg-btns .install{color:#fff;background:var(--pd)}
 #rotate-guard{display:none;position:fixed;inset:0;z-index:99999;background:linear-gradient(160deg,#7a1263,#c4006f);color:#fff;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
 #rotate-guard .rg-icon{font-size:44px;margin-bottom:14px;animation:rgSpin 2.4s ease-in-out infinite}
 @keyframes rgSpin{0%,100%{transform:rotate(0deg)}50%{transform:rotate(-90deg)}}
@@ -704,6 +720,49 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
       </div>
     </div>
     <button class="btn bp bw" style="margin-top:18px" onclick="closeModal('ios-tutorial-modal')">Got it</button>
+  </div>
+</div>
+
+<!-- Android "Add to Home Screen" walkthrough -- same self-looping illustrated-mockup
+     technique as the iOS one above, showing Chrome's actual menu flow instead since
+     Android's install path is a different UI (⋮ menu -> Install app, not a share sheet). -->
+<div class="overlay" id="android-tutorial-modal">
+  <div class="sheet" style="text-align:center">
+    <h3 style="font-size:18px;margin-bottom:2px">Add Pink.TT to Your Home Screen</h3>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:16px">Takes 5 seconds, no Play Store needed</p>
+    <div class="ios-tut-phone">
+      <div class="ios-tut-screen">
+        <div class="ios-tut-notch"></div>
+        <div class="ios-tut-scene s1">
+          <div class="and-tut-topbar"><span class="and-tut-url">🔒 pinktt.onrender.com</span><span class="and-tut-dots">⋮<i class="ios-tut-ring"></i></span></div>
+          <div class="ios-tut-pagepreview"><img src="/icons/icon-192.png" alt=""><span>Pink.TT</span></div>
+          <div class="ios-tut-caption">1 · Tap ⋮ (top right)</div>
+        </div>
+        <div class="ios-tut-scene s2">
+          <div class="and-tut-topbar"><span class="and-tut-url">🔒 pinktt.onrender.com</span><span class="and-tut-dots">⋮</span></div>
+          <div class="and-tut-menu">
+            <div class="and-tut-menu-row"><span>↻</span>Refresh</div>
+            <div class="and-tut-menu-row hl"><span>📲</span>Install app<i class="ios-tut-ring"></i></div>
+            <div class="and-tut-menu-row"><span>☆</span>Bookmark</div>
+          </div>
+          <div class="ios-tut-caption" style="margin-top:auto">2 · Tap "Install app"</div>
+        </div>
+        <div class="ios-tut-scene s3">
+          <div class="ios-tut-pagepreview" style="flex:none;height:38%"></div>
+          <div class="and-tut-installdlg">
+            <img src="/icons/icon-192.png" alt="">
+            <p>Install app?<br><span style="font-weight:400;color:#6b7280">Pink.TT</span></p>
+            <div class="and-tut-installdlg-btns"><span class="cancel">Cancel</span><span class="install">Install<i class="ios-tut-ring"></i></span></div>
+          </div>
+          <div class="ios-tut-caption" style="margin-top:auto">3 · Tap "Install"</div>
+        </div>
+        <div class="ios-tut-scene s4">
+          <div class="ios-tut-homegrid"><i></i><i></i><i></i><i class="ios-tut-newicon"><img src="/icons/icon-192.png" alt=""></i><i></i><i></i></div>
+          <div class="ios-tut-caption">🎉 Done — Pink.TT is on your Home Screen</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn bp bw" style="margin-top:18px" onclick="closeModal('android-tutorial-modal')">Got it</button>
   </div>
 </div>
 
@@ -4961,7 +5020,7 @@ function showInstallBanner(kind){
   const icon=`<div class="ib-icon"><img src="/icons/icon-192.png" alt="Pink.TT"></div>`;
   el.innerHTML=bg+(kind==='ios'
     ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap ⬆️ Share, then "Add to Home Screen"</span><span class="ib-watch" onclick="openModal('ios-tutorial-modal')">▶ Watch how</span></div>`
-    :`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button>`);
+    :`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span><span class="ib-watch" onclick="openModal('android-tutorial-modal')">▶ Watch how</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button>`);
   document.body.appendChild(el);
   _syncInstallBannerOffset();
 }
