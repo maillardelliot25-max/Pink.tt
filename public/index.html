@@ -307,10 +307,22 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
    which costs nothing to keep running since it's pure CSS, not a 4th video.
    #pip-demo-screen is sized at the walkthrough's natural dimensions (172x342, matching
    .ios-tut-screen's effective content box) then shrunk with a CSS transform to fit the
-   small widget -- the inset:0 scene children inside scale down along with it. */
-#pip-demo{display:none;position:fixed;right:14px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:100px;height:198px;border-radius:16px;overflow:hidden;box-shadow:0 10px 28px -6px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.55);z-index:150;background:#0b0b0f}
+   small widget -- the inset:0 scene children inside scale down along with it.
+   Two more fixes: (1) it used to appear the instant a pre-auth page loaded, competing
+   for attention with the hero video right away -- now stays invisible (opacity:0,
+   pointer-events:none so it can't be tapped while unseen) until the visitor scrolls
+   past the hero, then fades in over .4s (see _syncPipDemo's scroll handling), so it
+   never distracts from the first thing they're meant to look at. (2) its own fill used
+   to be a flat pink gradient that visibly clashed with whatever the live backdrop video
+   was doing -- swapped for the same translucent "liquid glass" treatment (--glass-bg-
+   strong + backdrop-filter blur) used everywhere else in this app, so the widget shows
+   the ACTUAL live background through frosted glass instead of a static color guess.
+   It's inherently "in time with" the background because it literally is the background,
+   not a second video pretending to match it. */
+#pip-demo{display:none;position:fixed;right:14px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:100px;height:198px;border-radius:16px;overflow:hidden;box-shadow:0 10px 28px -6px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.55);z-index:150;opacity:0;pointer-events:none;transition:opacity .4s ease}
 #pip-demo.show{display:block}
-#pip-demo-screen{position:relative;width:172px;height:342px;transform:scale(.581);transform-origin:top left;background:linear-gradient(160deg,#fff0f7,#ffd9ec);overflow:hidden}
+#pip-demo.show.pip-visible{opacity:1;pointer-events:auto}
+#pip-demo-screen{position:relative;width:172px;height:342px;transform:scale(.581);transform-origin:top left;background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);overflow:hidden}
 @media (max-height:640px){#pip-demo{width:84px;height:166px}#pip-demo-screen{transform:scale(.488)}}
 /* Tabs */
 .tabs{display:flex;background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-bottom:1px solid rgba(255,255,255,.5);flex-shrink:0}
@@ -1423,10 +1435,36 @@ function go(page){
 // for an account that already finished signing up.
 const _PIP_DEMO_PAGES=new Set(['land','onboard','login','register']);
 let _pipDemoFilled=false;
+// Only ever visible once the visitor has actually scrolled down -- it used to appear the
+// instant a pre-auth page loaded, competing with the hero video for attention right away.
+// Gated on the scroll position of that page's own .scroll container (each .page has
+// exactly one; pg-onboard has none at all since it's a horizontal swipe carousel, so the
+// widget simply never shows there -- there's no vertical scroll to trigger it, which is
+// the correct behaviour here, not a gap). One listener per container, bound once and left
+// in place; toggling a class on a currently-hidden widget from an inactive page's listener
+// is harmless.
+const _pipScrollBound=new Set();
 function _syncPipDemo(page){
   const el=document.getElementById('pip-demo');
   if(!el)return;
-  el.classList.toggle('show',_PIP_DEMO_PAGES.has(page));
+  const show=_PIP_DEMO_PAGES.has(page);
+  el.classList.toggle('show',show);
+  if(!show){
+    el.classList.remove('pip-visible');
+  }else{
+    const scrollEl=document.querySelector('#pg-'+page+' .scroll');
+    if(scrollEl){
+      el.classList.toggle('pip-visible',scrollEl.scrollTop>120);
+      if(!_pipScrollBound.has(page)){
+        _pipScrollBound.add(page);
+        scrollEl.addEventListener('scroll',()=>{
+          document.getElementById('pip-demo')?.classList.toggle('pip-visible',scrollEl.scrollTop>120);
+        },{passive:true});
+      }
+    }else{
+      el.classList.remove('pip-visible'); // e.g. pg-onboard: no vertical scroll, so never visible
+    }
+  }
   // Filled lazily on first show rather than at parse time -- _isIOS() and _pipDemoInnerHTML
   // are defined further down the file (hoisted function declarations, so this is safe to
   // call regardless of source order once the page has actually started navigating).
