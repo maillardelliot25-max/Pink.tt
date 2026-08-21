@@ -116,7 +116,13 @@ const SCHEMA_SQL=[
   // rather than folded into buildDB()/the general sync -- it's the one thing in this
   // app that can legitimately grow unbounded per ride, and nobody but the two parties
   // on that specific ride ever needs it.
-  `CREATE TABLE IF NOT EXISTS chat_messages(id TEXT PRIMARY KEY,ride_id TEXT NOT NULL,sender_id TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(ride_id)REFERENCES rides(id))`
+  `CREATE TABLE IF NOT EXISTS chat_messages(id TEXT PRIMARY KEY,ride_id TEXT NOT NULL,sender_id TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT DEFAULT(datetime('now')),FOREIGN KEY(ride_id)REFERENCES rides(id))`,
+  // Crowd-sourced police-sighting reports (Waze-style) -- any rider or driver can drop a
+  // pin, other users nearby see it on the map, and a driver whose route passes close to
+  // one can request an alternate route around it. expires_at is set at insert time
+  // (see the report_police mutation) rather than computed from created_at everywhere it's
+  // queried, so every reader uses the exact same cutoff.
+  `CREATE TABLE IF NOT EXISTS police_reports(id TEXT PRIMARY KEY,reporter_id TEXT NOT NULL,lat REAL NOT NULL,lng REAL NOT NULL,created_at TEXT DEFAULT(datetime('now')),expires_at TEXT NOT NULL)`
 ];
 // Public-safe settings keys: readable by any authenticated user via buildDB() (e.g.
 // so a rider can see the real safety contact number). Anything more sensitive than
@@ -230,11 +236,49 @@ if(process.env.DATABASE_URL){
 }
 
 // ── Business logic ────────────────────────────────────────────────────────────
-const COORDS={'Port of Spain':[10.6549,-61.5019],'Independence Square':[10.653,-61.5105],"Queen's Park Savannah":[10.663,-61.5178],'Maraval':[10.672,-61.522],'Airport':[10.5954,-61.3372],'Piarco':[10.5954,-61.3372],'Chaguanas':[10.517,-61.4115],'San Fernando':[10.2796,-61.4688],'Arima':[10.637,-61.283],'Tunapuna':[10.637,-61.383],'Trincity':[10.604,-61.350],'Diego Martin':[10.69,-61.56],'Woodbrook':[10.652,-61.514],'St. Clair':[10.668,-61.523],'Curepe':[10.639,-61.408],'Barataria':[10.63,-61.43],'Point Fortin':[10.17,-61.685],'Princes Town':[10.27,-61.373]};
+// Fallback centroids used only when live Nominatim geocoding fails outright (network
+// error, timeout, zero results) -- the original ~18 entries were all Trinidad, so any
+// Tobago address landed on a Trinidad point (or worse, mid-ocean jitter) the moment
+// geocoding hiccuped. Expanded to cover both islands broadly, not just the capital
+// corridor, so "the map can take the rider anywhere" holds even when the free geocoder
+// is briefly unreachable.
+const COORDS={
+  // Trinidad -- north/west corridor
+  'Port of Spain':[10.6549,-61.5019],'Independence Square':[10.653,-61.5105],"Queen's Park Savannah":[10.663,-61.5178],
+  'Maraval':[10.672,-61.522],'St. Clair':[10.668,-61.523],'Woodbrook':[10.652,-61.514],'St. James':[10.656,-61.527],
+  'Cascade':[10.667,-61.502],'Belmont':[10.657,-61.503],'Laventille':[10.653,-61.487],'Morvant':[10.658,-61.474],
+  'Sea Lots':[10.645,-61.503],'Petit Valley':[10.697,-61.554],'Diego Martin':[10.69,-61.56],'Carenage':[10.692,-61.585],
+  'Westmoorings':[10.688,-61.573],'Glencoe':[10.68,-61.567],'Four Roads':[10.694,-61.549],
+  // Trinidad -- east-west corridor / north
+  'San Juan':[10.647,-61.446],'El Socorro':[10.632,-61.428],'Barataria':[10.63,-61.43],'St. Joseph':[10.65,-61.42],
+  'St. Augustine':[10.641,-61.399],'Curepe':[10.639,-61.408],'Tunapuna':[10.637,-61.383],'Trincity':[10.604,-61.350],
+  'Arima':[10.637,-61.283],'D\'Abadie':[10.617,-61.32],'Talparo':[10.567,-61.30],'Cumuto':[10.575,-61.24],
+  'Airport':[10.5954,-61.3372],'Piarco':[10.5954,-61.3372],
+  // Trinidad -- north-east & east coast
+  'Sangre Grande':[10.585,-61.132],'Valencia':[10.639,-61.20],'Toco':[10.822,-61.038],'Blanchisseuse':[10.78,-61.30],
+  'Rio Claro':[10.304,-61.174],'Mayaro':[10.28,-61.00],'Guayaguayare':[10.148,-60.99],
+  // Trinidad -- central
+  'Chaguanas':[10.517,-61.4115],'Freeport':[10.462,-61.456],'Longdenville':[10.503,-61.40],'Couva':[10.4184,-61.4189],
+  // Trinidad -- south-west corridor
+  'San Fernando':[10.2796,-61.4688],'Marabella':[10.288,-61.45],'Gasparillo':[10.316,-61.438],'Claxton Bay':[10.319,-61.459],
+  'La Romaine':[10.259,-61.457],'Debe':[10.207,-61.442],'Penal':[10.164,-61.462],'Siparia':[10.144,-61.505],
+  'Fyzabad':[10.173,-61.542],'Point Fortin':[10.17,-61.685],'Princes Town':[10.27,-61.373],'Moruga':[10.09,-61.28],
+  // Tobago -- entire island was previously missing from this fallback list entirely
+  'Scarborough':[11.1817,-60.7358],'Crown Point':[11.1497,-60.8322],'Bon Accord':[11.152,-60.827],
+  'Canaan':[11.156,-60.817],'Buccoo':[11.1943,-60.8103],'Plymouth':[11.2186,-60.7756],'Lambeau':[11.163,-60.803],
+  'Store Bay':[11.147,-60.837],'Signal Hill':[11.19,-60.72],'Mount St. George':[11.216,-60.685],
+  'Roxborough':[11.2569,-60.5875],'Speyside':[11.298,-60.53],'Charlotteville':[11.318,-60.545],
+};
 function getCoord(a){for(const k in COORDS){if(a&&a.toLowerCase().includes(k.toLowerCase()))return COORDS[k];}return[10.6549+(Math.random()-.5)*.05,-61.5019+(Math.random()-.5)*.05];}
 // Rough Trinidad & Tobago bounding box -- rejects garbage/out-of-range coords (e.g. a
 // browser geolocation glitch or a spoofed value) rather than trusting client input blindly.
 function isValidTTCoord(lat,lng){return typeof lat==='number'&&typeof lng==='number'&&lat>=9.5&&lat<=11.5&&lng>=-62&&lng<=-60;}
+// Tobago is a whole separate island, ~35km northeast of Trinidad -- the old last-resort
+// jitter (see resolveCoord below) always centered on Port of Spain regardless of what the
+// address said, so a Tobago address that failed every other lookup landed in the wrong
+// island entirely. Cheap text check so the final fallback at least jitters around the
+// right landmass.
+function _isLikelyTobago(address){return /\btobago\b|scarborough|crown point|buccoo|plymouth|roxborough|charlotteville|speyside|bon accord|canaan|lambeau|store bay|mount st\.? george|signal hill/i.test(address||'');}
 
 // A Nominatim result can confidently return a real place -- just not the specific
 // street/address that was actually queried, only the broad suburb/town/region it falls
@@ -295,7 +339,11 @@ async function resolveCoord(address){
   const geo=await geocodeAddress(address);
   if(geo)return{coord:geo.coord,approx:!geo.precise};
   for(const k in COORDS){if(address&&address.toLowerCase().includes(k.toLowerCase()))return{coord:COORDS[k],approx:true};}
-  return{coord:[10.6549+(Math.random()-.5)*.02,-61.5019+(Math.random()-.5)*.02],approx:true};
+  // Last resort: neither live geocoding nor the ~55-entry fallback table matched anything
+  // at all -- still never leave the caller with no coordinate ("must always have a
+  // course"), just jitter around the right island's center instead of always Trinidad's.
+  const center=_isLikelyTobago(address)?[11.1817,-60.7358]:[10.6549,-61.5019];
+  return{coord:[center[0]+(Math.random()-.5)*.02,center[1]+(Math.random()-.5)*.02],approx:true};
 }
 // Matches TTRS's publicly reported "Regular" tier rates (Dec 2022 fare increase --
 // the most recent public numbers found; TTRS may have adjusted since, worth
@@ -499,28 +547,63 @@ async function reverseGeocode(lat,lng){
 // same path can be drawn on the map for both rider and driver. Falls back to the
 // haversine straight-line distance (already used elsewhere) if OSRM is unreachable,
 // so a booking never fails outright over a routing-service hiccup.
-async function getRoute(pickup,destination){
+// alternatives:true asks OSRM for up to 3 distinct road routes instead of just the
+// fastest one -- needed by getRouteAvoiding below, which picks whichever one passes
+// farthest from a reported police location. Ignored (default false) for every ordinary
+// route lookup, which still gets just the single best route as before.
+async function getRoute(pickup,destination,{alternatives=false}={}){
   try{
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),5000);
-    const url=`https://router.project-osrm.org/route/v1/driving/${pickup[1]},${pickup[0]};${destination[1]},${destination[0]}?overview=full&geometries=geojson`;
+    const url=`https://router.project-osrm.org/route/v1/driving/${pickup[1]},${pickup[0]};${destination[1]},${destination[0]}?overview=full&geometries=geojson${alternatives?'&alternatives=true':''}`;
     const apiRes=await fetch(url,{signal:controller.signal});
     clearTimeout(timer);
     if(!apiRes.ok)throw new Error('OSRM HTTP '+apiRes.status);
     const data=await apiRes.json();
-    const route=data.routes?.[0];
-    if(!route)throw new Error('No route found');
-    return{
+    if(!data.routes?.length)throw new Error('No route found');
+    const toResult=route=>({
       km:Math.round(route.distance/100)/10,
       min:Math.round(route.duration/60),
       geometry:route.geometry.coordinates.map(([lng,lat])=>[lat,lng]),
       real:true
-    };
+    });
+    return alternatives?data.routes.map(toResult):toResult(data.routes[0]);
   }catch(e){
     console.warn('Route lookup failed, using straight-line estimate:',e.message);
     const km=dist(pickup,destination);
-    return{km,min:Math.round(km*2.5+5),geometry:[pickup,destination],real:false};
+    const fallback={km,min:Math.round(km*2.5+5),geometry:[pickup,destination],real:false};
+    return alternatives?[fallback]:fallback;
   }
+}
+// Shortest distance (km) from a point to any vertex of a route's geometry -- an
+// approximation of point-to-line distance, not exact, but road-route geometries from
+// OSRM carry a vertex every few dozen meters so it's close enough to judge "does this
+// route pass near the reported police location".
+function _minDistToRoute(point,geometry){
+  let min=Infinity;
+  for(const v of geometry){const d=dist(point,v);if(d<min)min=d;}
+  return min;
+}
+// Asks OSRM for multiple road-route alternatives and returns whichever one stays
+// farthest from the given point, so a driver can route around a reported police
+// location -- this is a real, honest use of OSRM's own alternatives feature (picking
+// among genuinely different roads), not a hack that fakes an "avoid" zone OSRM's free
+// public server doesn't actually support. Falls back to the plain single-route result
+// (avoided:false) if OSRM has no real alternative to offer, or is unreachable -- the
+// driver keeps their normal route rather than getting an error.
+async function getRouteAvoiding(pickup,destination,avoidPoint){
+  const routes=await getRoute(pickup,destination,{alternatives:true});
+  if(routes.length<2)return{...routes[0],avoided:false};
+  let best=routes[0],bestDist=_minDistToRoute(avoidPoint,best.geometry);
+  for(const r of routes.slice(1)){
+    const d=_minDistToRoute(avoidPoint,r.geometry);
+    if(d>bestDist){best=r;bestDist=d;}
+  }
+  // Only worth calling "avoided" if the chosen route is meaningfully farther from the
+  // report than the original fastest route was -- otherwise every alternative already
+  // passed just as close and there's nothing real to offer the driver.
+  const originalDist=_minDistToRoute(avoidPoint,routes[0].geometry);
+  return{...best,avoided:bestDist>originalDist+0.15};
 }
 
 async function buildDB(){
@@ -954,10 +1037,19 @@ app.get('/api/reverse-geocode',geoLimiter,async(req,res)=>{
 
 // Route geometry for an existing ride's pickup/destination -- used to (re)draw the map
 // (e.g. on page reload, or when a driver accepts and needs the same route the rider sees).
+// avoid_lat/avoid_lng are optional -- when present, this returns the OSRM alternative
+// that stays farthest from that point (see getRouteAvoiding) instead of the plain
+// fastest route. Used by the "Alternate route around reported police" button; every
+// other caller (initial route draw, page reload) omits them and gets the normal route.
 app.get('/api/route',geoLimiter,async(req,res)=>{
-  const{pickup_lat,pickup_lng,dest_lat,dest_lng}=req.query;
+  const{pickup_lat,pickup_lng,dest_lat,dest_lng,avoid_lat,avoid_lng}=req.query;
   const p=[parseFloat(pickup_lat),parseFloat(pickup_lng)],d=[parseFloat(dest_lat),parseFloat(dest_lng)];
   if(!isValidTTCoord(p[0],p[1])||!isValidTTCoord(d[0],d[1]))return res.status(400).json({error:'Invalid coordinates'});
+  if(avoid_lat!==undefined&&avoid_lng!==undefined){
+    const avoid=[parseFloat(avoid_lat),parseFloat(avoid_lng)];
+    if(!isValidTTCoord(avoid[0],avoid[1]))return res.status(400).json({error:'Invalid avoid coordinates'});
+    return res.json(await getRouteAvoiding(p,d,avoid));
+  }
   const route=await getRoute(p,d);
   res.json(route);
 });
@@ -1070,6 +1162,14 @@ app.get('/api/chat/:rideId',authMW,async(req,res)=>{
 app.get('/api/nearby-drivers',authMW,async(req,res)=>{
   const drivers=await dbAll("SELECT user_id,current_lat,current_lng FROM driver_profiles WHERE status='approved' AND is_online=1");
   res.json({drivers:drivers.filter(d=>isValidTTCoord(d.current_lat,d.current_lng)).map(d=>({driver_id:d.user_id,lat:d.current_lat,lng:d.current_lng}))});
+});
+// Active (unexpired) crowd-sourced police reports -- public to any authenticated user,
+// same reasoning as nearby-drivers above: this is exactly the kind of "here's what's
+// nearby right now" data every user benefits from seeing, not just ride counterparties.
+// Anonymous by design (no reporter_id in the response).
+app.get('/api/police-reports',authMW,async(req,res)=>{
+  const reports=await dbAll("SELECT id,lat,lng,created_at,expires_at FROM police_reports WHERE expires_at>datetime('now') ORDER BY created_at DESC");
+  res.json({reports});
 });
 
 // Admin-only: audit log of sensitive admin actions (kept out of the general /api/db broadcast — no reason for every client to receive it).
@@ -1316,6 +1416,19 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       broadcastAll({type:'sos_alert',user:`${u.first_name} ${u.last_name}`,phone:u.phone,ec:u.emergency_contact_name,lat:data.lat,lng:data.lng,message:msg,safetyTeamAlerted:alertResult.sent});
       broadcastDBUpdate();
       return res.json({ok:true,db:await buildDB(),safetyTeamAlerted:alertResult.sent});
+    }else if(type==='report_police'){
+      // Any rider or driver can report -- no ride required, matches how Waze-style
+      // reporting works generally (you might spot police well before or after a trip).
+      // Rejects a coordinate outside T&T rather than trusting client GPS blindly, same
+      // guard used everywhere else user-supplied coordinates enter this app.
+      const lat=parseFloat(data.lat),lng=parseFloat(data.lng);
+      if(!isValidTTCoord(lat,lng))return res.json({ok:false,error:'Invalid location'});
+      const id=uuidv4();
+      const expiresAt=new Date(Date.now()+45*60*1000).toISOString();
+      await dbRun('INSERT INTO police_reports(id,reporter_id,lat,lng,expires_at)VALUES(?,?,?,?,?)',[id,userId,lat,lng,expiresAt]);
+      const report={id,lat,lng,created_at:new Date().toISOString(),expires_at:expiresAt};
+      broadcastAll({type:'police_report_new',report});
+      return res.json({ok:true,report});
     }else if(type==='approve_driver'){
       if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
       await dbRun("UPDATE driver_profiles SET status='approved' WHERE user_id=?",[data.user_id]);
@@ -1601,6 +1714,11 @@ async function dispatchRecurringLegs(){
 }
 setInterval(()=>{dispatchRecurringLegs().catch(e=>console.error('Recurring dispatch error',e.message));},15*60*1000);
 setTimeout(()=>{dispatchRecurringLegs().catch(()=>{});},8000); // catch anything already due at boot
+
+// Police reports already stop being returned by GET /api/police-reports the moment they
+// expire (the query filters on expires_at), so this isn't needed for correctness -- it's
+// just housekeeping, so the table doesn't grow forever on a long-running server.
+setInterval(()=>{dbRun("DELETE FROM police_reports WHERE expires_at<datetime('now')").catch(e=>console.error('Police report cleanup error',e.message));},15*60*1000);
 
 // Promotes scheduled rides to a live dispatch the moment their time arrives -- a
 // scheduled ride sits as status='scheduled' with no driver pinged at all until this
