@@ -296,16 +296,22 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
 #rotate-guard p{font-size:17px;font-weight:700;margin-bottom:6px}
 #rotate-guard span{font-size:13px;color:rgba(255,255,255,.8)}
 @media (orientation:landscape) and (max-height:520px){#rotate-guard{display:flex}}
-/* Persistent pre-auth video teaser, pinned to the right -- deliberately has no close
-   button (Elliot's ask was "non-removable until login/sign up"); it's hidden purely by
-   go() toggling this class the instant a page switch lands on an authenticated page
-   (see _syncPipDemo), never by user action. Reuses the app's own branded backdrop clip
-   since there's no separate demo/explainer video asset to show instead. */
-#pip-demo{display:none;position:fixed;right:14px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:104px;height:184px;border-radius:18px;overflow:hidden;box-shadow:0 10px 28px -6px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.65);z-index:150}
+/* Persistent pre-auth install-tutorial teaser, pinned to the right -- deliberately has
+   no close button (Elliot's ask was "non-removable until login/sign up"); it's hidden
+   purely by go() toggling this class the instant a page switch lands on an authenticated
+   page (see _syncPipDemo), never by user action. Originally showed the app's plain
+   backdrop clip, but that was the wrong content (Elliot's actual ask was for the install
+   walkthrough itself here) AND an extra always-decoding video stacked on top of the
+   2-3 already playing on these pages -- replaced with a scaled-down copy of the same
+   CSS-only animated walkthrough used in the "Watch how" modals (see _pipDemoInnerHTML),
+   which costs nothing to keep running since it's pure CSS, not a 4th video.
+   #pip-demo-screen is sized at the walkthrough's natural dimensions (172x342, matching
+   .ios-tut-screen's effective content box) then shrunk with a CSS transform to fit the
+   small widget -- the inset:0 scene children inside scale down along with it. */
+#pip-demo{display:none;position:fixed;right:14px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:100px;height:198px;border-radius:16px;overflow:hidden;box-shadow:0 10px 28px -6px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.55);z-index:150;background:#0b0b0f}
 #pip-demo.show{display:block}
-#pip-demo .pip-demo-video{width:100%;height:100%;object-fit:cover;display:block}
-#pip-demo .pip-demo-label{position:absolute;left:0;right:0;bottom:0;padding:6px 8px 7px;font-size:10.5px;font-weight:800;color:#fff;text-align:center;background:linear-gradient(0deg,rgba(0,0,0,.6),transparent);text-shadow:0 1px 3px rgba(0,0,0,.4)}
-@media (max-height:640px){#pip-demo{width:84px;height:150px}}
+#pip-demo-screen{position:relative;width:172px;height:342px;transform:scale(.581);transform-origin:top left;background:linear-gradient(160deg,#fff0f7,#ffd9ec);overflow:hidden}
+@media (max-height:640px){#pip-demo{width:84px;height:166px}#pip-demo-screen{transform:scale(.488)}}
 /* Tabs */
 .tabs{display:flex;background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-bottom:1px solid rgba(255,255,255,.5);flex-shrink:0}
 .tab{flex:1;min-width:0;padding:11px 4px;text-align:center;font-size:11.5px;font-weight:700;color:#9ca3af;cursor:pointer;border-bottom:2.5px solid transparent;transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -475,14 +481,12 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
      rest of the page never finishes loading. Scoped to short viewports only so it never
      fires on a landscape tablet or desktop window. -->
 <div id="rotate-guard"><div class="rg-icon">📱↻</div><p>Please rotate back to portrait</p><span>Pink.TT is designed for portrait mode</span></div>
-<!-- Persistent pre-auth video teaser -- see the #pip-demo CSS comment above for why it
-     has no close button. -->
+<!-- Persistent pre-auth install-tutorial teaser -- see the #pip-demo CSS comment above
+     for why it has no close button and why its content is a scaled-down CSS animation
+     rather than a video. #pip-demo-screen's content is filled in by JS (_syncPipDemo)
+     with the same iOS/Android walkthrough scenes as the "Watch how" modals. -->
 <div id="pip-demo" aria-hidden="true">
-  <video id="pip-demo-video" class="pip-demo-video" data-clip="install-banner-bg" autoplay loop muted playsinline preload="auto">
-    <source src="/media/install-banner-bg.mp4?v=5" type="video/mp4">
-    <source src="/media/install-banner-bg.webm?v=5" type="video/webm">
-  </video>
-  <div class="pip-demo-label">🌸 Pink.TT</div>
+  <div id="pip-demo-screen"></div>
 </div>
 <!-- Same rotating wallpaper video as the landing/login/register pages, but sitting
      behind the entire app shell (fixed, full viewport) so every screen shares the same
@@ -1418,8 +1422,18 @@ function go(page){
 // go() lands anywhere past that -- including pg-idverify, since that page only exists
 // for an account that already finished signing up.
 const _PIP_DEMO_PAGES=new Set(['land','onboard','login','register']);
+let _pipDemoFilled=false;
 function _syncPipDemo(page){
-  document.getElementById('pip-demo')?.classList.toggle('show',_PIP_DEMO_PAGES.has(page));
+  const el=document.getElementById('pip-demo');
+  if(!el)return;
+  el.classList.toggle('show',_PIP_DEMO_PAGES.has(page));
+  // Filled lazily on first show rather than at parse time -- _isIOS() and _pipDemoInnerHTML
+  // are defined further down the file (hoisted function declarations, so this is safe to
+  // call regardless of source order once the page has actually started navigating).
+  if(!_pipDemoFilled){
+    const screen=document.getElementById('pip-demo-screen');
+    if(screen){_pipDemoFilled=true;screen.innerHTML=_pipDemoInnerHTML();}
+  }
 }
 function goBack(){ go(S.prevPage||'land'); }
 function goRole(role){ S.regRole=role; setRole(role); onbGoto('register'); }
@@ -4989,7 +5003,7 @@ function _applyCustomBackground(){
   // showInstallBanner -- no fixed id since only one exists at a time) was never
   // included here, so it kept showing the built-in default clip forever regardless of
   // any custom background an admin set, visibly mismatched against the rest of the app.
-  [...document.querySelectorAll('#boot-bg-video,#app-bg-video,#hero-bg-video,#pip-demo-video,.ib-bg')].forEach(v=>{
+  [...document.querySelectorAll('#boot-bg-video,#app-bg-video,#hero-bg-video,.ib-bg')].forEach(v=>{
     // _hideBootSplash() strips boot-bg-video's source and hides it the moment the splash
     // is gone (display:none) so it's never decoding in the background afterward -- if
     // this config fetch resolves after that already happened, leave it alone rather than
@@ -5175,14 +5189,14 @@ _pickWallpaper();
 // long enough for the OS to pause media) -- resume it, nothing more.
 function _keepWallpapersPlaying(){
   if(document.visibilityState!=='visible')return;
-  ['app-bg-video','hero-bg-video','pip-demo-video'].forEach(id=>{
+  ['app-bg-video','hero-bg-video'].forEach(id=>{
     const v=document.getElementById(id);
     if(v&&v.paused)v.play().catch(()=>{});
   });
 }
 document.addEventListener('visibilitychange',_keepWallpapersPlaying);
 window.addEventListener('pageshow',_keepWallpapersPlaying);
-['app-bg-video','hero-bg-video','pip-demo-video'].forEach(id=>{
+['app-bg-video','hero-bg-video'].forEach(id=>{
   document.getElementById(id)?.addEventListener('pause',_keepWallpapersPlaying);
 });
 // Just a cheap pause-check now (see comment above), so a short interval costs nothing --
@@ -5204,6 +5218,68 @@ setInterval(_keepWallpapersPlaying,10000);
 let _deferredInstallPrompt=null;
 function _isStandalone(){return window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;}
 function _isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;}
+// Same walkthrough content as the "Watch how" modals (#ios-tutorial-modal /
+// #android-tutorial-modal), trimmed to fit the small #pip-demo widget -- shorter
+// captions, no header/footer/Got-it button, and scene s3 doesn't need the earlier
+// pagepreview spacer since there's no room to spare at this size. Reuses the exact same
+// .ios-tut-scene/.and-tut-* CSS (including the shared 8s staggered-delay animation) so
+// this stays visually consistent with the full-size modals for free.
+function _pipDemoInnerHTML(){
+  return _isIOS()?`
+    <div class="ios-tut-scene s1">
+      <div class="ios-tut-topbar">🔒 pinktt.onrender.com</div>
+      <div class="ios-tut-pagepreview"><img src="/icons/icon-192.png" alt=""><span>Pink.TT</span></div>
+      <div class="ios-tut-safaribar"><span>◀</span><span>▶</span><span class="ios-tut-target">⬆️<i class="ios-tut-ring"></i></span><span>📑</span><span>⧉</span></div>
+      <div class="ios-tut-caption">1 · Tap Share</div>
+    </div>
+    <div class="ios-tut-scene s2">
+      <div class="ios-tut-sheetbg">
+        <div class="ios-tut-sheet">
+          <div class="ios-tut-sheet-handle"></div>
+          <div class="ios-tut-row"><span>🔗</span>Copy</div>
+          <div class="ios-tut-row hl"><span>➕</span>Add to Home Screen<i class="ios-tut-ring"></i></div>
+        </div>
+      </div>
+      <div class="ios-tut-caption" style="margin-top:auto">2 · Add to Home Screen</div>
+    </div>
+    <div class="ios-tut-scene s3">
+      <div class="ios-tut-addcard" style="margin-top:auto;margin-bottom:auto">
+        <div class="ios-tut-addcard-head">Add<span class="ios-tut-addbtn">Add<i class="ios-tut-ring"></i></span></div>
+        <div class="ios-tut-addcard-body"><img src="/icons/icon-192.png" alt=""><span>Pink.TT</span></div>
+      </div>
+      <div class="ios-tut-caption">3 · Tap Add</div>
+    </div>
+    <div class="ios-tut-scene s4">
+      <div class="ios-tut-homegrid"><i></i><i></i><i></i><i class="ios-tut-newicon"><img src="/icons/icon-192.png" alt=""></i><i></i><i></i></div>
+      <div class="ios-tut-caption">🎉 Done!</div>
+    </div>
+  `:`
+    <div class="ios-tut-scene s1">
+      <div class="and-tut-topbar"><span class="and-tut-url">🔒 pinktt.onrender.com</span><span class="and-tut-dots">⋮<i class="ios-tut-ring"></i></span></div>
+      <div class="ios-tut-pagepreview"><img src="/icons/icon-192.png" alt=""><span>Pink.TT</span></div>
+      <div class="ios-tut-caption">1 · Tap ⋮</div>
+    </div>
+    <div class="ios-tut-scene s2">
+      <div class="and-tut-topbar"><span class="and-tut-url">🔒 pinktt.onrender.com</span><span class="and-tut-dots">⋮</span></div>
+      <div class="and-tut-menu">
+        <div class="and-tut-menu-row hl"><span>📲</span>Install app<i class="ios-tut-ring"></i></div>
+      </div>
+      <div class="ios-tut-caption" style="margin-top:auto">2 · Install app</div>
+    </div>
+    <div class="ios-tut-scene s3">
+      <div class="and-tut-installdlg" style="margin-top:auto;margin-bottom:auto">
+        <img src="/icons/icon-192.png" alt="">
+        <p>Install app?</p>
+        <div class="and-tut-installdlg-btns"><span class="cancel">Cancel</span><span class="install">Install<i class="ios-tut-ring"></i></span></div>
+      </div>
+      <div class="ios-tut-caption">3 · Tap Install</div>
+    </div>
+    <div class="ios-tut-scene s4">
+      <div class="ios-tut-homegrid"><i></i><i></i><i></i><i class="ios-tut-newicon"><img src="/icons/icon-192.png" alt=""></i><i></i><i></i></div>
+      <div class="ios-tut-caption">🎉 Done!</div>
+    </div>
+  `;
+}
 function showInstallBanner(kind){
   if(_isStandalone())return;
   const existing=document.getElementById('install-banner');
