@@ -69,6 +69,10 @@ const SCHEMA_SQL=[
   `CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT DEFAULT'',updated_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS audit_log(id TEXT PRIMARY KEY,admin_id TEXT,admin_email TEXT,action TEXT,target_type TEXT DEFAULT'',target_id TEXT DEFAULT'',details TEXT DEFAULT'',created_at TEXT DEFAULT(datetime('now')))`,
   `CREATE TABLE IF NOT EXISTS businesses(id TEXT PRIMARY KEY,name TEXT NOT NULL,category TEXT DEFAULT'',description TEXT DEFAULT'',address TEXT DEFAULT'',phone TEXT DEFAULT'',rating REAL DEFAULT 5.0,rating_count INTEGER DEFAULT 0,is_featured INTEGER DEFAULT 0,is_active INTEGER DEFAULT 1,discount TEXT DEFAULT'',discount_code TEXT DEFAULT'',lat REAL DEFAULT 0,lng REAL DEFAULT 0,created_at TEXT DEFAULT(datetime('now')))`,
+  // Used to be a hardcoded 3-entry array returned straight out of buildDB() -- no way
+  // to add a new one without editing code and redeploying. Same fix already applied to
+  // businesses: a real table, admin-managed.
+  `CREATE TABLE IF NOT EXISTS promotions(id TEXT PRIMARY KEY,code TEXT UNIQUE NOT NULL,title TEXT DEFAULT'',description TEXT DEFAULT'',type TEXT DEFAULT'percentage',value REAL DEFAULT 0,usage_count INTEGER DEFAULT 0,usage_limit INTEGER,is_active INTEGER DEFAULT 1,valid_until TEXT,created_at TEXT DEFAULT(datetime('now')))`,
   // Driver tiers: a driver earns a better commission split (and the right to take
   // recurring bookings) by sustaining a rating and trip count. Config lives in a table
   // rather than constants so the thresholds/rates can be tuned without a redeploy.
@@ -533,7 +537,7 @@ async function buildDB(){
   const payments=await dbAll('SELECT * FROM payments');
   const sos_events=await dbAll('SELECT * FROM sos_events');
   const notifications=await dbAll('SELECT * FROM notifications');
-  const promotions=[{id:'p1',code:'WELCOME25',title:'Welcome Discount',description:'25% off your first ride',type:'percentage',value:25,is_active:true,valid_until:'2026-12-31T00:00:00Z'},{id:'p2',code:'PINK10',title:'Pink Loyalty',description:'TTD $10 off any ride over $50',type:'fixed',value:10,is_active:true,valid_until:'2026-12-31T00:00:00Z'},{id:'p3',code:'SAFE20',title:'Safety Bonus',description:'20% off for referring a friend',type:'percentage',value:20,is_active:true,valid_until:'2026-12-31T00:00:00Z'}];
+  const promotions=(await dbAll('SELECT * FROM promotions ORDER BY created_at DESC')).map(p=>({...p,is_active:!!p.is_active}));
   // Used to be a hardcoded array of businesses (Luxe Nail Lounge, Serenity Spa, etc.)
   // that Elliot never actually added -- placeholder demo data presented as if real, with
   // no way to add/remove anything since it wasn't backed by a table at all. Now a real
@@ -1484,6 +1488,25 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       const biz=await dbGet('SELECT is_active FROM businesses WHERE id=?',[data.business_id]);
       if(!biz)return res.json({ok:false,error:'Business not found'});
       await dbRun('UPDATE businesses SET is_active=? WHERE id=?',[biz.is_active?0:1,data.business_id]);
+    }else if(type==='admin_add_promo'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const code=String(data.code||'').trim().toUpperCase();
+      const{title,description,type:discType,value,usage_limit,valid_until}=data;
+      if(!code||!title||!value)return res.json({ok:false,error:'Code, title, and a discount value are required'});
+      if(!['percentage','fixed'].includes(discType))return res.json({ok:false,error:'Invalid discount type'});
+      if(await dbGet('SELECT id FROM promotions WHERE code=?',[code]))return res.json({ok:false,error:'A promo with that code already exists'});
+      const promoId=uuidv4();
+      await dbRun('INSERT INTO promotions(id,code,title,description,type,value,usage_limit,is_active,valid_until)VALUES(?,?,?,?,?,?,?,1,?)',[promoId,code,title,description||'',discType,Number(value),usage_limit?Number(usage_limit):null,valid_until||'2026-12-31T00:00:00Z']);
+      await logAudit(req.jwt,'add_promo','promotion',promoId,code);
+    }else if(type==='admin_toggle_promo_active'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      const promo=await dbGet('SELECT is_active FROM promotions WHERE id=?',[data.promo_id]);
+      if(!promo)return res.json({ok:false,error:'Promo not found'});
+      await dbRun('UPDATE promotions SET is_active=? WHERE id=?',[promo.is_active?0:1,data.promo_id]);
+    }else if(type==='admin_delete_promo'){
+      if(req.jwt.role!=='admin')return res.json({ok:false,error:'Admin only'});
+      await dbRun('DELETE FROM promotions WHERE id=?',[data.promo_id]);
+      await logAudit(req.jwt,'delete_promo','promotion',data.promo_id,'');
     }else if(type==='rate_ride'){
       await dbRun('UPDATE rides SET rider_rating=?,driver_review=? WHERE id=?',[data.score,data.review||'',data.ride_id]);
       const ride=await dbGet('SELECT driver_id FROM rides WHERE id=?',[data.ride_id]);
@@ -1609,6 +1632,23 @@ wss.on('connection',ws=>{
     try{const msg=JSON.parse(raw);
       if(msg.type==='auth'){try{const p=jwt.verify(msg.token,JWT_SECRET);uid=p.id;clients.set(uid,ws);ws.send(JSON.stringify({type:'auth_ok'}));buildDB().then(d=>ws.send(JSON.stringify({type:'db_update',db:d}))).catch(console.error);}catch{ws.send(JSON.stringify({type:'auth_err'}));}}
       else if(msg.type==='ping')ws.send(JSON.stringify({type:'pong'}));
+      // In-app voice call (rider <-> driver, WebRTC) signaling relay -- offers, answers,
+      // and ICE candidates all pass through here as opaque payloads; this server never
+      // touches call audio itself (that's peer-to-peer once connected), just introduces
+      // the two sides. Relayed over the raw WebSocket rather than the authenticated
+      // mutation/HTTP path since signaling needs to be as low-latency as possible and
+      // carries no data worth persisting. Only relayed between the two actual parties on
+      // that specific ride, checked fresh on every message (not just once at call start)
+      // so a stale/forged ride_id can't be used to reach an arbitrary user.
+      else if(msg.type==='call_signal'&&uid){
+        dbGet('SELECT rider_id,driver_id FROM rides WHERE id=?',[msg.ride_id]).then(ride=>{
+          if(!ride)return;
+          const otherParty=ride.rider_id===uid?ride.driver_id:(ride.driver_id===uid?ride.rider_id:null);
+          if(!otherParty||otherParty!==msg.to)return;
+          const targetWs=clients.get(msg.to);
+          if(targetWs&&targetWs.readyState===WebSocket.OPEN)targetWs.send(JSON.stringify({type:'call_signal',ride_id:msg.ride_id,from:uid,signal:msg.signal}));
+        }).catch(()=>{});
+      }
     }catch{}
   });
   ws.on('close',()=>{if(uid)clients.delete(uid);});
@@ -1629,6 +1669,15 @@ wss.on('connection',ws=>{
   for(const t of DEFAULT_DRIVER_TIERS){
     if(!(await dbGet('SELECT id FROM driver_tiers WHERE name=?',[t.name])))
       await dbRun('INSERT INTO driver_tiers(id,name,label,commission_rate,min_rating,min_completed_trips,can_accept_recurring,sort_order)VALUES(?,?,?,?,?,?,?,?)',[uuidv4(),t.name,t.label,t.commission_rate,t.min_rating,t.min_completed_trips,t.can_accept_recurring,t.sort_order]);
+  }
+  const DEFAULT_PROMOS=[
+    {code:'WELCOME25',title:'Welcome Discount',description:'25% off your first ride',type:'percentage',value:25},
+    {code:'PINK10',title:'Pink Loyalty',description:'TTD $10 off any ride over $50',type:'fixed',value:10},
+    {code:'SAFE20',title:'Safety Bonus',description:'20% off for referring a friend',type:'percentage',value:20},
+  ];
+  for(const p of DEFAULT_PROMOS){
+    if(!(await dbGet('SELECT id FROM promotions WHERE code=?',[p.code])))
+      await dbRun('INSERT INTO promotions(id,code,title,description,type,value,is_active,valid_until)VALUES(?,?,?,?,?,?,1,?)',[uuidv4(),p.code,p.title,p.description,p.type,p.value,'2026-12-31T00:00:00Z']);
   }
   if(SHOW_DEMO_ACCOUNTS&&!(await dbGet('SELECT id FROM users WHERE email=?',['sarah@demo.pink.tt']))){
     const riderId=uuidv4(),drv1Id=uuidv4(),drv2Id=uuidv4();

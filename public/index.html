@@ -482,6 +482,25 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
   </div>
 </div>
 
+<!-- Voice Call Modal (rider <-> driver, WebRTC) -->
+<div class="overlay" id="call-modal">
+  <div class="sheet" style="text-align:center">
+    <div style="font-size:50px;margin-bottom:10px" id="call-icon">📞</div>
+    <p id="call-name" style="font-size:18px;font-weight:700;margin-bottom:4px">—</p>
+    <p id="call-status" style="font-size:13px;color:#9ca3af;margin-bottom:22px">Calling...</p>
+    <audio id="call-remote-audio" autoplay playsinline style="display:none"></audio>
+    <div id="call-incoming-actions" style="display:none;gap:12px;justify-content:center;margin-bottom:8px">
+      <button class="btn bw" style="flex:1;background:#fee2e2;color:var(--r)" onclick="declineCall()">✕ Decline</button>
+      <button class="btn bw" style="flex:1;background:#dcfce7;color:#166534" onclick="acceptCall()">✓ Accept</button>
+    </div>
+    <div id="call-active-actions" style="display:none;gap:12px;justify-content:center;margin-bottom:8px">
+      <button class="btn bsm" id="call-mute-btn" style="flex:1" onclick="toggleCallMute()">🔇 Mute</button>
+      <button class="btn bw" style="flex:1;background:#fee2e2;color:var(--r)" onclick="endCall()">📞 End Call</button>
+    </div>
+    <button id="call-cancel-btn" class="btn bs bw" style="display:none" onclick="endCall()">Cancel</button>
+  </div>
+</div>
+
 <!-- Ride Chat Modal -->
 <div class="overlay" id="chat-modal">
   <div class="sheet" style="display:flex;flex-direction:column;max-height:85vh">
@@ -567,6 +586,27 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
     <div class="fg"><label class="lbl">Short Description</label><input class="inp" id="biz-desc" placeholder="Premium nail care & art"></div>
     <button class="btn bp bw" onclick="saveBiz()">Add Business</button>
     <button class="btn bs bw" style="margin-top:8px" onclick="closeModal('biz-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- Add Promo Code Modal (Admin) -->
+<div class="overlay" id="promo-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:14px">Add Promo Code</h3>
+    <div class="fg"><label class="lbl">Code *</label><input class="inp" id="promo-code" placeholder="SUMMER15" style="text-transform:uppercase"></div>
+    <div class="fg"><label class="lbl">Title *</label><input class="inp" id="promo-title" placeholder="Summer Special"></div>
+    <div class="fg"><label class="lbl">Short Description</label><input class="inp" id="promo-desc" placeholder="15% off weekend rides"></div>
+    <div class="fg"><label class="lbl">Discount Type *</label>
+      <select class="inp" id="promo-type">
+        <option value="percentage">Percentage off</option>
+        <option value="fixed">Fixed TTD amount off</option>
+      </select>
+    </div>
+    <div class="fg"><label class="lbl">Discount Value *</label><input class="inp" id="promo-value" type="number" min="0" step="0.01" placeholder="15"></div>
+    <div class="fg"><label class="lbl">Usage Limit (optional)</label><input class="inp" id="promo-limit" type="number" min="1" placeholder="Leave blank for unlimited"></div>
+    <div class="fg"><label class="lbl">Valid Until</label><input class="inp" id="promo-until" type="date"></div>
+    <button class="btn bp bw" onclick="savePromo()">Add Promo Code</button>
+    <button class="btn bs bw" style="margin-top:8px" onclick="closeModal('promo-modal')">Cancel</button>
   </div>
 </div>
 
@@ -1548,7 +1588,7 @@ function renderRiderBook(){
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
               <button class="btn bs bsm" onclick="openModal('share-modal')">📤 Share Trip</button>
-              <button class="btn bs bsm" onclick="toast('Calling ${S.driverInfo.name}... 📞')">📞 Call Driver</button>
+              <button class="btn bs bsm" onclick="startCall('${S.activeRide?.id}','${S.driverInfo.id}','${S.driverInfo.name}')">📞 Call Driver</button>
             </div>
             <button class="btn bs bw" style="margin-top:7px" onclick="openChatModal('${S.activeRide?.id}')">💬 Chat with Driver</button>
             <button class="btn bsm bw" style="margin-top:7px;background:#fff5f5;color:var(--r);border:1.5px solid #fecaca" onclick="openModal('report-modal')">⚠️ Report Issue</button>
@@ -1967,6 +2007,120 @@ async function sendChatMessage(){
   else{toast(res.error||'Could not send message','err');input.value=text;}
 }
 
+// ── Voice call (rider <-> driver, real WebRTC audio over the existing WebSocket for
+// signaling) ─────────────────────────────────────────────────────────────────────
+// Public STUN only (no TURN server -- there's no budget for one, and free public TURN
+// relays aren't reliably available). STUN is enough to connect two peers directly on
+// most wifi networks (each side's own router does the NAT traversal); a call between two
+// carrier-grade-NAT cellular connections can occasionally fail to connect at all without
+// a relay -- there's no way around that without paying for TURN infrastructure.
+const _RTC_CONFIG={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
+let _callPC=null,_callStream=null,_callTargetId=null,_callRideId=null,_callPendingOffer=null,_callTimer=null,_callStartTs=null,_callMuted=false;
+function _sendCallSignal(signal){
+  if(_PTT_WS&&_PTT_WS.readyState===WebSocket.OPEN)_PTT_WS.send(JSON.stringify({type:'call_signal',ride_id:_callRideId,to:_callTargetId,signal}));
+}
+function _newCallPC(){
+  const pc=new RTCPeerConnection(_RTC_CONFIG);
+  pc.onicecandidate=e=>{if(e.candidate)_sendCallSignal({kind:'ice',candidate:e.candidate});};
+  pc.ontrack=e=>{const el=document.getElementById('call-remote-audio');if(el)el.srcObject=e.streams[0];};
+  pc.onconnectionstatechange=()=>{
+    if(pc.connectionState==='connected')_onCallConnected();
+    else if(['failed','disconnected'].includes(pc.connectionState))_endCall('Call disconnected');
+  };
+  return pc;
+}
+async function startCall(rideId,targetUserId,targetName){
+  if(_callPC){toast('You are already in a call','err');return;}
+  _callRideId=rideId;_callTargetId=targetUserId;
+  try{_callStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});}
+  catch(e){toast('Microphone access is needed to make a call','err');return;}
+  document.getElementById('call-name').textContent=targetName||'Calling...';
+  document.getElementById('call-status').textContent='Calling...';
+  document.getElementById('call-icon').textContent='📞';
+  document.getElementById('call-incoming-actions').style.display='none';
+  document.getElementById('call-active-actions').style.display='none';
+  document.getElementById('call-cancel-btn').style.display='block';
+  openModal('call-modal');
+  _callPC=_newCallPC();
+  _callStream.getTracks().forEach(t=>_callPC.addTrack(t,_callStream));
+  const offer=await _callPC.createOffer();
+  await _callPC.setLocalDescription(offer);
+  _sendCallSignal({kind:'offer',sdp:offer});
+}
+function _showIncomingCall(fromUserId,rideId){
+  const caller=DB.users.find(u=>u.id===fromUserId);
+  _callRideId=rideId;_callTargetId=fromUserId;
+  document.getElementById('call-name').textContent=caller?`${caller.first_name} ${caller.last_name}`:'Incoming call';
+  document.getElementById('call-status').textContent='Incoming call...';
+  document.getElementById('call-icon').textContent='📲';
+  document.getElementById('call-incoming-actions').style.display='flex';
+  document.getElementById('call-active-actions').style.display='none';
+  document.getElementById('call-cancel-btn').style.display='none';
+  openModal('call-modal');
+}
+async function acceptCall(){
+  if(!_callPendingOffer)return;
+  try{_callStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});}
+  catch(e){toast('Microphone access is needed to answer','err');declineCall();return;}
+  document.getElementById('call-status').textContent='Connecting...';
+  document.getElementById('call-incoming-actions').style.display='none';
+  _callPC=_newCallPC();
+  _callStream.getTracks().forEach(t=>_callPC.addTrack(t,_callStream));
+  await _callPC.setRemoteDescription(new RTCSessionDescription(_callPendingOffer));
+  _callPendingOffer=null;
+  const answer=await _callPC.createAnswer();
+  await _callPC.setLocalDescription(answer);
+  _sendCallSignal({kind:'answer',sdp:answer});
+}
+function declineCall(){_sendCallSignal({kind:'decline'});_callPendingOffer=null;closeModal('call-modal');_callTargetId=null;_callRideId=null;}
+function _onCallConnected(){
+  document.getElementById('call-status').textContent='Connected';
+  document.getElementById('call-active-actions').style.display='flex';
+  document.getElementById('call-cancel-btn').style.display='none';
+  _callStartTs=Date.now();
+  _callTimer=setInterval(()=>{
+    const s=Math.floor((Date.now()-_callStartTs)/1000);
+    document.getElementById('call-status').textContent=`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  },1000);
+}
+function toggleCallMute(){
+  if(!_callStream)return;
+  _callMuted=!_callMuted;
+  _callStream.getAudioTracks().forEach(t=>t.enabled=!_callMuted);
+  document.getElementById('call-mute-btn').textContent=_callMuted?'🔊 Unmute':'🔇 Mute';
+}
+function endCall(){_sendCallSignal({kind:'hangup'});_endCall();}
+function _endCall(statusMsg){
+  if(_callPC){try{_callPC.close();}catch(e){}_callPC=null;}
+  if(_callStream){_callStream.getTracks().forEach(t=>t.stop());_callStream=null;}
+  clearInterval(_callTimer);_callTimer=null;_callMuted=false;
+  _callTargetId=null;_callRideId=null;_callPendingOffer=null;
+  if(statusMsg)toast(statusMsg);
+  closeModal('call-modal');
+}
+async function _handleCallSignal(msg){
+  const{from,ride_id,signal}=msg;
+  if(signal.kind==='offer'){
+    if(_callPC){_sendCallSignal2(from,ride_id,{kind:'decline'});return;} // already in a call
+    _callPendingOffer=signal.sdp;
+    _showIncomingCall(from,ride_id);
+  }else if(signal.kind==='answer'){
+    if(_callPC)await _callPC.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+  }else if(signal.kind==='ice'){
+    if(_callPC)try{await _callPC.addIceCandidate(signal.candidate);}catch(e){}
+  }else if(signal.kind==='decline'){
+    _endCall('Call declined');
+  }else if(signal.kind==='hangup'){
+    _endCall('Call ended');
+  }
+}
+// Used only for the "busy, already in a call" decline above -- targets a specific user
+// directly rather than the in-progress _callTargetId/_callRideId, which belong to
+// whatever call (if any) this device is already on.
+function _sendCallSignal2(toUserId,rideId,signal){
+  if(_PTT_WS&&_PTT_WS.readyState===WebSocket.OPEN)_PTT_WS.send(JSON.stringify({type:'call_signal',ride_id:rideId,to:toUserId,signal}));
+}
+
 function renderRiderHistory(body){
   const rides=DB.rides.filter(r=>r.rider_id===S.user.id).sort((a,b)=>new Date(b.requested_at)-new Date(a.requested_at));
   if(!rides.length){body.innerHTML='<div class="empty"><div class="empty-i">🕐</div><p>No rides yet</p></div>';return;}
@@ -2344,7 +2498,10 @@ function renderDriverActive(body){
         <p style="font-size:11px;color:#9ca3af">${rider.phone||''}</p>
         ${r.notes?`<p style="font-size:11px;color:#374151;margin-top:6px;padding-top:6px;border-top:1px solid #f0f0f0"><strong>Note:</strong> ${r.notes}</p>`:''}
       </div>
-      <button class="btn bs bw" style="margin-bottom:8px" onclick="openChatModal('${r.id}')">💬 Chat with Rider</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <button class="btn bs bsm" onclick="startCall('${r.id}','${rider.id}','${rider.first_name} ${rider.last_name}')">📞 Call Rider</button>
+        <button class="btn bs bsm" onclick="openChatModal('${r.id}')">💬 Chat</button>
+      </div>
       <div style="display:flex;gap:8px">
         ${r.status==='accepted'?`<button class="btn bg2" style="flex:1" onclick="startRide()">✅ Rider Picked Up</button><button class="btn bs bsm" onclick="cancelRideDriver()">Cancel</button>`:''}
         ${r.status==='arriving'?`<button class="btn bg2" style="flex:1" onclick="startRide()">✅ Rider Picked Up</button>`:''}
@@ -2778,7 +2935,10 @@ async function saveBiz(){
 
 function renderAdminPromos(body){
   body.innerHTML=`
-    <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">Promo Codes (${DB.promotions.length})</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="font-size:15px;font-weight:700">Promo Codes (${DB.promotions.length})</h3>
+      <button class="btn bp bsm" onclick="openModal('promo-modal')">+ Add Promo</button>
+    </div>
     ${DB.promotions.map(p=>`<div class="card" style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
         <div>
@@ -2793,11 +2953,38 @@ function renderAdminPromos(body){
         <span>📊 ${p.usage_count||0}/${p.usage_limit||'∞'} used</span>
         <span>📅 Until ${new Date(p.valid_until).toLocaleDateString()}</span>
       </div>
-      <button class="btn bsm" style="background:${p.is_active?'#fee2e2':'#dcfce7'};color:${p.is_active?'var(--r)':'var(--g)'}" onclick="togglePromo('${p.id}')">${p.is_active?'Deactivate':'Activate'}</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn bsm" style="flex:1;background:${p.is_active?'#fee2e2':'#dcfce7'};color:${p.is_active?'var(--r)':'var(--g)'}" onclick="togglePromo('${p.id}')">${p.is_active?'Deactivate':'Activate'}</button>
+        <button class="btn bsm" style="background:#f3f4f6;color:#6b7280" onclick="deletePromo('${p.id}')">Delete</button>
+      </div>
     </div>`).join('')}
   `;
 }
-function togglePromo(id){const p=DB.promotions.find(x=>x.id===id);if(!p)return;p.is_active=!p.is_active;toast(p.is_active?'Promo activated':'Promo deactivated');renderAdminPromos(document.getElementById('admin-body'));}
+async function savePromo(){
+  const code=document.getElementById('promo-code').value.trim().toUpperCase();
+  const title=document.getElementById('promo-title').value.trim();
+  const description=document.getElementById('promo-desc').value.trim();
+  const type=document.getElementById('promo-type').value;
+  const value=document.getElementById('promo-value').value;
+  const usage_limit=document.getElementById('promo-limit').value;
+  const untilDate=document.getElementById('promo-until').value;
+  if(!code||!title||!value){toast('Code, title, and a discount value are required','err');return;}
+  const res=await _mutate('admin_add_promo',{code,title,description,type,value,usage_limit:usage_limit||null,valid_until:untilDate?new Date(untilDate).toISOString():undefined});
+  if(res.ok){
+    toast('Promo added! 🌸','ok');closeModal('promo-modal');
+    ['promo-code','promo-title','promo-desc','promo-value','promo-limit','promo-until'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    renderAdminPromos(document.getElementById('admin-body'));
+  }
+}
+async function togglePromo(id){
+  const res=await _mutate('admin_toggle_promo_active',{promo_id:id});
+  if(res.ok){await _pttLoadDB();renderAdminPromos(document.getElementById('admin-body'));}
+}
+async function deletePromo(id){
+  if(!confirm('Delete this promo code?'))return;
+  const res=await _mutate('admin_delete_promo',{promo_id:id});
+  if(res.ok){toast('Promo deleted','ok');await _pttLoadDB();renderAdminPromos(document.getElementById('admin-body'));}
+}
 
 // ─── ADMIN SETTINGS / STAFF / SECURITY ──────────────────────────
 function renderAdminSettings(body){
@@ -3712,7 +3899,9 @@ async function _setupPushNotifications(){
   }catch(e){}
 }
 function _handleWS(msg){
-  if(msg.type==='nearby_driver_update'){
+  if(msg.type==='call_signal'){
+    _handleCallSignal(msg);
+  }else if(msg.type==='nearby_driver_update'){
     _placeNearbyDriverMarker(msg.driver_id,msg.lat,msg.lng);
   }else if(msg.type==='nearby_driver_offline'){
     _removeNearbyDriverMarker(msg.driver_id);
@@ -4204,7 +4393,7 @@ function _startRidePoll(){
       if(ride.driver_id&&!S.driverInfo){
         const dUser=DB.users.find(u=>u.id===ride.driver_id);
         const dp=DB.driver_profiles.find(d=>d.user_id===ride.driver_id);
-        if(dUser)S.driverInfo={name:dUser.first_name+' '+dUser.last_name,vehicle:(dp?.vehicle_color||'')+' '+(dp?.vehicle_make||'')+' '+(dp?.vehicle_model||''),plate:dp?.vehicle_plate||'',rating:dp?.rating||5.0,phone:dUser.phone};
+        if(dUser)S.driverInfo={id:dUser.id,name:dUser.first_name+' '+dUser.last_name,vehicle:(dp?.vehicle_color||'')+' '+(dp?.vehicle_make||'')+' '+(dp?.vehicle_model||''),plate:dp?.vehicle_plate||'',rating:dp?.rating||5.0,phone:dUser.phone};
       }
       if(ride.status!==prevStatus){
         renderRiderBook&&renderRiderBook();
