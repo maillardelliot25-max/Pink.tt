@@ -4,6 +4,7 @@
   "description": "Women-only rideshare for Trinidad & Tobago.",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#E91E8C",
   "icons": [

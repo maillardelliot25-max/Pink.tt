@@ -235,6 +235,51 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
 .auth-wrap{max-width:440px;margin:0 auto;width:100%}
 .glass-card{background:rgba(255,255,255,.82);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.7);border-radius:20px;padding:22px 20px;box-shadow:0 12px 36px rgba(90,8,65,.35)}
 @media (prefers-reduced-motion:reduce){#install-banner{animation:none}#install-banner .ib-bg{display:none}}
+#install-banner .ib-watch{display:inline-block;margin-top:2px;font-size:10.5px;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer;color:#fff}
+/* Animated "how to install on iPhone" mockup -- a self-looping illustrated walkthrough
+   rather than a real screen recording (no way to capture actual iPhone footage from here).
+   Four scenes share one keyframe with a single on-screen window; staggering animation-delay
+   by 2s per scene walks them through in sequence forever without any JS timer needed. */
+.ios-tut-phone{position:relative;width:190px;height:360px;margin:0 auto;background:#0b0b0f;border-radius:36px;padding:9px;box-shadow:0 14px 34px -8px rgba(0,0,0,.4);border:2px solid #232328}
+.ios-tut-screen{position:relative;width:100%;height:100%;border-radius:27px;overflow:hidden;background:linear-gradient(160deg,#fff0f7,#ffd9ec)}
+.ios-tut-notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:74px;height:18px;background:#0b0b0f;border-radius:0 0 13px 13px;z-index:6}
+.ios-tut-scene{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0;animation:iosTutCycle 8s infinite}
+.ios-tut-scene.s1{animation-delay:0s}
+.ios-tut-scene.s2{animation-delay:2s}
+.ios-tut-scene.s3{animation-delay:4s}
+.ios-tut-scene.s4{animation-delay:6s}
+@keyframes iosTutCycle{0%{opacity:0}3%{opacity:1}20%{opacity:1}25%{opacity:0}100%{opacity:0}}
+.ios-tut-topbar{margin-top:22px;text-align:center;font-size:9.5px;color:#6b7280;background:rgba(255,255,255,.7);border-radius:8px;padding:4px 8px;margin-left:14px;margin-right:14px}
+.ios-tut-pagepreview{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.ios-tut-pagepreview img{width:44px;height:44px;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,.15)}
+.ios-tut-pagepreview span{font-size:11px;font-weight:700;color:var(--pd)}
+.ios-tut-safaribar{display:flex;align-items:center;justify-content:space-around;padding:10px 6px;background:rgba(255,255,255,.85);font-size:14px}
+.ios-tut-target{position:relative;display:inline-flex}
+.ios-tut-ring{position:absolute;inset:-9px;border:2px solid var(--pd);border-radius:50%;animation:iosTutRing 1.4s ease-out infinite}
+@keyframes iosTutRing{0%{transform:scale(.4);opacity:.9}100%{transform:scale(1.7);opacity:0}}
+.ios-tut-sheetbg{flex:1;display:flex;align-items:flex-end;background:rgba(0,0,0,.25)}
+.ios-tut-sheet{width:100%;background:#fff;border-radius:16px 16px 0 0;padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+.ios-tut-sheet-handle{width:32px;height:4px;border-radius:2px;background:#d1d5db;margin:0 auto 8px}
+.ios-tut-row{display:flex;align-items:center;gap:8px;font-size:11px;color:#374151;padding:7px 4px;border-radius:8px}
+.ios-tut-row.hl{background:var(--pp);font-weight:700;color:var(--pd);position:relative}
+.ios-tut-addcard{margin:auto;width:82%;background:#fff;border-radius:14px;padding:12px;box-shadow:0 8px 22px rgba(0,0,0,.18)}
+.ios-tut-addcard-head{display:flex;align-items:center;justify-content:space-between;font-size:10.5px;font-weight:700;color:#111827;margin-bottom:10px}
+.ios-tut-addbtn{position:relative;color:var(--pd);font-weight:800}
+.ios-tut-addcard-body{display:flex;align-items:center;gap:8px}
+.ios-tut-addcard-body img{width:30px;height:30px;border-radius:8px}
+.ios-tut-addcard-body span{font-size:11px;color:#374151}
+.ios-tut-homegrid{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:36px 18px 0}
+.ios-tut-homegrid i{display:block;width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.5);font-style:normal}
+.ios-tut-newicon{background:transparent!important;animation:iosTutDrop .6s ease-out}
+.ios-tut-newicon img{width:100%;height:100%;border-radius:9px;box-shadow:0 4px 10px rgba(0,0,0,.2)}
+@keyframes iosTutDrop{0%{transform:translateY(-16px) scale(.7);opacity:0}100%{transform:translateY(0) scale(1);opacity:1}}
+.ios-tut-caption{text-align:center;font-size:12px;font-weight:700;color:var(--pd);padding:8px 10px calc(10px + env(safe-area-inset-bottom,0px))}
+#rotate-guard{display:none;position:fixed;inset:0;z-index:99999;background:linear-gradient(160deg,#7a1263,#c4006f);color:#fff;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
+#rotate-guard .rg-icon{font-size:44px;margin-bottom:14px;animation:rgSpin 2.4s ease-in-out infinite}
+@keyframes rgSpin{0%,100%{transform:rotate(0deg)}50%{transform:rotate(-90deg)}}
+#rotate-guard p{font-size:17px;font-weight:700;margin-bottom:6px}
+#rotate-guard span{font-size:13px;color:rgba(255,255,255,.8)}
+@media (orientation:landscape) and (max-height:520px){#rotate-guard{display:flex}}
 /* Tabs */
 .tabs{display:flex;background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-bottom:1px solid rgba(255,255,255,.5);flex-shrink:0}
 .tab{flex:1;min-width:0;padding:11px 4px;text-align:center;font-size:11.5px;font-weight:700;color:#9ca3af;cursor:pointer;border-bottom:2.5px solid transparent;transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -397,6 +442,13 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
 </style>
 </head>
 <body>
+<!-- Fallback for phones that ignore the manifest's "orientation":"portrait" lock (older
+     iOS Safari home-screen apps in particular) -- the whole UI is portrait-only, so
+     landscape renders squashed/rotated-looking instead of failing loudly. This is a
+     pure-CSS guard (see @media (orientation:landscape) rule) so it works even if the
+     rest of the page never finishes loading. Scoped to short viewports only so it never
+     fires on a landscape tablet or desktop window. -->
+<div id="rotate-guard"><div class="rg-icon">📱↻</div><p>Please rotate back to portrait</p><span>Pink.TT is designed for portrait mode</span></div>
 <!-- Same rotating wallpaper video as the landing/login/register pages, but sitting
      behind the entire app shell (fixed, full viewport) so every screen shares the same
      backdrop. #shell's background is translucent + blurred so it reads as an ambient
@@ -607,6 +659,51 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
     <div class="fg"><label class="lbl">Valid Until</label><input class="inp" id="promo-until" type="date"></div>
     <button class="btn bp bw" onclick="savePromo()">Add Promo Code</button>
     <button class="btn bs bw" style="margin-top:8px" onclick="closeModal('promo-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- iOS "Add to Home Screen" walkthrough -- an illustrated, self-looping mockup rather
+     than a real screen recording, since there's no way to capture actual iPhone footage
+     from here. Shows the same 3 steps Safari actually requires. -->
+<div class="overlay" id="ios-tutorial-modal">
+  <div class="sheet" style="text-align:center">
+    <h3 style="font-size:18px;margin-bottom:2px">Add Pink.TT to Your Home Screen</h3>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:16px">Takes 5 seconds, no App Store needed</p>
+    <div class="ios-tut-phone">
+      <div class="ios-tut-screen">
+        <div class="ios-tut-notch"></div>
+        <div class="ios-tut-scene s1">
+          <div class="ios-tut-topbar">🔒 pinktt.onrender.com</div>
+          <div class="ios-tut-pagepreview"><img src="/icons/icon-192.png" alt=""><span>Pink.TT</span></div>
+          <div class="ios-tut-safaribar"><span>◀</span><span>▶</span><span class="ios-tut-target">⬆️<i class="ios-tut-ring"></i></span><span>📑</span><span>⧉</span></div>
+          <div class="ios-tut-caption">1 · Tap the Share icon</div>
+        </div>
+        <div class="ios-tut-scene s2">
+          <div class="ios-tut-sheetbg">
+            <div class="ios-tut-sheet">
+              <div class="ios-tut-sheet-handle"></div>
+              <div class="ios-tut-row"><span>🔗</span>Copy</div>
+              <div class="ios-tut-row hl"><span>➕</span>Add to Home Screen<i class="ios-tut-ring"></i></div>
+              <div class="ios-tut-row"><span>✉️</span>Mail</div>
+            </div>
+          </div>
+          <div class="ios-tut-caption">2 · Tap "Add to Home Screen"</div>
+        </div>
+        <div class="ios-tut-scene s3">
+          <div class="ios-tut-pagepreview" style="flex:none;height:44%"></div>
+          <div class="ios-tut-addcard">
+            <div class="ios-tut-addcard-head">Add to Home Screen<span class="ios-tut-addbtn">Add<i class="ios-tut-ring"></i></span></div>
+            <div class="ios-tut-addcard-body"><img src="/icons/icon-192.png" alt=""><span>Pink.TT</span></div>
+          </div>
+          <div class="ios-tut-caption" style="margin-top:auto">3 · Tap "Add" (top right)</div>
+        </div>
+        <div class="ios-tut-scene s4">
+          <div class="ios-tut-homegrid"><i></i><i></i><i></i><i class="ios-tut-newicon"><img src="/icons/icon-192.png" alt=""></i><i></i><i></i></div>
+          <div class="ios-tut-caption">🎉 Done — Pink.TT is on your Home Screen</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn bp bw" style="margin-top:18px" onclick="closeModal('ios-tutorial-modal')">Got it</button>
   </div>
 </div>
 
@@ -4863,7 +4960,7 @@ function showInstallBanner(kind){
     :`<video class="ib-bg" autoplay loop muted playsinline><source src="/media/install-banner-bg.mp4?v=${VIDEO_VERSION}" type="video/mp4"><source src="/media/install-banner-bg.webm?v=${VIDEO_VERSION}" type="video/webm"></video>`;
   const icon=`<div class="ib-icon"><img src="/icons/icon-192.png" alt="Pink.TT"></div>`;
   el.innerHTML=bg+(kind==='ios'
-    ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap ⬆️ Share, then "Add to Home Screen"</span></div>`
+    ?`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Tap ⬆️ Share, then "Add to Home Screen"</span><span class="ib-watch" onclick="openModal('ios-tutorial-modal')">▶ Watch how</span></div>`
     :`${icon}<div class="ib-text"><b>Install Pink.TT</b><span>Add to your home screen for faster access</span></div><button class="btn bp bsm" onclick="triggerInstall()">Install</button>`);
   document.body.appendChild(el);
   _syncInstallBannerOffset();
