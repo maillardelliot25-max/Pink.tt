@@ -1447,7 +1447,14 @@ const _pipScrollBound=new Set();
 function _syncPipDemo(page){
   const el=document.getElementById('pip-demo');
   if(!el)return;
-  const show=_PIP_DEMO_PAGES.has(page);
+  // _isStandalone() (hoisted function, defined further down alongside showInstallBanner)
+  // is the same check the install banner itself already gates on -- someone who already
+  // installed the app and is opening it standalone has nothing left to be shown how to
+  // install, so the widget must never appear for them at all, on any page, regardless of
+  // scroll position. Without this, reinstalling/reopening the standalone app and landing
+  // on login/register (e.g. after a logout) would still show an install tutorial for an
+  // app that's already installed.
+  const show=_PIP_DEMO_PAGES.has(page)&&!_isStandalone();
   el.classList.toggle('show',show);
   if(!show){
     el.classList.remove('pip-visible');
