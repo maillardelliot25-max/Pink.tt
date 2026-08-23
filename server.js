@@ -452,7 +452,7 @@ async function pingDriversForRide(ride){
     if(!isValidTTCoord(d.current_lat,d.current_lng))continue;
     if(dist([ride.pickup_lat,ride.pickup_lng],[d.current_lat,d.current_lng])<=DRIVER_MAX_RADIUS_KM){
       broadcastTo(d.user_id,{type:'ride_ping',ride_id:ride.id});
-      pushToUser(d.user_id,'🌸 New ride request','A rider nearby needs a ride — tap to view.','/');
+      pushToUser(d.user_id,'🌸 New ride request','A rider nearby needs a ride. Tap to view.','/');
     }
   }
 }
@@ -749,19 +749,19 @@ app.use(express.static(path.join(__dirname,'public'),{
     }
   }
 }));
-function authMW(req,res,next){const t=(req.headers.authorization||'').replace('Bearer ','').trim();if(!t)return res.status(401).json({error:'No token'});try{req.jwt=jwt.verify(t,JWT_SECRET);next();}catch{res.status(401).json({error:'Session expired — please log in again'});}}
+function authMW(req,res,next){const t=(req.headers.authorization||'').replace('Bearer ','').trim();if(!t)return res.status(401).json({error:'No token'});try{req.jwt=jwt.verify(t,JWT_SECRET);next();}catch{res.status(401).json({error:'Session expired. Please log in again'});}}
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
-const authLimiter=rateLimit({windowMs:15*60*1000,max:20,standardHeaders:true,legacyHeaders:false,message:{error:'Too many attempts — please try again in a few minutes'}});
-const mutationLimiter=rateLimit({windowMs:60*1000,max:60,standardHeaders:true,legacyHeaders:false,message:{error:'Too many requests — please slow down'}});
-const verifyLimiter=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{error:'Too many verification attempts — please try again later'}});
+const authLimiter=rateLimit({windowMs:15*60*1000,max:20,standardHeaders:true,legacyHeaders:false,message:{error:'Too many attempts. Please try again in a few minutes'}});
+const mutationLimiter=rateLimit({windowMs:60*1000,max:60,standardHeaders:true,legacyHeaders:false,message:{error:'Too many requests. Please slow down'}});
+const verifyLimiter=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{error:'Too many verification attempts. Please try again later'}});
 // The fare/geocode/reverse-geocode/route endpoints are unauthenticated by necessity (the
 // booking screen needs live fare estimates before login) and proxy out to Nominatim/OSRM
 // on every call -- without a limiter, anyone (not just app users) could hammer them in a
 // loop, which both runs up unbounded outbound requests on this server and risks getting
 // this app's server IP rate-limited or banned by Nominatim's free usage policy, breaking
 // geocoding for every real user at once.
-const geoLimiter=rateLimit({windowMs:60*1000,max:60,standardHeaders:true,legacyHeaders:false,message:{error:'Too many requests — please slow down'}});
+const geoLimiter=rateLimit({windowMs:60*1000,max:60,standardHeaders:true,legacyHeaders:false,message:{error:'Too many requests. Please slow down'}});
 
 // Public and unauthenticated on purpose: the landing/onboarding/login pages show the
 // wallpaper and logo mark before anyone is signed in, so those pages need to know
@@ -845,7 +845,7 @@ async function notifyAdminsOfSignup(user){
     pushToUser(a.id,'🆕 New signup',msg,'/');
   }
   sendAdminEmail(
-    `New Pink.TT ${user.role} signup — ${user.first_name} ${user.last_name}`,
+    `New Pink.TT ${user.role} signup: ${user.first_name} ${user.last_name}`,
     `A new ${user.role} just registered on Pink.TT.\n\nName: ${user.first_name} ${user.last_name}\nEmail: ${user.email}\nPhone: ${user.phone||'—'}\n\nReview in the admin dashboard${process.env.PUBLIC_URL?': '+process.env.PUBLIC_URL:''}.`
   );
   sendAdminSMS(msg);
@@ -1104,7 +1104,7 @@ app.post('/api/verify-id',verifyLimiter,authMW,async(req,res)=>{
   const{image}=req.body;
   if(!image||typeof image!=='string')return res.status(400).json({ok:false,error:'No photo provided'});
   const m=image.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-  if(!m)return res.status(400).json({ok:false,error:'Invalid image format — please upload a JPEG, PNG, or WebP photo'});
+  if(!m)return res.status(400).json({ok:false,error:'Invalid image format. Please upload a JPEG, PNG, or WebP photo'});
   const[,mediaType,base64Data]=m;
 
   // Every submission goes to the admin for a personal decision -- the AI (if configured)
@@ -1119,13 +1119,13 @@ app.post('/api/verify-id',verifyLimiter,authMW,async(req,res)=>{
     await dbRun('INSERT INTO id_verifications(id,user_id,photo,ai_result,status)VALUES(?,?,?,?,?)',[verId,req.jwt.id,image,hint||'','pending']);
     const admins=await dbAll("SELECT id FROM users WHERE role='admin' AND is_active=1");
     for(const a of admins){
-      await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),a.id,'id_verify',`🪪 New identity verification needs review — ${req.jwt.email}`]);
+      await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),a.id,'id_verify',`🪪 New identity verification needs review: ${req.jwt.email}`]);
       pushToUser(a.id,'🪪 ID verification needs review',req.jwt.email,'/');
     }
-    return res.json({ok:true,pending:true,message:"Thanks! Your photo has been sent to the Pink.TT team for review — you'll be notified the moment you're approved."});
+    return res.json({ok:true,pending:true,message:"Thanks! Your photo has been sent to the Pink.TT team for review. You'll be notified the moment you're approved."});
   }catch(e){
     console.error('verify-id error',e.message);
-    res.status(500).json({ok:false,error:'Something went wrong submitting your photo — please try again'});
+    res.status(500).json({ok:false,error:'Something went wrong submitting your photo. Please try again'});
   }
 });
 
@@ -1411,14 +1411,14 @@ app.post('/api/mutation',mutationLimiter,authMW,async(req,res)=>{
       await dbRun('INSERT INTO sos_events(id,user_id,ride_id,lat,lng,message)VALUES(?,?,?,?,?,?)',[id,userId,data.ride_id||null,data.lat||10.6549,data.lng||-61.5019,data.message||'SOS Alert']);
       const u=await dbGet('SELECT first_name,last_name,phone,emergency_contact_name FROM users WHERE id=?',[userId]);
       const admins=await dbAll("SELECT id FROM users WHERE role='admin' AND is_active=1");
-      const msg=`🚨 SOS from ${u.first_name} ${u.last_name} (${u.phone}) — GPS: ${data.lat}, ${data.lng}`;
+      const msg=`🚨 SOS from ${u.first_name} ${u.last_name} (${u.phone}), GPS: ${data.lat}, ${data.lng}`;
       for(const a of admins){
         await dbRun('INSERT INTO notifications(id,user_id,type,message)VALUES(?,?,?,?)',[uuidv4(),a.id,'sos',msg]);
         pushToUser(a.id,'🚨 SOS ALERT',msg,'/');
       }
       const mapLink=`https://www.google.com/maps?q=${data.lat},${data.lng}`;
-      sendAdminEmail(`🚨 Pink.TT SOS — ${u.first_name} ${u.last_name}`,`${msg}\n\nLive location: ${mapLink}\n\nReview immediately in the admin dashboard.`);
-      sendAdminSMS(`${msg} — ${mapLink}`);
+      sendAdminEmail(`🚨 Pink.TT SOS: ${u.first_name} ${u.last_name}`,`${msg}\n\nLive location: ${mapLink}\n\nReview immediately in the admin dashboard.`);
+      sendAdminSMS(`${msg}, ${mapLink}`);
       const alertResult=await triggerSafetyAlert(msg);
       broadcastAll({type:'sos_alert',user:`${u.first_name} ${u.last_name}`,phone:u.phone,ec:u.emergency_contact_name,lat:data.lat,lng:data.lng,message:msg,safetyTeamAlerted:alertResult.sent});
       broadcastDBUpdate();

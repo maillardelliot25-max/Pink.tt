@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#7a1263">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Pink.TT — You're Offline</title>
+<title>Pink.TT: You're Offline</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -38,7 +38,7 @@ p{color:rgba(255,255,255,.92);font-size:14px;line-height:1.6;margin-bottom:24px;
   <div class="bg-wash"></div>
   <div class="logo-dot">P</div>
   <h1>You're offline</h1>
-  <p id="offline-msg">We can't reach Pink.TT right now. Check your connection and try again — your safety features need a live connection to work.</p>
+  <p id="offline-msg">We can't reach Pink.TT right now. Check your connection and try again. Your safety features need a live connection to work.</p>
   <button class="btn" id="retry-btn" onclick="location.reload()">Try Again</button>
 </div>
 <script>
@@ -84,7 +84,7 @@ setInterval(keepLoopAlive, 10000);
 // fallback for cases the online event misses (e.g. wifi connected but no real route
 // to the internet).
 window.addEventListener('online', ()=>{
-  document.getElementById('offline-msg').textContent = "Back online — reloading…";
+  document.getElementById('offline-msg').textContent = "Back online. Reloading…";
   document.getElementById('retry-btn').textContent = 'Reloading…';
   document.getElementById('retry-btn').disabled = true;
   setTimeout(()=>location.reload(), 400);
