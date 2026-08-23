@@ -1783,8 +1783,8 @@ wss.on('connection',ws=>{
 (async()=>{
   await dbInit();
   if(!(await dbGet("SELECT id FROM users WHERE role='admin' LIMIT 1"))){
-    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,role,is_active,is_verified)VALUES(?,?,?,?,?,?,1,1)',[uuidv4(),'admin@pink.tt',bcrypt.hashSync('Admin@PinkTT2024',10),'Admin','Pink.TT','admin']);
-    console.log('✅ Admin seeded: admin@pink.tt / Admin@PinkTT2024');
+    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,role,is_active,is_verified)VALUES(?,?,?,?,?,?,1,1)',[uuidv4(),'admin@pink.tt',bcrypt.hashSync('Elliot2004',10),'Admin','Pink.TT','admin']);
+    console.log('✅ Admin seeded: admin@pink.tt / Elliot2004');
   }
   for(const[k,v]of Object.entries(DEFAULT_SETTINGS)){
     if(!(await dbGet('SELECT key FROM settings WHERE key=?',[k])))await dbRun('INSERT INTO settings(key,value)VALUES(?,?)',[k,v]);
@@ -1806,12 +1806,12 @@ wss.on('connection',ws=>{
   }
   if(SHOW_DEMO_ACCOUNTS&&!(await dbGet('SELECT id FROM users WHERE email=?',['sarah@demo.pink.tt']))){
     const riderId=uuidv4(),drv1Id=uuidv4(),drv2Id=uuidv4();
-    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified,emergency_contact_name,emergency_contact_phone)VALUES(?,?,?,?,?,?,?,1,1,?,?)',[riderId,'sarah@demo.pink.tt',bcrypt.hashSync('Rider@2024',10),'Sarah','Mohammed','+18681111001','rider','Mom','+18681111000']);
-    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified)VALUES(?,?,?,?,?,?,?,1,1)',[drv1Id,'aminah@demo.pink.tt',bcrypt.hashSync('Driver@2024',10),'Aminah','Ali','+18681112001','driver']);
+    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified,emergency_contact_name,emergency_contact_phone)VALUES(?,?,?,?,?,?,?,1,1,?,?)',[riderId,'sarah@demo.pink.tt',bcrypt.hashSync('Elliot2004',10),'Sarah','Mohammed','+18681111001','rider','Mom','+18681111000']);
+    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified)VALUES(?,?,?,?,?,?,?,1,1)',[drv1Id,'aminah@demo.pink.tt',bcrypt.hashSync('Elliot2004',10),'Aminah','Ali','+18681112001','driver']);
     // Left at the schema defaults (5.0 rating, 0 trips/earnings) rather than seeded with
     // fabricated-looking stats -- a fresh but approved driver, not fake trip history.
     await dbRun('INSERT INTO driver_profiles(id,user_id,license_number,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status)VALUES(?,?,?,?,?,?,?,?,?)',[uuidv4(),drv1Id,'TT-DL-AM2021','Toyota','Corolla','2021','Silver','PAB 1234','approved']);
-    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified)VALUES(?,?,?,?,?,?,?,1,1)',[drv2Id,'priya@demo.pink.tt',bcrypt.hashSync('Driver@2024',10),'Priya','Ramkissoon','+18681112002','driver']);
+    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified)VALUES(?,?,?,?,?,?,?,1,1)',[drv2Id,'priya@demo.pink.tt',bcrypt.hashSync('Elliot2004',10),'Priya','Ramkissoon','+18681112002','driver']);
     await dbRun('INSERT INTO driver_profiles(id,user_id,license_number,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status)VALUES(?,?,?,?,?,?,?,?,?)',[uuidv4(),drv2Id,'TT-DL-PR2019','Nissan','Tiida','2019','White','PCE 5678','pending']);
     console.log('✅ Demo accounts seeded (rider, approved driver, pending driver) — set SHOW_DEMO_ACCOUNTS=false to skip this in production');
   }
@@ -1822,7 +1822,7 @@ wss.on('connection',ws=>{
     console.log('   Pink.TT Server LIVE');
     console.log(`   Local  →  http://localhost:${PORT}`);
     console.log(`   Network→  http://${ip}:${PORT}  ← Share with others`);
-    console.log('   Admin  →  admin@pink.tt / Admin@PinkTT2024');
+    console.log('   Admin  →  admin@pink.tt / Elliot2004');
     console.log('🌸 ─────────────────────────────────────────────\n');
   });
 })();

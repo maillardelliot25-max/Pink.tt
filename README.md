@@ -79,12 +79,12 @@ See `.env.example`. Notable ones:
 
 The admin account always seeds on first boot. The rider/driver demo accounts below only seed when `SHOW_DEMO_ACCOUNTS` is not explicitly `false` (see [Environment Variables](#environment-variables)) — set it to `false` in production to skip creating them and hide the quick-fill panel on the login screen.
 
-| Role          | Email                  | Password         |
-|---------------|------------------------|------------------|
-| Admin         | admin@pink.tt          | Admin@PinkTT2024 |
-| Rider         | sarah@demo.pink.tt     | Rider@2024       |
-| Driver ✓ (approved) | aminah@demo.pink.tt | Driver@2024      |
-| Driver ⏳ (pending)  | priya@demo.pink.tt  | Driver@2024      |
+| Role          | Email                  | Password   |
+|---------------|------------------------|------------|
+| Admin         | admin@pink.tt          | Elliot2004 |
+| Rider         | sarah@demo.pink.tt     | Elliot2004 |
+| Driver ✓ (approved) | aminah@demo.pink.tt | Elliot2004 |
+| Driver ⏳ (pending)  | priya@demo.pink.tt  | Elliot2004 |
 
 New users register from the app — no pre-seeding needed beyond the above.
 

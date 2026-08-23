@@ -37,10 +37,10 @@ async function main() {
 
   // 2. Login for all four demo roles
   for (const [label, email, pass] of [
-    ['admin', 'admin@pink.tt', 'Admin@PinkTT2024'],
-    ['rider', 'sarah@demo.pink.tt', 'Rider@2024'],
-    ['driver (approved)', 'aminah@demo.pink.tt', 'Driver@2024'],
-    ['driver (pending)', 'priya@demo.pink.tt', 'Driver@2024'],
+    ['admin', 'admin@pink.tt', 'Elliot2004'],
+    ['rider', 'sarah@demo.pink.tt', 'Elliot2004'],
+    ['driver (approved)', 'aminah@demo.pink.tt', 'Elliot2004'],
+    ['driver (pending)', 'priya@demo.pink.tt', 'Elliot2004'],
   ]) {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     const errors = [];
@@ -67,7 +67,7 @@ async function main() {
     await page.evaluate(() => localStorage.setItem('ptt_onboarded', '1'));
     await page.evaluate(() => go('login'));
     await page.fill('#l-email', 'sarah@demo.pink.tt');
-    await page.fill('#l-pass', 'Rider@2024');
+    await page.fill('#l-pass', 'Elliot2004');
     await page.click('#l-btn');
     await page.waitForTimeout(1200);
 
@@ -98,7 +98,7 @@ async function main() {
     await page.evaluate(() => localStorage.setItem('ptt_onboarded', '1'));
     await page.evaluate(() => go('login'));
     await page.fill('#l-email', 'sarah@demo.pink.tt');
-    await page.fill('#l-pass', 'Rider@2024');
+    await page.fill('#l-pass', 'Elliot2004');
     await page.click('#l-btn');
     await page.waitForTimeout(1500);
     const v = await page.evaluate(() => {
@@ -154,8 +154,8 @@ async function main() {
       body: JSON.stringify({ email, password }) })).token;
     const dbFor = async t => (await api('/api/db', { headers: { Authorization: 'Bearer ' + t } })).db;
 
-    const riderTok = await login('sarah@demo.pink.tt', 'Rider@2024');
-    const adminTok = await login('admin@pink.tt', 'Admin@PinkTT2024');
+    const riderTok = await login('sarah@demo.pink.tt', 'Elliot2004');
+    const adminTok = await login('admin@pink.tt', 'Elliot2004');
     const rd = await dbFor(riderTok), ad = await dbFor(adminTok);
 
     const foreignEmails = rd.users.filter(u => u.email && u.email !== 'sarah@demo.pink.tt').length;
@@ -178,7 +178,7 @@ async function main() {
     await page.evaluate(() => localStorage.setItem('ptt_onboarded', '1'));
     await page.evaluate(() => go('login'));
     await page.fill('#l-email', 'admin@pink.tt');
-    await page.fill('#l-pass', 'Admin@PinkTT2024');
+    await page.fill('#l-pass', 'Elliot2004');
     await page.click('#l-btn');
     await page.waitForTimeout(1200);
     const onAdmin = await page.evaluate(() => document.querySelector('.page.active')?.id === 'pg-admin');
