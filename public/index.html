@@ -419,8 +419,14 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
 .role-sw{display:flex;background:rgba(255,255,255,.4);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid rgba(255,255,255,.6);border-radius:14px;padding:3px;margin-bottom:18px}
 .role-o{flex:1;text-align:center;padding:8px 6px;border-radius:11px;font-size:13px;font-weight:600;color:#6b7280;cursor:pointer;transition:all .15s}
 .role-o.on{background:var(--glass-bg-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);color:var(--p);box-shadow:0 1px 4px rgba(0,0,0,.08)}
-/* Demo box */
-.demo-box{background:rgba(255,240,246,.75);-webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);border:1px solid rgba(255,255,255,.6);border-radius:14px;padding:12px 14px;margin-top:14px}
+/* Demo box -- hidden by default (fail-closed) rather than hidden only after an async
+   /api/config round-trip confirms it should be. The old default meant the box (and its
+   one-tap "sign in as Admin" buttons) was genuinely visible and clickable from the very
+   first paint until that fetch resolved, and stayed visible indefinitely if the fetch
+   ever failed or was slow -- exactly backwards for something meant to be locked down.
+   _loadConfig() only ever reveals it (display:'') once the server explicitly confirms
+   showDemoAccounts:true; it never needs to hide it, since this is already the default. */
+.demo-box{display:none;background:rgba(255,240,246,.75);-webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);border:1px solid rgba(255,255,255,.6);border-radius:14px;padding:12px 14px;margin-top:14px}
 .demo-box p{font-size:11px;font-weight:700;color:var(--p);text-align:center;margin-bottom:8px}
 .demo-row{display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:3px;flex-wrap:wrap;gap:4px}
 .demo-btns{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
@@ -5133,7 +5139,7 @@ function _applyCustomBackground(){
   });
 }
 async function _loadConfig(){
-  let show=true;
+  let show=false; // fail-closed: stays hidden (the CSS default) unless the server confirms otherwise
   try{
     const attempt=await _fetchWithRetry('/api/config');
     if(attempt.ok){
@@ -5143,8 +5149,9 @@ async function _loadConfig(){
       if(Array.isArray(attempt.json.pinkPointsTiers))window._pinkPointsTiers=attempt.json.pinkPointsTiers;
     }
   }catch{}
-  const box=document.querySelector('.demo-box');
-  if(box)box.style.display=show?'':'none';
+  // Explicitly 'block', not '' -- clearing the inline style would just fall back to the
+  // CSS rule's own display:none default, never actually revealing it.
+  if(show){const box=document.querySelector('.demo-box');if(box)box.style.display='block';}
 }
 
 // ── Hook into init ────────────────────────────────────────────────
