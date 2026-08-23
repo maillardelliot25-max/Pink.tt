@@ -1158,10 +1158,17 @@ app.get('/api/chat/:rideId',authMW,async(req,res)=>{
 // authenticated user (not just ride counterparties, unlike the rest of this app's
 // location data), the same "here are the nearby cars" pins every rideshare app shows
 // before you even request a ride. Anonymous by design: id + coordinates only, nothing
-// that identifies the driver personally.
+// that identifies the driver personally. lat/lng are optional -- when the caller
+// supplies its own position, results are capped to a 34km radius (matching what a rider
+// can realistically expect a car to reach); omitted entirely, every online driver comes
+// back unfiltered, e.g. for an admin overview with no single vantage point.
+const NEARBY_DRIVER_RADIUS_KM=34;
 app.get('/api/nearby-drivers',authMW,async(req,res)=>{
   const drivers=await dbAll("SELECT user_id,current_lat,current_lng FROM driver_profiles WHERE status='approved' AND is_online=1");
-  res.json({drivers:drivers.filter(d=>isValidTTCoord(d.current_lat,d.current_lng)).map(d=>({driver_id:d.user_id,lat:d.current_lat,lng:d.current_lng}))});
+  let valid=drivers.filter(d=>isValidTTCoord(d.current_lat,d.current_lng));
+  const lat=parseFloat(req.query.lat),lng=parseFloat(req.query.lng);
+  if(isValidTTCoord(lat,lng))valid=valid.filter(d=>dist([lat,lng],[d.current_lat,d.current_lng])<=NEARBY_DRIVER_RADIUS_KM);
+  res.json({drivers:valid.map(d=>({driver_id:d.user_id,lat:d.current_lat,lng:d.current_lng}))});
 });
 // Active (unexpired) crowd-sourced police reports -- public to any authenticated user,
 // same reasoning as nearby-drivers above: this is exactly the kind of "here's what's

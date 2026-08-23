@@ -3858,6 +3858,11 @@ function _locateRider(){
         _placeMapPickerMeMarker();
         if(_mapPickerHadNoStartCoord){_MAP_PICKER.setView([S.myLat,S.myLng],16);_mapPickerHadNoStartCoord=false;}
       }
+      // The nearby-drivers radius filter needs a real position to mean anything -- redo
+      // the fetch now that one exists rather than waiting up to 20s for the next poll,
+      // since it may have run once already (unfiltered, before we knew where "nearby"
+      // even was) the moment the idle map first loaded.
+      loadNearbyDrivers();
     },
     err=>{
       _locateInFlight=false;
@@ -3952,11 +3957,19 @@ function initIdleMap(){
 // fetch on map load, kept fresh afterward by real-time WS pushes (_handleWS's
 // nearby_driver_update/nearby_driver_offline) plus a periodic re-fetch as a fallback in
 // case a push was ever missed (e.g. a brief WS reconnect).
+// Capped to the same 34km radius the server already enforces when a position is
+// supplied (NEARBY_DRIVER_RADIUS_KM in server.js) -- passed here whenever we have a GPS
+// fix so the initial fetch only ever returns realistically reachable cars. The WS push
+// path (nearby_driver_update below) isn't per-rider filtered server-side though, since
+// broadcastAll has no concept of which rider is where, so _placeNearbyDriverMarker
+// re-checks the same radius client-side before ever placing/keeping a marker.
+const NEARBY_DRIVER_RADIUS_KM=34;
 let _nearbyDriverMarkers={};
 async function loadNearbyDrivers(){
   if(!_MAP_IDLE||!window.L)return;
   try{
-    const attempt=await _fetchWithRetry('/api/nearby-drivers',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
+    const qs=typeof S.myLat==='number'?`?lat=${S.myLat}&lng=${S.myLng}`:'';
+    const attempt=await _fetchWithRetry('/api/nearby-drivers'+qs,{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
     if(!attempt.ok)return;
     const seen=new Set();
     attempt.json.drivers.forEach(d=>{
@@ -3968,6 +3981,10 @@ async function loadNearbyDrivers(){
 }
 function _placeNearbyDriverMarker(driverId,lat,lng){
   if(!_MAP_IDLE||!window.L)return;
+  if(typeof S.myLat==='number'&&_haversineKm([S.myLat,S.myLng],[lat,lng])>NEARBY_DRIVER_RADIUS_KM){
+    _removeNearbyDriverMarker(driverId); // e.g. a driver who was in range just drove out of it
+    return;
+  }
   const existing=_nearbyDriverMarkers[driverId];
   if(existing){existing.setLatLng([lat,lng]);return;}
   _nearbyDriverMarkers[driverId]=L.marker([lat,lng],{icon:_pinkCarIcon()}).addTo(_MAP_IDLE);
