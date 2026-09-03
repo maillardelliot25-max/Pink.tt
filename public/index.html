@@ -895,6 +895,14 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
   </div>
 </div>
 
+<div class="overlay" id="driver-insights-modal">
+  <div class="sheet">
+    <h3 style="font-size:18px;margin-bottom:14px" id="driver-insights-title">Driver Insights</h3>
+    <div id="driver-insights-box" style="margin-bottom:14px"></div>
+    <button class="btn bs bw" onclick="closeModal('driver-insights-modal')">Close</button>
+  </div>
+</div>
+
 <div id="shell">
 
 <!-- ══ LANDING ══ -->
@@ -1133,6 +1141,7 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
     <div class="tab" id="dt-active" onclick="dTab('active')">🚗 Active</div>
     <div class="tab" id="dt-rec" onclick="dTab('rec')">🔁 Recurring</div>
     <div class="tab" id="dt-earn" onclick="dTab('earn')">💰 Earnings</div>
+    <div class="tab" id="dt-ins" onclick="dTab('ins')">📈 Insights</div>
   </div>
   <div class="scroll" id="driver-body" style="padding:14px">
     <div class="loading"><div class="spin spinp" style="width:32px;height:32px"></div></div>
@@ -1423,8 +1432,24 @@ let S = {
   prevPage:'land', promoResult:null
 };
 
-function save(){try{sessionStorage.setItem('pinktt',JSON.stringify({user:S.user}))}catch{}}
-function load(){try{const d=JSON.parse(sessionStorage.getItem('pinktt')||'{}');if(d.user)S.user=d.user}catch{}}
+// Riders keep sessionStorage (cleared when the tab/app closes -- the safer default on a
+// borrowed or shared phone). Admin and driver accounts persist to localStorage instead,
+// so the admin/driver "app" stays signed in across restarts and doesn't need a login every
+// time it's reopened -- that's the whole point of it being installed as its own app.
+function save(){
+  try{
+    const persist=S.user&&(S.user.role==='admin'||S.user.role==='driver');
+    (persist?sessionStorage:localStorage).removeItem('pinktt');
+    (persist?localStorage:sessionStorage).setItem('pinktt',JSON.stringify({user:S.user}));
+  }catch{}
+}
+function load(){
+  try{
+    const raw=localStorage.getItem('pinktt')||sessionStorage.getItem('pinktt')||'{}';
+    const d=JSON.parse(raw);
+    if(d.user)S.user=d.user;
+  }catch{}
+}
 
 // ─── NAVIGATION ─────────────────────────────────────────────────
 function go(page){
@@ -1655,7 +1680,7 @@ function setRole(r){
 function doLogout(){
   clearInterval(S.simTimer);
   S={user:null,regRole:'rider',rTab:'book',dTab:'reqs',aTab:'ov',isOnline:false,dp:null,activeRide:null,rideStatus:null,driverInfo:null,currentDriverRide:null,pendingRides:[],rating:0,rideToRate:null,shareRideId:null,reportRideId:null,reportDriverId:null,simTimer:null,currentBizCat:'',currentBizId:null,prevPage:'land',promoResult:null,myLat:null,myLng:null};
-  try{sessionStorage.removeItem('pinktt')}catch{}
+  try{sessionStorage.removeItem('pinktt');localStorage.removeItem('pinktt')}catch{}
   go('land');
 }
 
@@ -2543,12 +2568,89 @@ async function toggleOnline(){
 
 function dTab(t){
   S.dTab=t;
-  ['reqs','active','rec','earn'].forEach(x=>{const el=document.getElementById('dt-'+x);if(el)el.classList.toggle('on',x===t);});
+  ['reqs','active','rec','earn','ins'].forEach(x=>{const el=document.getElementById('dt-'+x);if(el)el.classList.toggle('on',x===t);});
   const body=document.getElementById('driver-body');
   if(t==='reqs')renderDriverRequests(body);
   else if(t==='active')renderDriverActive(body);
   else if(t==='rec')renderDriverRecurring(body);
+  else if(t==='ins')renderDriverInsights(body);
   else renderDriverEarnings(body);
+}
+
+// ── Driver insights: trends over a driver's own ride history (rides/payments the
+// client already has -- server scopes both to this driver's own records for a non-admin
+// viewer, see scopeDBFor in server.js). Pure client-side aggregation, no new endpoint,
+// no charting library -- a couple of hand-rolled CSS bar charts keep this self-contained.
+function _driverInsightsData(driverId){
+  const rides=DB.rides.filter(r=>r.driver_id===driverId&&r.status==='completed');
+  const pays=DB.payments.filter(p=>p.driver_id===driverId&&p.status==='completed');
+  const days=[];
+  for(let i=13;i>=0;i--){
+    const d=new Date(Date.now()-i*86400000);
+    const key=d.toISOString().slice(0,10);
+    const dayRides=rides.filter(r=>(r.completed_at||'').slice(0,10)===key);
+    const dayEarn=pays.filter(p=>(p.created_at||'').slice(0,10)===key).reduce((s,p)=>s+(p.driver_earning||0),0);
+    days.push({key,label:d.toLocaleDateString('en-US',{weekday:'short'}),trips:dayRides.length,earn:dayEarn});
+  }
+  const byWeekday=[0,0,0,0,0,0,0],byWeekdayCount=[0,0,0,0,0,0,0];
+  rides.forEach(r=>{if(r.completed_at){const wd=new Date(r.completed_at).getDay();byWeekdayCount[wd]++;}});
+  const wdNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let bestDay=null;
+  if(rides.length){const maxI=byWeekdayCount.indexOf(Math.max(...byWeekdayCount));bestDay=wdNames[maxI];}
+  const areaCounts={};
+  rides.forEach(r=>{
+    const a=(r.pickup_address||'').split(',')[0].trim();
+    if(a)areaCounts[a]=(areaCounts[a]||0)+1;
+  });
+  const topAreas=Object.entries(areaCounts).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const totalGross=pays.reduce((s,p)=>s+(p.amount||0),0);
+  const avgFare=rides.length?totalGross/rides.length:0;
+  return{days,bestDay,topAreas,avgFare,totalTrips:rides.length};
+}
+function renderDriverInsights(body){
+  body.innerHTML=_driverInsightsHTML(S.user.id);
+}
+function openDriverInsightsModal(driverId,name){
+  document.getElementById('driver-insights-title').textContent=(name||'Driver')+"'s Insights";
+  document.getElementById('driver-insights-box').innerHTML=_driverInsightsHTML(driverId);
+  openModal('driver-insights-modal');
+}
+function _driverInsightsHTML(driverId){
+  const d=_driverInsightsData(driverId);
+  const maxTrips=Math.max(1,...d.days.map(x=>x.trips));
+  const maxEarn=Math.max(1,...d.days.map(x=>x.earn));
+  return`
+    <h4 class="sec-head">Last 14 Days</h4>
+    <div class="card" style="margin-bottom:12px">
+      <p style="font-size:11px;color:#9ca3af;margin-bottom:10px">Trips per day</p>
+      <div style="display:flex;align-items:flex-end;gap:3px;height:64px">
+        ${d.days.map(x=>`<div title="${x.label}: ${x.trips} trip${x.trips===1?'':'s'}" style="flex:1;background:var(--p);border-radius:3px 3px 0 0;height:${Math.max(3,x.trips/maxTrips*64)}px;opacity:${x.trips?1:.15}"></div>`).join('')}
+      </div>
+      <div style="display:flex;gap:3px;margin-top:4px">
+        ${d.days.map((x,i)=>`<div style="flex:1;text-align:center;font-size:8px;color:#9ca3af">${i%2===0?x.label[0]:''}</div>`).join('')}
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <p style="font-size:11px;color:#9ca3af;margin-bottom:10px">Earnings per day (TTD)</p>
+      <div style="display:flex;align-items:flex-end;gap:3px;height:64px">
+        ${d.days.map(x=>`<div title="${x.label}: TTD $${x.earn.toFixed(0)}" style="flex:1;background:var(--g);border-radius:3px 3px 0 0;height:${Math.max(3,x.earn/maxEarn*64)}px;opacity:${x.earn?1:.15}"></div>`).join('')}
+      </div>
+      <div style="display:flex;gap:3px;margin-top:4px">
+        ${d.days.map((x,i)=>`<div style="flex:1;text-align:center;font-size:8px;color:#9ca3af">${i%2===0?x.label[0]:''}</div>`).join('')}
+      </div>
+    </div>
+    <div class="earn-grid" style="margin-bottom:12px">
+      <div class="earn-card"><div style="font-size:18px;font-weight:700;color:var(--p)">${d.bestDay||'—'}</div><div style="font-size:11px;color:#9ca3af">Busiest Day</div></div>
+      <div class="earn-card"><div style="font-size:18px;font-weight:700;color:var(--g)">TTD $${d.avgFare.toFixed(0)}</div><div style="font-size:11px;color:#9ca3af">Avg Fare/Trip</div></div>
+    </div>
+    <h4 class="sec-head">Top Pickup Areas</h4>
+    ${!d.topAreas.length?'<div class="empty"><p>Complete some trips to see your top areas</p></div>':
+      d.topAreas.map(([area,count])=>`<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:500">📍 ${area}</span>
+        <span style="font-size:12px;color:#9ca3af;font-weight:600">${count} trip${count===1?'':'s'}</span>
+      </div>`).join('')
+    }
+  `;
 }
 // Recurring commutes this driver is matched to -- as primary (the one actually dispatched
 // each leg) or backup (covers if the primary is unreachable; see pingDriversForRide's
@@ -2979,6 +3081,7 @@ function renderDrvList(dps,status){
         ${d.status!=='rejected'&&d.status!=='suspended'?`<button class="btn bsm" style="background:#fee2e2;color:var(--r)" onclick="rejectDriver('${d.user_id}')">✕ Reject</button>`:''}
         ${d.status!=='suspended'?`<button class="btn bsm" style="background:#f3f4f6;color:#6b7280" onclick="suspendDriver('${d.user_id}')">⊘ Suspend</button>`:''}
         <button class="btn bsm" style="background:var(--pp);color:var(--p)" onclick="viewDriverVerification('${d.user_id}')">🪪 View ID &amp; Docs</button>
+        <button class="btn bsm" style="background:#eef2ff;color:#4f46e5" onclick="openDriverInsightsModal('${d.user_id}','${(d.first_name||'').replace(/'/g,"\\'")} ${(d.last_name||'').replace(/'/g,"\\'")}')">📈 Insights</button>
       </div>
     </div>`;
   }).join('');
@@ -3698,14 +3801,20 @@ function loadTrack(token){
 }
 
 // ─── INIT ────────────────────────────────────────────────────────
-function init(){
+async function init(){
   const params=new URLSearchParams(location.search);
   const track=params.get('track');
   if(track){loadTrack(track);return;}
   load();
   if(S.user){
+    // DB starts empty and is only populated by the async server fetch below -- looking
+    // up S.user in DB.users right away (as this used to) always missed, since nothing has
+    // had a chance to load yet, and silently dumped every persisted session (rider mid-tab
+    // as much as an admin/driver reopening their installed app) back to the landing page.
+    // Wait for that first load so a real, still-active account actually resumes.
+    if(_PTT_TOKEN)await _pttLoadDB();
     const fresh=DB.users.find(u=>u.id===S.user.id);
-    if(fresh&&fresh.is_active){S.user=fresh;routeUser(fresh);}
+    if(fresh&&fresh.is_active){S.user=fresh;save();routeUser(fresh);}
     else go('land');
   } else {
     go('land');
