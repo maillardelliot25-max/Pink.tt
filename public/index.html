@@ -1015,31 +1015,31 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
 <!-- ══ LOGIN ══ -->
 <div class="page" id="pg-login">
   <div class="topbar">
-    <button onclick="go('land')" style="background:none;border:none;cursor:pointer;font-size:20px;color:#9ca3af">←</button>
-    <div class="logo"><div class="logo-dot">P</div><span class="logo-name">Pink.TT</span></div>
+    <button id="login-back-btn" onclick="go('land')" style="background:none;border:none;cursor:pointer;font-size:20px;color:#9ca3af">←</button>
+    <div class="logo"><div class="logo-dot">P</div><span class="logo-name" id="login-logo-name">Pink.TT</span></div>
     <div style="width:40px"></div>
   </div>
   <div class="scroll" style="padding:20px 18px">
    <div class="auth-wrap glass-card">
     <div style="text-align:center;margin-bottom:24px;padding-top:8px">
-      <h1 style="font-size:24px">Welcome back</h1>
-      <p style="color:#9ca3af;font-size:13px;margin-top:4px">Sign in to your Pink.TT account</p>
+      <h1 style="font-size:24px" id="login-heading">Welcome back</h1>
+      <p style="color:#9ca3af;font-size:13px;margin-top:4px" id="login-subheading">Sign in to your Pink.TT account</p>
     </div>
     <div class="fg"><label class="lbl">Email address</label><input class="inp" type="email" id="l-email" placeholder="you@example.com" autocomplete="email"></div>
     <div class="fg"><label class="lbl">Password</label><input class="inp" type="password" id="l-pass" placeholder="Your password" autocomplete="current-password"></div>
     <p style="text-align:right;margin:-6px 0 12px;font-size:12px"><a href="/reset-password.html" style="color:var(--p);font-weight:600">Forgot password?</a></p>
     <button class="btn bp bw" style="margin-top:4px" id="l-btn" onclick="doLogin()">Sign In</button>
-    <p style="text-align:center;margin-top:18px;font-size:13px;color:#9ca3af">Don't have an account? <a onclick="go('register')" style="color:var(--p);font-weight:600;cursor:pointer">Sign up free</a></p>
+    <p style="text-align:center;margin-top:18px;font-size:13px;color:#9ca3af" id="login-signup-line">Don't have an account? <a onclick="go('register')" style="color:var(--p);font-weight:600;cursor:pointer">Sign up free</a></p>
     <div style="border-top:1px solid #f0f0f0;margin:18px 0"></div>
     <div class="demo-box">
       <p>Demo Accounts: Tap to sign in instantly</p>
       <div class="demo-row"><span>Admin:</span><code style="font-size:10px">admin@pink.tt / Elliot2004</code></div>
-      <div class="demo-row"><span>Rider:</span><code style="font-size:10px">sarah@demo.pink.tt / Elliot2004</code></div>
+      <div class="demo-row" id="login-demo-row-rider"><span>Rider:</span><code style="font-size:10px">sarah@demo.pink.tt / Elliot2004</code></div>
       <div class="demo-row"><span>Driver ✓:</span><code style="font-size:10px">aminah@demo.pink.tt / Elliot2004</code></div>
       <div class="demo-row"><span>Driver ⏳:</span><code style="font-size:10px">priya@demo.pink.tt / Elliot2004</code></div>
       <div class="demo-btns">
         <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('admin@pink.tt','Elliot2004')">Admin</button>
-        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('sarah@demo.pink.tt','Elliot2004')">Rider</button>
+        <button class="btn bs bsm" style="flex:1;font-size:11px" id="login-demo-btn-rider" onclick="quickLoginDemo('sarah@demo.pink.tt','Elliot2004')">Rider</button>
         <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('aminah@demo.pink.tt','Elliot2004')">Driver ✓</button>
         <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('priya@demo.pink.tt','Elliot2004')">Pending</button>
       </div>
@@ -1335,6 +1335,31 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
    Full in-memory database · All features · Production-ready UI
    ═══════════════════════════════════════════════════════════════ */
 
+// This same file is served two ways: "/" is the rider-facing app, "/admin" is a separate,
+// separately-installable app for admin and driver accounts (its own manifest/icon/name --
+// see server.js). Everything else in this script is shared; the few spots that need to
+// behave differently just check this flag rather than forking any code.
+window._PTT_ADMIN_APP=location.pathname==='/admin';
+// Login is effectively "home" in the admin app (there's no rider landing page to go back
+// to, on purpose), so swap out the bits of the login screen that only make sense on the
+// rider-facing site: the back arrow, the rider sign-up prompt, and the rider demo-login
+// row (still logs in fine if tapped -- routeUser() below turns riders away -- this just
+// stops offering a dead end).
+function _applyAdminAppChrome(){
+  if(!window._PTT_ADMIN_APP)return;
+  document.getElementById('login-back-btn')?.remove();
+  document.getElementById('login-logo-name').textContent='Pink.TT Admin';
+  document.getElementById('login-heading').textContent='Admin & Driver Sign In';
+  document.getElementById('login-subheading').textContent='Sign in with your Pink.TT admin or driver account';
+  document.getElementById('login-signup-line')?.remove();
+  document.getElementById('login-demo-row-rider')?.remove();
+  document.getElementById('login-demo-btn-rider')?.remove();
+}
+// Called directly, not on DOMContentLoaded -- this script tag sits after all the page
+// markup in the document, so everything _applyAdminAppChrome touches already exists by
+// the time this line runs.
+_applyAdminAppChrome();
+
 // ─── UTILS ──────────────────────────────────────────────────────
 const uid = () => 'id_' + Math.random().toString(36).slice(2,11) + Date.now().toString(36);
 const ts = () => new Date().toISOString();
@@ -1565,6 +1590,11 @@ function _onbSync(indexOverride){
 // manual swiping correctly since scrollend also fires once swipe momentum settles.
 document.getElementById('onb-slides')?.addEventListener('scrollend',()=>_onbSync(),{passive:true});
 function routeUser(user){
+  if(window._PTT_ADMIN_APP&&user.role==='rider'){
+    toast('This app is for Pink.TT admin and driver accounts only. Riders, please use the main Pink.TT app.','err');
+    doLogout();
+    return;
+  }
   if(user.role==='admin'){go('admin');loadAdmin();return;}
   if(!user.is_verified){go('idverify');renderIdVerify&&renderIdVerify();return;}
   if(user.role==='driver'){go('driver');loadDriver();}
@@ -1681,7 +1711,7 @@ function doLogout(){
   clearInterval(S.simTimer);
   S={user:null,regRole:'rider',rTab:'book',dTab:'reqs',aTab:'ov',isOnline:false,dp:null,activeRide:null,rideStatus:null,driverInfo:null,currentDriverRide:null,pendingRides:[],rating:0,rideToRate:null,shareRideId:null,reportRideId:null,reportDriverId:null,simTimer:null,currentBizCat:'',currentBizId:null,prevPage:'land',promoResult:null,myLat:null,myLng:null};
   try{sessionStorage.removeItem('pinktt');localStorage.removeItem('pinktt')}catch{}
-  go('land');
+  go(window._PTT_ADMIN_APP?'login':'land');
 }
 
 function showMenu(){
@@ -3815,9 +3845,9 @@ async function init(){
     if(_PTT_TOKEN)await _pttLoadDB();
     const fresh=DB.users.find(u=>u.id===S.user.id);
     if(fresh&&fresh.is_active){S.user=fresh;save();routeUser(fresh);}
-    else go('land');
+    else go(window._PTT_ADMIN_APP?'login':'land');
   } else {
-    go('land');
+    go(window._PTT_ADMIN_APP?'login':'land');
   }
 }
 // ═══════════════════════════════════════════════════════════════
@@ -4573,7 +4603,7 @@ async function _pttLoadDB(){
     const attempt=await _fetchWithRetry('/api/db',{headers:{Authorization:'Bearer '+_PTT_TOKEN}});
     if(!attempt.ok)return; // stays quiet -- this runs constantly, a toast per failure would be noise
     const r=attempt.response;
-    if(r.status===401){_PTT_TOKEN=null;localStorage.removeItem('ptt_token');go('land');return;}
+    if(r.status===401){_PTT_TOKEN=null;localStorage.removeItem('ptt_token');go(window._PTT_ADMIN_APP?'login':'land');return;}
     const{db:serverDB,user}=attempt.json;
     Object.keys(serverDB).forEach(k=>{if(DB[k]!==undefined)DB[k]=serverDB[k];});
     if(user&&!S.user){S.user=user;save();}
@@ -5286,8 +5316,8 @@ init=async function(){
     await _pttLoadDB();
     const fresh=DB.users.find(u=>u.id===S.user?.id);
     if(fresh&&fresh.is_active){S.user=fresh;_wsConnect();_setupPushNotifications();routeUser(fresh);}
-    else{localStorage.removeItem('ptt_token');_PTT_TOKEN=null;go('land');}
-  }else{go('land');}
+    else{localStorage.removeItem('ptt_token');_PTT_TOKEN=null;go(window._PTT_ADMIN_APP?'login':'land');}
+  }else{go(window._PTT_ADMIN_APP?'login':'land');}
   await configPromise;
   _hideBootSplash();
 };

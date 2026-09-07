@@ -1,5 +1,5 @@
 'use strict';
-const express=require('express'),http=require('http'),WebSocket=require('ws'),bcrypt=require('bcryptjs'),jwt=require('jsonwebtoken'),{v4:uuidv4}=require('uuid'),path=require('path'),os=require('os'),rateLimit=require('express-rate-limit'),nodemailer=require('nodemailer'),crypto=require('crypto'),webpush=require('web-push');
+const express=require('express'),http=require('http'),WebSocket=require('ws'),bcrypt=require('bcryptjs'),jwt=require('jsonwebtoken'),{v4:uuidv4}=require('uuid'),path=require('path'),os=require('os'),fs=require('fs'),rateLimit=require('express-rate-limit'),nodemailer=require('nodemailer'),crypto=require('crypto'),webpush=require('web-push');
 // Real phone push notifications (the WebSocket connection above only reaches a rider or
 // driver while the app is actually open/foregrounded -- a driver whose phone is locked
 // would never see a new ride request in time). VAPID is the standard, free, no-account-
@@ -749,6 +749,21 @@ app.use(express.static(path.join(__dirname,'public'),{
     }
   }
 }));
+// The "admin app": a real, separately installable PWA for admin/driver accounts, distinct
+// from the rider-facing app at "/". Same index.html and JS engine underneath -- no forked
+// copy to keep in sync, no divergence risk -- just served under its own manifest/name/
+// theme-color so "Add to Home Screen" installs it as its own separate icon on the device
+// rather than merging into (or overwriting) the rider app's existing install. The index.html
+// front end itself checks location.pathname to skip straight to login (never the rider
+// marketing landing page) and to turn away a rider account that tries to sign in here.
+const ADMIN_APP_HTML=fs.readFileSync(path.join(__dirname,'public','index.html'),'utf8')
+  .replace('<link rel="manifest" href="/site.webmanifest">','<link rel="manifest" href="/admin-manifest.json">')
+  .replace('<meta name="apple-mobile-web-app-title" content="Pink.TT">','<meta name="apple-mobile-web-app-title" content="Pink.TT Admin">')
+  .replace('<title>Pink.TT: Safe Rides for Women</title>','<title>Pink.TT Admin</title>');
+app.get('/admin',(req,res)=>{
+  res.setHeader('Cache-Control','no-cache, no-store, must-revalidate');
+  res.type('html').send(ADMIN_APP_HTML);
+});
 function authMW(req,res,next){const t=(req.headers.authorization||'').replace('Bearer ','').trim();if(!t)return res.status(401).json({error:'No token'});try{req.jwt=jwt.verify(t,JWT_SECRET);next();}catch{res.status(401).json({error:'Session expired. Please log in again'});}}
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
