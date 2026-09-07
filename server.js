@@ -1190,7 +1190,12 @@ app.get('/api/nearby-drivers',authMW,async(req,res)=>{
 // nearby right now" data every user benefits from seeing, not just ride counterparties.
 // Anonymous by design (no reporter_id in the response).
 app.get('/api/police-reports',authMW,async(req,res)=>{
-  const reports=await dbAll("SELECT id,lat,lng,created_at,expires_at FROM police_reports WHERE expires_at>datetime('now') ORDER BY created_at DESC");
+  // expires_at is stored as a plain ISO string (new Date().toISOString(), see
+  // report_police below), so this compares text to text on both backends -- pgify's
+  // datetime('now')->now() swap doesn't work here since Postgres has no ">" operator
+  // between text and its actual timestamptz type (this was throwing on every call in
+  // production: "operator does not exist: text > timestamp with time zone").
+  const reports=await dbAll('SELECT id,lat,lng,created_at,expires_at FROM police_reports WHERE expires_at>? ORDER BY created_at DESC',[new Date().toISOString()]);
   res.json({reports});
 });
 
@@ -1740,7 +1745,7 @@ setTimeout(()=>{dispatchRecurringLegs().catch(()=>{});},8000); // catch anything
 // Police reports already stop being returned by GET /api/police-reports the moment they
 // expire (the query filters on expires_at), so this isn't needed for correctness -- it's
 // just housekeeping, so the table doesn't grow forever on a long-running server.
-setInterval(()=>{dbRun("DELETE FROM police_reports WHERE expires_at<datetime('now')").catch(e=>console.error('Police report cleanup error',e.message));},15*60*1000);
+setInterval(()=>{dbRun('DELETE FROM police_reports WHERE expires_at<?',[new Date().toISOString()]).catch(e=>console.error('Police report cleanup error',e.message));},15*60*1000);
 
 // Promotes scheduled rides to a live dispatch the moment their time arrives -- a
 // scheduled ride sits as status='scheduled' with no driver pinged at all until this
