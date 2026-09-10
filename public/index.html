@@ -3862,9 +3862,13 @@ let _LOC_INTERVAL = null;
 // ── Leaflet tile helper ──────────────────────────────────────────
 // Leaflet's JS/CSS are self-hosted (public/vendor/leaflet) rather than pulled from a
 // CDN at runtime, so a blocked/slow third-party host can't take the map down. The map
-// TILE IMAGES still come from CARTO at runtime (no realistic way to self-host global
-// map tiles) -- _watchTiles below shows a small non-blocking note if those specifically
-// fail to load, without hiding the rest of the ride info.
+// TILE IMAGES still come from OpenStreetMap's own tile server at runtime (no realistic
+// way to self-host global map tiles) -- _watchTiles below shows a small non-blocking
+// note if those specifically fail to load, without hiding the rest of the ride info.
+// (Was CARTO's "voyager" basemap, which looked nicer, but CARTO locked their free
+// anonymous tiles behind a signup -- every tile started rendering as a big "get an API
+// key" placeholder image instead of an actual map. OSM's standard tile server needs no
+// key/account at all, so that can't happen again; the tradeoff is a plainer-looking map.)
 function _loadLeafletScript(){
   return new Promise((resolve,reject)=>{
     const s=document.createElement('script');
@@ -3896,9 +3900,9 @@ function _initLeaflet(){
   return _leafletLoadPromise;
 }
 function _tileLayer(map){
-  const layer=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
-    attribution:'© <a href="https://openstreetmap.org">OSM</a> © <a href="https://carto.com">CARTO</a>',
-    subdomains:'abcd',maxZoom:20
+  const layer=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    subdomains:'abc',maxZoom:19
   }).addTo(map);
   return layer;
 }
