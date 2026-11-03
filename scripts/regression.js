@@ -3,8 +3,14 @@
 // new change can't silently break something that used to work. Exits non-zero on any
 // failure so it can gate a push.
 //
-// Usage: rm -f pinktt.db*; node server.js & then:
+// Usage: rm -f pinktt.db*; AUTH_RATE_LIMIT_MAX=200 node server.js & then:
 //   NODE_PATH=/opt/node22/lib/node_modules node scripts/regression.js
+//
+// AUTH_RATE_LIMIT_MAX matters: a run signs in a dozen-plus times, and the login limiter
+// defaults to 20 per IP per 15 minutes held in memory. Without it, re-running the suite
+// against a still-running server inside that window gets throttled, and the failures look
+// like broken logins rather than a spent rate-limit budget. Start the server fresh too, so
+// the seeded demo data matches what these checks expect.
 //
 // Set PW_CHROMIUM_PATH to pin a specific browser binary (used in some sandboxes with a
 // pre-installed Chromium). Left unset -- e.g. in CI, after `playwright install chromium`
@@ -37,10 +43,10 @@ async function main() {
 
   // 2. Login for all four demo roles
   for (const [label, email, pass] of [
-    ['admin', 'admin@pink.tt', 'Elliot2004'],
-    ['rider', 'sarah@demo.pink.tt', 'Elliot2004'],
-    ['driver (approved)', 'aminah@demo.pink.tt', 'Elliot2004'],
-    ['driver (pending)', 'priya@demo.pink.tt', 'Elliot2004'],
+    ['admin', 'admin@pink.tt', 'elliot2004'],
+    ['rider', 'sarah@demo.pink.tt', 'elliot2004'],
+    ['driver (approved)', 'aminah@demo.pink.tt', 'elliot2004'],
+    ['driver (pending)', 'priya@demo.pink.tt', 'elliot2004'],
   ]) {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     const errors = [];
@@ -58,6 +64,68 @@ async function main() {
     await page.close();
   }
 
+  // 2b. The demo-account box must advertise credentials that actually work. The box had
+  // drifted out of step with what the server seeds (it printed one capitalisation of the
+  // password while the database held another), so every login on the page failed while
+  // looking perfectly correct. Reading the credentials out of the DOM and authenticating
+  // each one -- rather than asserting a hardcoded string -- means the box and the seed
+  // can never silently disagree again, whatever the password is changed to next.
+  {
+    const cfg = await (await fetch(BASE + '/api/config')).json();
+    record('demo accounts: /api/config advertises them', cfg.showDemoAccounts === true,
+      'showDemoAccounts=' + cfg.showDemoAccounts);
+
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.goto(BASE + '/');
+    await page.evaluate(() => localStorage.setItem('ptt_onboarded', '1'));
+    await page.evaluate(() => go('login'));
+    await page.waitForTimeout(1200);
+
+    const visible = await page.evaluate(() => {
+      const b = document.querySelector('.demo-box');
+      return b ? getComputedStyle(b).display !== 'none' : false;
+    });
+    record('demo accounts: box is visible on the login page', visible);
+
+    const creds = await page.evaluate(() =>
+      [...document.querySelectorAll('.demo-box .demo-row code')].map(c => c.textContent.trim()));
+    record('demo accounts: box lists four credential rows', creds.length === 4, creds.join(' | '));
+
+    // The printed rows and the one-tap buttons each carry their own copy of the password
+    // (text content vs. an onclick argument), so either can go stale on its own. Comparing
+    // the two sets as strings costs no login attempts -- which matters, because the login
+    // endpoint is rate-limited and this suite is already close to that budget. The clicks
+    // further down then prove the shared value actually authenticates, so one cheap string
+    // comparison plus four real sign-ins covers both copies.
+    const btnCreds = await page.evaluate(() =>
+      [...document.querySelectorAll('.demo-box button')]
+        .map(b => (b.getAttribute('onclick').match(/'([^']+)'\s*,\s*'([^']+)'/) || []).slice(1, 3).join(' / ')));
+    const sameSet = creds.length === btnCreds.length &&
+      [...creds].sort().join('|') === [...btnCreds].sort().join('|');
+    record('demo accounts: one-tap buttons match the printed credentials', sameSet,
+      sameSet ? '' : 'printed [' + creds.join(', ') + '] vs buttons [' + btnCreds.join(', ') + ']');
+
+    // Clicking each button is what proves the advertised password is real -- the box used
+    // to print a credential that looked right and failed every time. "Driver ✓" is also the
+    // account that had been left suspended in production (is_active=0), which fails *after*
+    // the password check with a different message, so asserting the landed page (not just
+    // that login returned something) is what catches that case too.
+    for (const [label, expected] of [['Rider', 'pg-rider'], ['Driver ✓', 'pg-driver'],
+                                     ['Pending', 'pg-driver'], ['Admin', 'pg-admin']]) {
+      const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      await p.goto(BASE + '/');
+      await p.evaluate(() => localStorage.setItem('ptt_onboarded', '1'));
+      await p.evaluate(() => go('login'));
+      await p.waitForTimeout(900);
+      await p.click(`.demo-box button:has-text("${label}")`);
+      await p.waitForTimeout(1800);
+      const landed = await p.evaluate(() => document.querySelector('.page.active')?.id);
+      record(`demo accounts: one-tap "${label}" signs in`, landed === expected, 'landed on ' + landed);
+      await p.close();
+    }
+    await page.close();
+  }
+
   // 3. Rider flow: book ride, tabs, no horizontal overflow at 320px
   {
     const page = await browser.newPage({ viewport: { width: 320, height: 700 } });
@@ -67,7 +135,7 @@ async function main() {
     await page.evaluate(() => localStorage.setItem('ptt_onboarded', '1'));
     await page.evaluate(() => go('login'));
     await page.fill('#l-email', 'sarah@demo.pink.tt');
-    await page.fill('#l-pass', 'Elliot2004');
+    await page.fill('#l-pass', 'elliot2004');
     await page.click('#l-btn');
     await page.waitForTimeout(1200);
 
@@ -98,7 +166,7 @@ async function main() {
     await page.evaluate(() => localStorage.setItem('ptt_onboarded', '1'));
     await page.evaluate(() => go('login'));
     await page.fill('#l-email', 'sarah@demo.pink.tt');
-    await page.fill('#l-pass', 'Elliot2004');
+    await page.fill('#l-pass', 'elliot2004');
     await page.click('#l-btn');
     await page.waitForTimeout(1500);
     const v = await page.evaluate(() => {
@@ -154,8 +222,8 @@ async function main() {
       body: JSON.stringify({ email, password }) })).token;
     const dbFor = async t => (await api('/api/db', { headers: { Authorization: 'Bearer ' + t } })).db;
 
-    const riderTok = await login('sarah@demo.pink.tt', 'Elliot2004');
-    const adminTok = await login('admin@pink.tt', 'Elliot2004');
+    const riderTok = await login('sarah@demo.pink.tt', 'elliot2004');
+    const adminTok = await login('admin@pink.tt', 'elliot2004');
     const rd = await dbFor(riderTok), ad = await dbFor(adminTok);
 
     const foreignEmails = rd.users.filter(u => u.email && u.email !== 'sarah@demo.pink.tt').length;
@@ -178,7 +246,7 @@ async function main() {
     await page.evaluate(() => localStorage.setItem('ptt_onboarded', '1'));
     await page.evaluate(() => go('login'));
     await page.fill('#l-email', 'admin@pink.tt');
-    await page.fill('#l-pass', 'Elliot2004');
+    await page.fill('#l-pass', 'elliot2004');
     await page.click('#l-btn');
     await page.waitForTimeout(1200);
     const onAdmin = await page.evaluate(() => document.querySelector('.page.active')?.id === 'pg-admin');

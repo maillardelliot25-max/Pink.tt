@@ -9,8 +9,12 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Deliberately on: the demo rider / approved driver / pending driver logins are how
+      # the app gets shown and tested on a real device. Note this also puts the admin
+      # credentials on the public login page, so set it back to "false" before the app is
+      # handed to real riders.
       - key: SHOW_DEMO_ACCOUNTS
-        value: "false"
+        value: "true"
       - key: JWT_SECRET
         generateValue: true
       - key: DATABASE_URL

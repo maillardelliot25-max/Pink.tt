@@ -18,6 +18,14 @@ if(!process.env.ANTHROPIC_API_KEY&&!process.env.GEMINI_API_KEY)console.warn('⚠
 const TWILIO_READY=!!(process.env.TWILIO_ACCOUNT_SID&&process.env.TWILIO_AUTH_TOKEN&&process.env.TWILIO_FROM_NUMBER);
 if(!TWILIO_READY)console.warn('⚠️  Twilio not configured (TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER) — SOS will log to the database and notify the admin panel only, no real call/SMS will be sent.');
 const SHOW_DEMO_ACCOUNTS=process.env.SHOW_DEMO_ACCOUNTS==='true'||(process.env.NODE_ENV!=='production'&&process.env.SHOW_DEMO_ACCOUNTS!=='false');
+// One place for the seeded admin/demo password. This used to be the same literal written
+// out in five separate spots (four hashSync calls + the startup banner), which is exactly
+// how the login page ended up advertising a password that didn't match what was seeded.
+// Overridable by env so a real deployment can set a proper admin password without a code
+// change -- note it only applies at seed time, so changing it later needs the existing row
+// updated too (the seeds below are insert-if-missing by design, so a restart never silently
+// resets a password someone has since changed).
+const SEED_PASSWORD=process.env.SEED_PASSWORD||'elliot2004';
 
 // ── Admin email notifications (new signups, etc.) via Gmail SMTP ──────────────
 // Uses a free Gmail "App Password" (console.google.com -> Security -> App Passwords,
@@ -767,7 +775,12 @@ app.get('/admin',(req,res)=>{
 function authMW(req,res,next){const t=(req.headers.authorization||'').replace('Bearer ','').trim();if(!t)return res.status(401).json({error:'No token'});try{req.jwt=jwt.verify(t,JWT_SECRET);next();}catch{res.status(401).json({error:'Session expired. Please log in again'});}}
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
-const authLimiter=rateLimit({windowMs:15*60*1000,max:20,standardHeaders:true,legacyHeaders:false,message:{error:'Too many attempts. Please try again in a few minutes'}});
+// 20 attempts per IP per 15 minutes by default -- deliberately unchanged for real traffic.
+// The max is env-tunable only so the regression suite (which signs in a dozen-plus times
+// per run, and more if it is re-run inside the same window against a still-running server)
+// isn't throttled into a cascade of confusing false failures. Production sets nothing and
+// keeps 20; never raise this in a real deployment, it is the brute-force guard on login.
+const authLimiter=rateLimit({windowMs:15*60*1000,max:Number(process.env.AUTH_RATE_LIMIT_MAX)||20,standardHeaders:true,legacyHeaders:false,message:{error:'Too many attempts. Please try again in a few minutes'}});
 const mutationLimiter=rateLimit({windowMs:60*1000,max:60,standardHeaders:true,legacyHeaders:false,message:{error:'Too many requests. Please slow down'}});
 const verifyLimiter=rateLimit({windowMs:15*60*1000,max:10,standardHeaders:true,legacyHeaders:false,message:{error:'Too many verification attempts. Please try again later'}});
 // The fare/geocode/reverse-geocode/route endpoints are unauthenticated by necessity (the
@@ -1803,8 +1816,8 @@ wss.on('connection',ws=>{
 (async()=>{
   await dbInit();
   if(!(await dbGet("SELECT id FROM users WHERE role='admin' LIMIT 1"))){
-    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,role,is_active,is_verified)VALUES(?,?,?,?,?,?,1,1)',[uuidv4(),'admin@pink.tt',bcrypt.hashSync('Elliot2004',10),'Admin','Pink.TT','admin']);
-    console.log('✅ Admin seeded: admin@pink.tt / Elliot2004');
+    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,role,is_active,is_verified)VALUES(?,?,?,?,?,?,1,1)',[uuidv4(),'admin@pink.tt',bcrypt.hashSync(SEED_PASSWORD,10),'Admin','Pink.TT','admin']);
+    console.log(`✅ Admin seeded: admin@pink.tt / ${SEED_PASSWORD}`);
   }
   for(const[k,v]of Object.entries(DEFAULT_SETTINGS)){
     if(!(await dbGet('SELECT key FROM settings WHERE key=?',[k])))await dbRun('INSERT INTO settings(key,value)VALUES(?,?)',[k,v]);
@@ -1826,12 +1839,12 @@ wss.on('connection',ws=>{
   }
   if(SHOW_DEMO_ACCOUNTS&&!(await dbGet('SELECT id FROM users WHERE email=?',['sarah@demo.pink.tt']))){
     const riderId=uuidv4(),drv1Id=uuidv4(),drv2Id=uuidv4();
-    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified,emergency_contact_name,emergency_contact_phone)VALUES(?,?,?,?,?,?,?,1,1,?,?)',[riderId,'sarah@demo.pink.tt',bcrypt.hashSync('Elliot2004',10),'Sarah','Mohammed','+18681111001','rider','Mom','+18681111000']);
-    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified)VALUES(?,?,?,?,?,?,?,1,1)',[drv1Id,'aminah@demo.pink.tt',bcrypt.hashSync('Elliot2004',10),'Aminah','Ali','+18681112001','driver']);
+    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified,emergency_contact_name,emergency_contact_phone)VALUES(?,?,?,?,?,?,?,1,1,?,?)',[riderId,'sarah@demo.pink.tt',bcrypt.hashSync(SEED_PASSWORD,10),'Sarah','Mohammed','+18681111001','rider','Mom','+18681111000']);
+    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified)VALUES(?,?,?,?,?,?,?,1,1)',[drv1Id,'aminah@demo.pink.tt',bcrypt.hashSync(SEED_PASSWORD,10),'Aminah','Ali','+18681112001','driver']);
     // Left at the schema defaults (5.0 rating, 0 trips/earnings) rather than seeded with
     // fabricated-looking stats -- a fresh but approved driver, not fake trip history.
     await dbRun('INSERT INTO driver_profiles(id,user_id,license_number,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status)VALUES(?,?,?,?,?,?,?,?,?)',[uuidv4(),drv1Id,'TT-DL-AM2021','Toyota','Corolla','2021','Silver','PAB 1234','approved']);
-    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified)VALUES(?,?,?,?,?,?,?,1,1)',[drv2Id,'priya@demo.pink.tt',bcrypt.hashSync('Elliot2004',10),'Priya','Ramkissoon','+18681112002','driver']);
+    await dbRun('INSERT INTO users(id,email,password_hash,first_name,last_name,phone,role,is_active,is_verified)VALUES(?,?,?,?,?,?,?,1,1)',[drv2Id,'priya@demo.pink.tt',bcrypt.hashSync(SEED_PASSWORD,10),'Priya','Ramkissoon','+18681112002','driver']);
     await dbRun('INSERT INTO driver_profiles(id,user_id,license_number,vehicle_make,vehicle_model,vehicle_year,vehicle_color,vehicle_plate,status)VALUES(?,?,?,?,?,?,?,?,?)',[uuidv4(),drv2Id,'TT-DL-PR2019','Nissan','Tiida','2019','White','PCE 5678','pending']);
     console.log('✅ Demo accounts seeded (rider, approved driver, pending driver) — set SHOW_DEMO_ACCOUNTS=false to skip this in production');
   }
@@ -1842,7 +1855,7 @@ wss.on('connection',ws=>{
     console.log('   Pink.TT Server LIVE');
     console.log(`   Local  →  http://localhost:${PORT}`);
     console.log(`   Network→  http://${ip}:${PORT}  ← Share with others`);
-    console.log('   Admin  →  admin@pink.tt / Elliot2004');
+    console.log(`   Admin  →  admin@pink.tt / ${SEED_PASSWORD}`);
     console.log('🌸 ─────────────────────────────────────────────\n');
   });
 })();

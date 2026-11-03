@@ -1033,15 +1033,15 @@ body.has-install-banner #shell{height:calc(100dvh - var(--ib-h,0px));margin-top:
     <div style="border-top:1px solid #f0f0f0;margin:18px 0"></div>
     <div class="demo-box">
       <p>Demo Accounts: Tap to sign in instantly</p>
-      <div class="demo-row"><span>Admin:</span><code style="font-size:10px">admin@pink.tt / Elliot2004</code></div>
-      <div class="demo-row" id="login-demo-row-rider"><span>Rider:</span><code style="font-size:10px">sarah@demo.pink.tt / Elliot2004</code></div>
-      <div class="demo-row"><span>Driver ✓:</span><code style="font-size:10px">aminah@demo.pink.tt / Elliot2004</code></div>
-      <div class="demo-row"><span>Driver ⏳:</span><code style="font-size:10px">priya@demo.pink.tt / Elliot2004</code></div>
+      <div class="demo-row"><span>Admin:</span><code style="font-size:10px">admin@pink.tt / elliot2004</code></div>
+      <div class="demo-row" id="login-demo-row-rider"><span>Rider:</span><code style="font-size:10px">sarah@demo.pink.tt / elliot2004</code></div>
+      <div class="demo-row"><span>Driver ✓:</span><code style="font-size:10px">aminah@demo.pink.tt / elliot2004</code></div>
+      <div class="demo-row"><span>Driver ⏳:</span><code style="font-size:10px">priya@demo.pink.tt / elliot2004</code></div>
       <div class="demo-btns">
-        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('admin@pink.tt','Elliot2004')">Admin</button>
-        <button class="btn bs bsm" style="flex:1;font-size:11px" id="login-demo-btn-rider" onclick="quickLoginDemo('sarah@demo.pink.tt','Elliot2004')">Rider</button>
-        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('aminah@demo.pink.tt','Elliot2004')">Driver ✓</button>
-        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('priya@demo.pink.tt','Elliot2004')">Pending</button>
+        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('admin@pink.tt','elliot2004')">Admin</button>
+        <button class="btn bs bsm" style="flex:1;font-size:11px" id="login-demo-btn-rider" onclick="quickLoginDemo('sarah@demo.pink.tt','elliot2004')">Rider</button>
+        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('aminah@demo.pink.tt','elliot2004')">Driver ✓</button>
+        <button class="btn bs bsm" style="flex:1;font-size:11px" onclick="quickLoginDemo('priya@demo.pink.tt','elliot2004')">Pending</button>
       </div>
     </div>
    </div>
@@ -1392,11 +1392,11 @@ const DB = { users:[], driver_tiers:[], complaints:[], recurring_schedules:[], s
 // ─── SEED DATA ──────────────────────────────────────────────────
 const ADMIN_ID=uid(),RIDER1_ID=uid(),RIDER2_ID=uid(),DRIVER1_ID=uid(),DRIVER2_ID=uid(),DP1_ID=uid(),DP2_ID=uid();
 DB.users.push(
-  {id:ADMIN_ID,email:'admin@pink.tt',phone:'+18681234567',password_hash:hp('Admin@PinkTT2024'),first_name:'Admin',last_name:'Pink.TT',role:'admin',gender:'female',is_verified:true,is_active:true,emergency_contact_name:null,emergency_contact_phone:null,created_at:ts()},
-  {id:RIDER1_ID,email:'sarah@demo.pink.tt',phone:'+18681111001',password_hash:hp('Rider@2024'),first_name:'Sarah',last_name:'Mohammed',role:'rider',gender:'female',is_verified:true,is_active:true,emergency_contact_name:'Mom',emergency_contact_phone:'+18681111000',wallet_balance:0,total_rides:3,created_at:ts()},
-  {id:RIDER2_ID,email:'kezia@demo.pink.tt',phone:'+18681111002',password_hash:hp('Rider@2024'),first_name:'Kezia',last_name:'Thomas',role:'rider',gender:'female',is_verified:true,is_active:true,emergency_contact_name:'Sister',emergency_contact_phone:'+18681111003',wallet_balance:0,total_rides:1,created_at:ts()},
-  {id:DRIVER1_ID,email:'aminah@demo.pink.tt',phone:'+18681112001',password_hash:hp('Driver@2024'),first_name:'Aminah',last_name:'Ali',role:'driver',gender:'female',is_verified:true,is_active:true,emergency_contact_name:null,emergency_contact_phone:null,created_at:ts()},
-  {id:DRIVER2_ID,email:'priya@demo.pink.tt',phone:'+18681112002',password_hash:hp('Driver@2024'),first_name:'Priya',last_name:'Ramkissoon',role:'driver',gender:'female',is_verified:true,is_active:true,emergency_contact_name:null,emergency_contact_phone:null,created_at:ts()}
+  {id:ADMIN_ID,email:'admin@pink.tt',phone:'+18681234567',password_hash:hp('elliot2004'),first_name:'Admin',last_name:'Pink.TT',role:'admin',gender:'female',is_verified:true,is_active:true,emergency_contact_name:null,emergency_contact_phone:null,created_at:ts()},
+  {id:RIDER1_ID,email:'sarah@demo.pink.tt',phone:'+18681111001',password_hash:hp('elliot2004'),first_name:'Sarah',last_name:'Mohammed',role:'rider',gender:'female',is_verified:true,is_active:true,emergency_contact_name:'Mom',emergency_contact_phone:'+18681111000',wallet_balance:0,total_rides:3,created_at:ts()},
+  {id:RIDER2_ID,email:'kezia@demo.pink.tt',phone:'+18681111002',password_hash:hp('elliot2004'),first_name:'Kezia',last_name:'Thomas',role:'rider',gender:'female',is_verified:true,is_active:true,emergency_contact_name:'Sister',emergency_contact_phone:'+18681111003',wallet_balance:0,total_rides:1,created_at:ts()},
+  {id:DRIVER1_ID,email:'aminah@demo.pink.tt',phone:'+18681112001',password_hash:hp('elliot2004'),first_name:'Aminah',last_name:'Ali',role:'driver',gender:'female',is_verified:true,is_active:true,emergency_contact_name:null,emergency_contact_phone:null,created_at:ts()},
+  {id:DRIVER2_ID,email:'priya@demo.pink.tt',phone:'+18681112002',password_hash:hp('elliot2004'),first_name:'Priya',last_name:'Ramkissoon',role:'driver',gender:'female',is_verified:true,is_active:true,emergency_contact_name:null,emergency_contact_phone:null,created_at:ts()}
 );
 DB.driver_profiles.push(
   {id:DP1_ID,user_id:DRIVER1_ID,license_number:'TT-DL-AM2021',license_expiry:'2026-12-31',vehicle_make:'Toyota',vehicle_model:'Corolla',vehicle_year:2021,vehicle_color:'Silver',vehicle_plate:'PAB 1234',status:'approved',is_online:false,current_lat:10.6549,current_lng:-61.5019,total_trips:47,total_earnings:2340.50,rating:4.8,rating_count:43,approved_at:ts(),created_at:ts()},
